@@ -27,8 +27,13 @@ if xcodebuild -version >/dev/null 2>&1; then
     -configuration Debug \
     build \
     CODE_SIGNING_ALLOWED=NO
+  xcodebuild \
+    -project PetDesk.xcodeproj \
+    -scheme PetDesk \
+    test \
+    CODE_SIGNING_ALLOWED=NO
 else
-  echo "NOTE: Full Xcode is unavailable; app-bundle build and XCUITest were skipped."
+  echo "NOTE: Full Xcode is unavailable; app-bundle build, XCTest, and XCUITest were skipped."
 fi
 
 echo "PetDesk verification completed."
