@@ -17,6 +17,7 @@ final class AppEnvironment: ObservableObject {
     didSet { defaults.set(quietMode, forKey: Keys.quietMode) }
   }
   @Published private(set) var avatarError: String?
+  @Published private(set) var avatarSourceImage: CGImage?
 
   let diagnostics = DiagnosticRecorder()
   let notificationCapability: NotificationCapability
@@ -134,6 +135,52 @@ final class AppEnvironment: ObservableObject {
       avatarError = "The image could not be imported."
       diagnostics.record(category: "avatar", message: "avatar-import-failed")
       AppLog.avatar.error("Avatar import failed")
+    }
+  }
+
+  func loadSourceForEdit(from url: URL) async {
+    guard let avatarRepository else {
+      avatarError = "Avatar storage is unavailable."
+      return
+    }
+    do {
+      let image = try await avatarRepository.loadSourceImage(from: url)
+      avatarSourceImage = image
+      avatarError = nil
+    } catch let error as AvatarImportError {
+      avatarError = Self.avatarMessage(for: error)
+    } catch {
+      avatarError = "The image could not be loaded."
+    }
+  }
+
+  func saveCroppedAvatar(_ image: CGImage) async {
+    guard let avatarRepository else {
+      avatarError = "Avatar storage is unavailable."
+      return
+    }
+    do {
+      let storedURL = try await avatarRepository.saveAvatar(image)
+      avatarImage = AvatarImageLoader.load(from: storedURL)
+      avatarSourceImage = nil
+      avatarError = nil
+      diagnostics.record(category: "avatar", message: "avatar-cropped")
+      AppLog.avatar.info("Avatar cropped and saved")
+    } catch {
+      avatarError = "The cropped image could not be saved."
+      diagnostics.record(category: "avatar", message: "avatar-crop-failed")
+    }
+  }
+
+  func resetAvatar() async {
+    guard let avatarRepository else { return }
+    do {
+      try await avatarRepository.resetAvatar()
+      avatarImage = nil
+      avatarError = nil
+      diagnostics.record(category: "avatar", message: "avatar-reset")
+    } catch {
+      avatarError = "Could not reset avatar."
     }
   }
 

@@ -5,6 +5,7 @@ struct SettingsView: View {
   @ObservedObject var environment: AppEnvironment
   @StateObject private var loginItem = LoginItemController()
   @State private var showingImporter = false
+  @State private var showingEditor = false
 
   var body: some View {
     Form {
@@ -12,7 +13,15 @@ struct SettingsView: View {
         HStack(spacing: 14) {
           AvatarView(image: environment.avatarImage)
             .frame(width: 64, height: 64)
-          Button("Choose Image", systemImage: "photo") { showingImporter = true }
+          VStack(alignment: .leading, spacing: 6) {
+            Button("Choose Image", systemImage: "photo") { showingImporter = true }
+            if environment.avatarImage != nil {
+              Button("Reset to Default", systemImage: "arrow.counterclockwise") {
+                Task { await environment.resetAvatar() }
+              }
+              .font(.caption)
+            }
+          }
         }
         if let avatarError = environment.avatarError {
           Text(avatarError).foregroundStyle(.red)
@@ -54,7 +63,34 @@ struct SettingsView: View {
       allowsMultipleSelection: false
     ) { result in
       guard case .success(let urls) = result, let url = urls.first else { return }
-      Task { await environment.importAvatar(from: url) }
+      Task {
+        await environment.loadSourceForEdit(from: url)
+        if environment.avatarSourceImage != nil {
+          showingEditor = true
+        }
+      }
+    }
+    .sheet(isPresented: $showingEditor) {
+      editorSheet
+    }
+  }
+
+  @ViewBuilder
+  private var editorSheet: some View {
+    if let sourceImage = environment.avatarSourceImage {
+      let nsImage = NSImage(
+        cgImage: sourceImage,
+        size: NSSize(width: sourceImage.width, height: sourceImage.height))
+      AvatarEditorView(
+        sourceImage: nsImage,
+        onConfirm: { cropped in
+          showingEditor = false
+          Task { await environment.saveCroppedAvatar(cropped) }
+        },
+        onCancel: {
+          showingEditor = false
+        }
+      )
     }
   }
 

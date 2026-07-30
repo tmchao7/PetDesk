@@ -72,4 +72,54 @@ public actor AvatarRepository {
     }
     return avatarURL
   }
+
+  public func loadSourceImage(from sourceURL: URL) throws -> CGImage {
+    let values = try sourceURL.resourceValues(forKeys: [.fileSizeKey])
+    try policy.validate(
+      byteCount: values.fileSize ?? 0,
+      fileExtension: sourceURL.pathExtension
+    )
+    guard let source = CGImageSourceCreateWithURL(sourceURL as CFURL, nil) else {
+      throw AvatarImportError.unreadableImage
+    }
+    let options: [CFString: Any] = [
+      kCGImageSourceCreateThumbnailFromImageAlways: true,
+      kCGImageSourceCreateThumbnailWithTransform: true,
+      kCGImageSourceThumbnailMaxPixelSize: policy.maximumPixelSize,
+    ]
+    guard let image = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary) else {
+      throw AvatarImportError.unreadableImage
+    }
+    return image
+  }
+
+  public func saveAvatar(_ image: CGImage) throws -> URL {
+    try fileManager.createDirectory(at: directoryURL, withIntermediateDirectories: true)
+    let temporaryURL = directoryURL.appendingPathComponent("avatar-import.png")
+    defer { try? fileManager.removeItem(at: temporaryURL) }
+    guard
+      let destination = CGImageDestinationCreateWithURL(
+        temporaryURL as CFURL,
+        UTType.png.identifier as CFString,
+        1,
+        nil
+      )
+    else { throw AvatarImportError.encodingFailed }
+    CGImageDestinationAddImage(destination, image, nil)
+    guard CGImageDestinationFinalize(destination) else {
+      throw AvatarImportError.encodingFailed
+    }
+
+    if fileManager.fileExists(atPath: avatarURL.path) {
+      _ = try fileManager.replaceItemAt(avatarURL, withItemAt: temporaryURL)
+    } else {
+      try fileManager.moveItem(at: temporaryURL, to: avatarURL)
+    }
+    return avatarURL
+  }
+
+  public func resetAvatar() throws {
+    guard fileManager.fileExists(atPath: avatarURL.path) else { return }
+    try fileManager.removeItem(at: avatarURL)
+  }
 }
