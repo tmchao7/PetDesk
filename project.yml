@@ -1,0 +1,71 @@
+name: PetDesk
+options:
+  bundleIdPrefix: io.github.tmchao7
+  deploymentTarget:
+    macOS: "26.0"
+  createIntermediateGroups: true
+  generateEmptyDirectories: true
+configs:
+  Debug: debug
+  Release: release
+configFiles:
+  Debug: Config/Debug.xcconfig
+  Release: Config/Release.xcconfig
+settings:
+  base:
+    ARCHS: arm64
+    MACOSX_DEPLOYMENT_TARGET: "26.0"
+    SWIFT_VERSION: "6.0"
+    SWIFT_STRICT_CONCURRENCY: complete
+    ENABLE_USER_SCRIPT_SANDBOXING: true
+targets:
+  PetDesk:
+    type: application
+    platform: macOS
+    sources:
+      - path: PetDesk
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: io.github.tmchao7.PetDesk
+        PRODUCT_NAME: PetDesk
+        CODE_SIGN_ENTITLEMENTS: Config/PetDesk.entitlements
+        ENABLE_HARDENED_RUNTIME: true
+        GENERATE_INFOPLIST_FILE: true
+        INFOPLIST_KEY_CFBundleDisplayName: PetDesk
+        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.productivity
+        INFOPLIST_KEY_LSUIElement: true
+        INFOPLIST_KEY_NSPrincipalClass: NSApplication
+  PetDeskTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - path: PetDeskTests
+    dependencies:
+      - target: PetDesk
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: io.github.tmchao7.PetDeskTests
+        GENERATE_INFOPLIST_FILE: true
+  PetDeskUITests:
+    type: bundle.ui-testing
+    platform: macOS
+    sources:
+      - path: PetDeskUITests
+    dependencies:
+      - target: PetDesk
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: io.github.tmchao7.PetDeskUITests
+        GENERATE_INFOPLIST_FILE: true
+schemes:
+  PetDesk:
+    build:
+      targets:
+        PetDesk: all
+        PetDeskTests: [test]
+        PetDeskUITests: [test]
+    test:
+      gatherCoverageData: true
+      targets:
+        - PetDeskTests
+        - PetDeskUITests

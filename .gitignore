@@ -1,0 +1,8 @@
+.DS_Store
+.build/
+DerivedData/
+PetDesk.xcodeproj/
+*.xcworkspace/xcuserdata/
+*.xcuserstate
+.superpowers/
+.swiftpm/xcode/package.xcworkspace/xcuserdata/
