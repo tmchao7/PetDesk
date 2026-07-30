@@ -1,3 +1,4 @@
+import CoreGraphics
 import Foundation
 import PetDeskCore
 
@@ -132,6 +133,22 @@ private func checkCoreServices() throws {
   var buffer = RingBuffer<Int>(capacity: 3)
   for value in 1...4 { buffer.append(value) }
   try expect(buffer.values == [2, 3, 4], "ring buffer should retain newest values")
+
+  let bitmapInfo = CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue)
+  guard
+    let ctx = CGContext(
+      data: nil, width: 100, height: 80, bitsPerComponent: 8,
+      bytesPerRow: 0, space: CGColorSpaceCreateDeviceRGB(),
+      bitmapInfo: bitmapInfo.rawValue),
+    let testImage = ctx.makeImage()
+  else {
+    throw CheckFailure(description: "could not create test CGImage")
+  }
+  let cropped = AvatarCropper.crop(
+    image: testImage, viewSize: 50, panOffset: .zero, zoomScale: 1.0, outputSize: 32)
+  try expect(cropped != nil, "AvatarCropper should produce a cropped image")
+  try expect(cropped?.width == 32, "cropped width should match outputSize")
+  try expect(cropped?.height == 32, "cropped height should match outputSize")
 }
 
 do {
