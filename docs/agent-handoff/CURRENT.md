@@ -2,40 +2,42 @@
 
 - Status: ready
 - Active owner: unassigned
-- Updated: 2026-07-30T16:43:56+0800
+- Updated: 2026-07-30T17:21:31+0800
 - Branch: `feat/petdesk-v1`
-- Latest implementation commit: `a2f2363`
-- Latest session: [MimoCode avatar-crop-editor](sessions/2026-07-30-1643-mimocode-avatar-crop-editor.md)
+- Latest implementation commit: `e8da88a`
+- Latest session: [Codex Xcode target identity fix](sessions/2026-07-30-1721-codex-xcode-target-identity-fix.md)
 
 ## Active Objective
 
-Continue PetDesk v1. Fourth MimoCode relay complete: implemented avatar crop/zoom/preview editor. Users can now pick an image, pan/zoom to adjust crop, toggle circle/rectangle shape, confirm to save, or reset to default. Next agent should install Xcode 26 for visual testing and wire the display mode to the pet window.
+Continue PetDesk v1. The Xcode 26 gate is now operational: duplicate module outputs, UI test signing, Swift 6 test compilation, and deterministic lifecycle synchronization are fixed. Full app build, 45 XCTest cases, and 2 XCUITest cases pass. Next agent should visually QA the avatar editor and persist/wire its display mode to the pet window.
 
 ## Repository Snapshot
 
 - PetDesk v1 implementation is on `feat/petdesk-v1`; `main` points to the original v1 baseline.
-- `origin` is `https://github.com/tmchao7/PetDesk.git'; this branch tracks `origin/feat/petdesk-v1`.
+- `origin` is `https://github.com/tmchao7/PetDesk.git`; this branch tracks `origin/feat/petdesk-v1`.
 - New avatar feature: AvatarCropState, AvatarCropper, AvatarEditorView, plus AvatarRepository save/reset and AppEnvironment edit flow.
 - SettingsView now shows editor sheet after file picker, with Reset to Default button.
+- Shared xcconfig no longer overrides target identities; `make verify` checks all three resolved product/module names.
+- Xcode 26.6 is installed and selected at `/Applications/Xcode.app/Contents/Developer`.
 
 ## Latest Verification
 
-- `make verify` passed on 2026-07-30: handoff tests, live handoff validation, Swift formatting lint, `PetDeskAppCheck`, `PetDeskCoreChecks` (including AvatarCropper check), entitlements lint, and XcodeGen generation all succeeded.
+- `make verify` passed on 2026-07-30 under Xcode 26.6: handoff validation, Swift format lint, `PetDeskAppCheck`, `PetDeskCoreChecks`, entitlements, target identity validation, app build, 45 XCTest cases, and 2 XCUITest cases succeeded.
 - `make lint` passed with no warnings.
-- Full Xcode app-bundle build, XCTest, and XCUITest were skipped because Xcode 26 is not installed.
 
 ## Blockers
 
-- Full Xcode 26 is not installed. Avatar editor has not been visually tested.
+- No automated-build blocker. Avatar editor and desktop-window behavior still need manual visual testing.
 
 ## Next Actions
 
-1. Install Xcode 26 and run `make generate && make verify` to exercise the full test gate.
-2. Visually test the avatar editor: import, pan, zoom, circle/rectangle toggle, confirm, reset.
-3. Wire `AvatarDisplayMode.original` to the pet window's `AvatarView` for transparent backgrounds.
-4. Add a live preview at pet window size (148x148) in the editor.
-5. Push `feat/petdesk-v1` to remote after owner approval.
-6. Create a new session record, update this file, run `make handoff-check` and `make verify`, commit handoff.
+1. Run `make verify`, then visually test avatar import, pan, zoom, circle/original preview, confirm, replacement, reset, and error states.
+2. Persist `AvatarDisplayMode` and wire it into `AvatarView` so original mode preserves transparent edges; add tests first.
+3. Add a 148x148 live pet preview to the editor.
+4. Manually test click-through, bubble geometry, Spaces, display removal, login item, and sleep/wake.
+5. Measure signed Release idle CPU/memory and 30-minute stability.
+6. Keep real WeChat/QQ notification integration deferred and push only after owner approval.
+7. Create a new session record, update this file, run `make handoff-check` and `make verify`, then commit the handoff.
 
 ## Working Rules
 
