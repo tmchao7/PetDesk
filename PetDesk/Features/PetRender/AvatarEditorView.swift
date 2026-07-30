@@ -6,14 +6,28 @@ import SwiftUI
 
 struct AvatarEditorView: View {
   let sourceImage: NSImage
-  let onConfirm: (CGImage) -> Void
+  let initialDisplayMode: AvatarDisplayMode
+  let onConfirm: (_ image: CGImage, _ displayMode: AvatarDisplayMode) -> Void
   let onCancel: () -> Void
 
   @State private var panOffset: CGSize = .zero
   @State private var zoomScale: CGFloat = 1.0
-  @State private var displayMode: AvatarDisplayMode = .circle
+  @State private var displayMode: AvatarDisplayMode
 
   private let cropSize: CGFloat = 240
+
+  init(
+    sourceImage: NSImage,
+    initialDisplayMode: AvatarDisplayMode = .circle,
+    onConfirm: @escaping (_ image: CGImage, _ displayMode: AvatarDisplayMode) -> Void,
+    onCancel: @escaping () -> Void
+  ) {
+    self.sourceImage = sourceImage
+    self.initialDisplayMode = initialDisplayMode
+    self.onConfirm = onConfirm
+    self.onCancel = onCancel
+    self._displayMode = State(initialValue: initialDisplayMode)
+  }
 
   var body: some View {
     VStack(spacing: 16) {
@@ -39,6 +53,35 @@ struct AvatarEditorView: View {
       }
       .frame(width: cropSize, height: cropSize)
       .clipShape(displayMode == .circle ? AnyShape(Circle()) : AnyShape(Rectangle()))
+      .shadow(color: .black.opacity(0.18), radius: 9, y: 5)
+
+      Text("Pet preview (148 × 148)")
+        .font(.caption)
+        .foregroundStyle(.secondary)
+
+      ZStack {
+        Image(nsImage: sourceImage)
+          .resizable()
+          .aspectRatio(contentMode: .fill)
+          .frame(width: 148, height: 148)
+          .scaleEffect(zoomScale)
+          .offset(panOffset)
+          .clipped()
+        if displayMode == .circle {
+          Circle()
+            .stroke(Color.white, lineWidth: 3)
+            .frame(width: 148, height: 148)
+        }
+      }
+      .frame(width: 148, height: 148)
+      .clipShape(
+        displayMode == .circle ? AnyShape(Circle()) : AnyShape(RoundedRectangle(cornerRadius: 16))
+      )
+      .overlay(
+        (displayMode == .circle
+          ? AnyShape(Circle())
+          : AnyShape(RoundedRectangle(cornerRadius: 16))).stroke(.white, lineWidth: 3)
+      )
       .shadow(color: .black.opacity(0.18), radius: 9, y: 5)
 
       HStack(spacing: 12) {
@@ -103,7 +146,7 @@ struct AvatarEditorView: View {
       zoomScale: zoomScale,
       outputSize: 1024
     ) {
-      onConfirm(cropped)
+      onConfirm(cropped, displayMode)
     }
   }
 }
