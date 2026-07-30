@@ -1,0 +1,16 @@
+#!/bin/zsh
+set -euo pipefail
+
+root=$(git rev-parse --show-toplevel)
+cd "$root"
+
+git diff --cached --check
+
+swift_files=("${(@f)$(git diff --cached --name-only --diff-filter=ACMR -- '*.swift')}")
+if (( ${#swift_files[@]} > 0 )) && [[ -n "${swift_files[1]:-}" ]]; then
+  swift format lint "${swift_files[@]}"
+fi
+
+if git diff --cached --name-only --diff-filter=ACMR | rg -q '(^|/)(Package\.swift|project\.yml|.*\.swift)$'; then
+  swift run PetDeskCoreChecks
+fi

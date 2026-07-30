@@ -1,6 +1,8 @@
 #!/bin/zsh
 set -euo pipefail
 
+./scripts/setup-git.sh
+
 if ! command -v xcodegen >/dev/null 2>&1; then
   if command -v brew >/dev/null 2>&1; then
     brew install xcodegen

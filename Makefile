@@ -1,9 +1,12 @@
 SHELL := /bin/zsh
 
-.PHONY: bootstrap generate build test lint format verify run clean
+.PHONY: bootstrap setup-git generate build test lint format verify run clean
 
 bootstrap:
 	./scripts/bootstrap.sh
+
+setup-git:
+	./scripts/setup-git.sh
 
 generate:
 	@command -v xcodegen >/dev/null || (echo "Install XcodeGen with: brew install xcodegen" && exit 1)

@@ -11,6 +11,7 @@ PetDesk is a native macOS 26 desktop companion. It animates an imported avatar i
 ## Development
 
 ```bash
+make setup-git
 make bootstrap
 make generate
 make test
@@ -18,6 +19,10 @@ make run
 ```
 
 The generated Xcode project is local output. `project.yml` is the reviewed project definition. The Swift package exists to test the non-UI core without generating an app bundle.
+
+## Contributing
+
+Repository rules are documented in `CONTRIBUTING.md`. Branch naming, Conventional Commits, hooks, pull requests, recovery, and release tagging are defined in `docs/development/git-workflow.md`. Coding agents must also follow `AGENTS.md` and their tool-specific entry file.
 
 ## Privacy
 

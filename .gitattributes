@@ -1,0 +1,15 @@
+* text=auto eol=lf
+
+*.swift text diff
+*.md text diff
+*.yml text diff
+*.yaml text diff
+*.xcconfig text diff
+*.sh text eol=lf
+Makefile text eol=lf
+
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.heic binary
+*.icns binary
