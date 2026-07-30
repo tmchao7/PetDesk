@@ -1,4 +1,6 @@
+import ImageIO
 import Synchronization
+import UniformTypeIdentifiers
 import XCTest
 
 #if SWIFT_PACKAGE
@@ -179,6 +181,145 @@ final class AppEnvironmentTests: XCTestCase {
     XCTAssertEqual(env.avatarDisplayMode, .original)
   }
 
+  // MARK: - Avatar lifecycle
+
+  @MainActor
+  func testAvatarImportLoadsImage() async throws {
+    let tmp = tempDirectory()
+    defer { try? FileManager.default.removeItem(at: tmp) }
+    let repo = try AvatarRepository(directoryURL: tmp)
+    let sourceURL = try writeTestPNG(in: tmp, size: 64)
+    let env = AppEnvironment(defaults: defaults, signalSources: [], avatarRepository: repo)
+
+    await env.importAvatar(from: sourceURL)
+
+    XCTAssertNotNil(env.avatarImage, "import should load avatar image")
+    XCTAssertNil(env.avatarError, "import should clear error")
+  }
+
+  @MainActor
+  func testAvatarImportRejectsInvalidFile() async throws {
+    let tmp = tempDirectory()
+    defer { try? FileManager.default.removeItem(at: tmp) }
+    let repo = try AvatarRepository(directoryURL: tmp)
+    let garbageURL = tmp.appendingPathComponent("bad.png")
+    try FileManager.default.createDirectory(at: tmp, withIntermediateDirectories: true)
+    try Data([0xFF, 0xD8, 0x00, 0x00]).write(to: garbageURL)
+    let env = AppEnvironment(defaults: defaults, signalSources: [], avatarRepository: repo)
+
+    await env.importAvatar(from: garbageURL)
+
+    XCTAssertNil(env.avatarImage, "invalid file should not load avatar")
+    XCTAssertNotNil(env.avatarError, "invalid file should produce error")
+  }
+
+  @MainActor
+  func testSaveCroppedAvatarUpdatesImage() async throws {
+    let tmp = tempDirectory()
+    defer { try? FileManager.default.removeItem(at: tmp) }
+    let repo = try AvatarRepository(directoryURL: tmp)
+    let env = AppEnvironment(defaults: defaults, signalSources: [], avatarRepository: repo)
+
+    let cgImage = try makeTestCGImage(width: 64, height: 64)
+    await env.saveCroppedAvatar(cgImage)
+
+    XCTAssertNotNil(env.avatarImage, "save should update avatar image")
+    XCTAssertNil(env.avatarError, "save should clear error")
+  }
+
+  @MainActor
+  func testResetAvatarClearsImage() async throws {
+    let tmp = tempDirectory()
+    defer { try? FileManager.default.removeItem(at: tmp) }
+    let repo = try AvatarRepository(directoryURL: tmp)
+    let env = AppEnvironment(defaults: defaults, signalSources: [], avatarRepository: repo)
+
+    let cgImage = try makeTestCGImage(width: 64, height: 64)
+    await env.saveCroppedAvatar(cgImage)
+    XCTAssertNotNil(env.avatarImage)
+
+    await env.resetAvatar()
+
+    XCTAssertNil(env.avatarImage, "reset should clear avatar image")
+    XCTAssertNil(env.avatarError, "reset should clear error")
+  }
+
+  @MainActor
+  func testFullAvatarLifecycleImportCropReplaceReset() async throws {
+    let tmp = tempDirectory()
+    defer { try? FileManager.default.removeItem(at: tmp) }
+    let repo = try AvatarRepository(directoryURL: tmp)
+    let sourceURL = try writeTestPNG(in: tmp, size: 128)
+    let env = AppEnvironment(defaults: defaults, signalSources: [], avatarRepository: repo)
+
+    // 1. Import
+    await env.importAvatar(from: sourceURL)
+    XCTAssertNotNil(env.avatarImage, "step 1: import should load image")
+
+    // 2. Crop and save with display mode
+    let cropped = try makeTestCGImage(width: 64, height: 64)
+    env.avatarDisplayMode = .original
+    await env.saveCroppedAvatar(cropped)
+    XCTAssertNotNil(env.avatarImage, "step 2: save should update image")
+    XCTAssertEqual(env.avatarDisplayMode, .original, "step 2: display mode should be original")
+
+    // 3. Replace with new image
+    let sourceURL2 = try writeTestPNG(in: tmp, name: "source2.png", size: 200)
+    await env.importAvatar(from: sourceURL2)
+    XCTAssertNotNil(env.avatarImage, "step 3: replace should load new image")
+
+    // 4. Reset
+    await env.resetAvatar()
+    XCTAssertNil(env.avatarImage, "step 4: reset should clear image")
+  }
+
+  @MainActor
+  func testAvatarPersistsAcrossRestart() async throws {
+    let tmp = tempDirectory()
+    defer { try? FileManager.default.removeItem(at: tmp) }
+    let repo = try AvatarRepository(directoryURL: tmp)
+
+    // First instance: save avatar
+    let env1 = AppEnvironment(defaults: defaults, signalSources: [], avatarRepository: repo)
+    let cgImage = try makeTestCGImage(width: 64, height: 64)
+    await env1.saveCroppedAvatar(cgImage)
+    XCTAssertNotNil(env1.avatarImage)
+
+    // Second instance: should load stored avatar on start
+    let env2 = AppEnvironment(defaults: defaults, signalSources: [], avatarRepository: repo)
+    env2.start()
+    await yieldToScheduler()
+    await yieldToScheduler()
+
+    XCTAssertNotNil(env2.avatarImage, "avatar should persist across restart")
+    env2.stop()
+  }
+
+  @MainActor
+  func testDisplayModePersistsAcrossRestart() async throws {
+    let env1 = AppEnvironment(defaults: defaults, signalSources: [])
+    env1.avatarDisplayMode = .original
+    XCTAssertEqual(defaults.string(forKey: "avatarDisplayMode"), "original")
+
+    // New instance should restore the mode
+    let env2 = AppEnvironment(defaults: defaults, signalSources: [])
+    XCTAssertEqual(env2.avatarDisplayMode, .original, "display mode should persist across restart")
+  }
+
+  @MainActor
+  func testLoadSourceForEditSetsSourceImage() async throws {
+    let tmp = tempDirectory()
+    defer { try? FileManager.default.removeItem(at: tmp) }
+    let repo = try AvatarRepository(directoryURL: tmp)
+    let sourceURL = try writeTestPNG(in: tmp, size: 200)
+    let env = AppEnvironment(defaults: defaults, signalSources: [], avatarRepository: repo)
+
+    await env.loadSourceForEdit(from: sourceURL)
+
+    XCTAssertNotNil(env.avatarSourceImage, "loadSourceForEdit should set source image")
+    XCTAssertNil(env.avatarError)
+  }
+
   // MARK: - Quiet mode
 
   @MainActor
@@ -218,5 +359,39 @@ final class AppEnvironmentTests: XCTestCase {
   @MainActor
   private func yieldToScheduler() async {
     for _ in 0..<10 { await Task.yield() }
+  }
+
+  private func tempDirectory() -> URL {
+    FileManager.default.temporaryDirectory
+      .appendingPathComponent("AppEnvTests-\(UUID().uuidString)")
+  }
+
+  private func writeTestPNG(in directory: URL, name: String = "source.png", size: Int) throws
+    -> URL
+  {
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    let url = directory.appendingPathComponent(name)
+    let image = try makeTestCGImage(width: size, height: size)
+    guard
+      let destination = CGImageDestinationCreateWithURL(
+        url as CFURL, UTType.png.identifier as CFString, 1, nil)
+    else { throw NSError(domain: "test", code: 2) }
+    CGImageDestinationAddImage(destination, image, nil)
+    guard CGImageDestinationFinalize(destination) else {
+      throw NSError(domain: "test", code: 3)
+    }
+    return url
+  }
+
+  private func makeTestCGImage(width: Int, height: Int) throws -> CGImage {
+    let bitmapInfo = CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue)
+    guard
+      let context = CGContext(
+        data: nil, width: width, height: height, bitsPerComponent: 8,
+        bytesPerRow: 0, space: CGColorSpaceCreateDeviceRGB(),
+        bitmapInfo: bitmapInfo.rawValue),
+      let image = context.makeImage()
+    else { throw NSError(domain: "test", code: 1) }
+    return image
   }
 }
