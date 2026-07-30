@@ -80,7 +80,11 @@ private func checkCoreServices() throws {
   var idleCalc = CPULoadCalculator()
   _ = idleCalc.record(CPUTicks(user: 0, system: 0, idle: 1_000, nice: 0))
   let idleLoad = idleCalc.record(CPUTicks(user: 0, system: 0, idle: 2_000, nice: 0))
-  try expect(idleLoad != nil && abs(idleLoad! - 0.0) < 0.0001, "idle CPU should return zero load")
+  if let load = idleLoad {
+    try expect(abs(load - 0.0) < 0.0001, "idle CPU should return zero load")
+  } else {
+    throw CheckFailure(description: "idle CPU should return a non-nil load")
+  }
 
   var focus = FocusSession(duration: .seconds(120), idlePauseAfter: .seconds(60))
   focus.start()

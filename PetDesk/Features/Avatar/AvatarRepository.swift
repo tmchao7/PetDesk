@@ -51,6 +51,7 @@ public actor AvatarRepository {
 
     try fileManager.createDirectory(at: directoryURL, withIntermediateDirectories: true)
     let temporaryURL = directoryURL.appendingPathComponent("avatar-import.png")
+    defer { try? fileManager.removeItem(at: temporaryURL) }
     guard
       let destination = CGImageDestinationCreateWithURL(
         temporaryURL as CFURL,
