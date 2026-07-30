@@ -31,7 +31,7 @@ struct AvatarEditorView: View {
 
   var body: some View {
     VStack(spacing: 16) {
-      Text("Adjust your avatar")
+      Text("调整头像")
         .font(.headline)
 
       ZStack {
@@ -55,7 +55,7 @@ struct AvatarEditorView: View {
       .clipShape(displayMode == .circle ? AnyShape(Circle()) : AnyShape(Rectangle()))
       .shadow(color: .black.opacity(0.18), radius: 9, y: 5)
 
-      Text("Pet preview (148 × 148)")
+      Text("桌宠预览 (148 × 148)")
         .font(.caption)
         .foregroundStyle(.secondary)
 
@@ -85,7 +85,7 @@ struct AvatarEditorView: View {
       .shadow(color: .black.opacity(0.18), radius: 9, y: 5)
 
       HStack(spacing: 12) {
-        Button("Reset") {
+        Button("重置") {
           withAnimation {
             panOffset = .zero
             zoomScale = 1.0
@@ -94,7 +94,7 @@ struct AvatarEditorView: View {
         .buttonStyle(.bordered)
         .disabled(panOffset == .zero && zoomScale == 1.0)
 
-        Picker("Shape", selection: $displayMode) {
+        Picker("形状", selection: $displayMode) {
           Image(systemName: "circle").tag(AvatarDisplayMode.circle)
           Image(systemName: "square").tag(AvatarDisplayMode.original)
         }
@@ -103,11 +103,11 @@ struct AvatarEditorView: View {
       }
 
       HStack(spacing: 12) {
-        Button("Cancel", role: .cancel) { onCancel() }
+        Button("取消", role: .cancel) { onCancel() }
           .buttonStyle(.bordered)
           .keyboardShortcut(.cancelAction)
 
-        Button("Use Avatar") { confirmCrop() }
+        Button("使用头像") { confirmCrop() }
           .buttonStyle(.borderedProminent)
           .keyboardShortcut(.defaultAction)
       }

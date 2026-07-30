@@ -9,27 +9,27 @@ struct MenuBarView: View {
   @Environment(\.openWindow) private var openWindow
 
   var body: some View {
-    Button("Show or Hide Pet", systemImage: "eye") { togglePet() }
+    Button("显示/隐藏桌宠", systemImage: "eye") { togglePet() }
 
     if environment.focusSession.phase == .running
       || environment.focusSession.phase == .pausedForIdle
     {
-      Button("Cancel Focus", systemImage: "xmark.circle") { environment.cancelFocus() }
+      Button("取消专注", systemImage: "xmark.circle") { environment.cancelFocus() }
     } else {
-      Button("Start 25-minute Focus", systemImage: "timer") { environment.startFocus() }
+      Button("开始 25 分钟专注", systemImage: "timer") { environment.startFocus() }
     }
 
-    Toggle("Quiet Mode", systemImage: "speaker.slash", isOn: $environment.quietMode)
+    Toggle("静音模式", systemImage: "speaker.slash", isOn: $environment.quietMode)
 
     Divider()
 
-    Button("Diagnostics", systemImage: "waveform.path.ecg") {
+    Button("诊断日志", systemImage: "waveform.path.ecg") {
       openWindow(id: "diagnostics")
     }
-    Button("Settings", systemImage: "gearshape") { openSettings() }
+    Button("设置", systemImage: "gearshape") { openSettings() }
 
     Divider()
 
-    Button("Quit PetDesk", systemImage: "power") { NSApplication.shared.terminate(nil) }
+    Button("退出 PetDesk", systemImage: "power") { NSApplication.shared.terminate(nil) }
   }
 }

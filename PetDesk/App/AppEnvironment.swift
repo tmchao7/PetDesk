@@ -128,7 +128,7 @@ final class AppEnvironment: ObservableObject {
 
   func importAvatar(from url: URL) async {
     guard let avatarRepository else {
-      avatarError = "Avatar storage is unavailable."
+      avatarError = "头像存储不可用。"
       return
     }
     do {
@@ -142,7 +142,7 @@ final class AppEnvironment: ObservableObject {
       diagnostics.record(category: "avatar", message: "avatar-import-failed")
       AppLog.avatar.error("Avatar import failed")
     } catch {
-      avatarError = "The image could not be imported."
+      avatarError = "图片导入失败。"
       diagnostics.record(category: "avatar", message: "avatar-import-failed")
       AppLog.avatar.error("Avatar import failed")
     }
@@ -150,7 +150,7 @@ final class AppEnvironment: ObservableObject {
 
   func loadSourceForEdit(from url: URL) async {
     guard let avatarRepository else {
-      avatarError = "Avatar storage is unavailable."
+      avatarError = "头像存储不可用。"
       return
     }
     do {
@@ -160,13 +160,13 @@ final class AppEnvironment: ObservableObject {
     } catch let error as AvatarImportError {
       avatarError = Self.avatarMessage(for: error)
     } catch {
-      avatarError = "The image could not be loaded."
+      avatarError = "图片加载失败。"
     }
   }
 
   func saveCroppedAvatar(_ image: CGImage) async {
     guard let avatarRepository else {
-      avatarError = "Avatar storage is unavailable."
+      avatarError = "头像存储不可用。"
       return
     }
     do {
@@ -177,7 +177,7 @@ final class AppEnvironment: ObservableObject {
       diagnostics.record(category: "avatar", message: "avatar-cropped")
       AppLog.avatar.info("Avatar cropped and saved")
     } catch {
-      avatarError = "The cropped image could not be saved."
+      avatarError = "裁切后的图片保存失败。"
       diagnostics.record(category: "avatar", message: "avatar-crop-failed")
     }
   }
@@ -190,7 +190,7 @@ final class AppEnvironment: ObservableObject {
       avatarError = nil
       diagnostics.record(category: "avatar", message: "avatar-reset")
     } catch {
-      avatarError = "Could not reset avatar."
+      avatarError = "头像重置失败。"
     }
   }
 
@@ -274,10 +274,10 @@ final class AppEnvironment: ObservableObject {
 
   private static func avatarMessage(for error: AvatarImportError) -> String {
     switch error {
-    case .fileTooLarge: "Choose an image smaller than 20 MB."
-    case .unsupportedType: "Choose a PNG, JPEG, or HEIC image."
-    case .unreadableImage: "The selected file is not a readable image."
-    case .encodingFailed: "The image could not be saved."
+    case .fileTooLarge: "请选择小于 20 MB 的图片。"
+    case .unsupportedType: "请选择 PNG、JPEG 或 HEIC 格式的图片。"
+    case .unreadableImage: "无法读取所选文件。"
+    case .encodingFailed: "图片保存失败。"
     }
   }
 }

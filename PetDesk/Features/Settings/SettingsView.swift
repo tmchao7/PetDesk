@@ -9,14 +9,14 @@ struct SettingsView: View {
 
   var body: some View {
     Form {
-      Section("Avatar") {
+      Section("头像") {
         HStack(spacing: 14) {
           AvatarView(image: environment.avatarImage, displayMode: environment.avatarDisplayMode)
             .frame(width: 64, height: 64)
           VStack(alignment: .leading, spacing: 6) {
-            Button("Choose Image", systemImage: "photo") { showingImporter = true }
+            Button("选择图片", systemImage: "photo") { showingImporter = true }
             if environment.avatarImage != nil {
-              Button("Reset to Default", systemImage: "arrow.counterclockwise") {
+              Button("恢复默认", systemImage: "arrow.counterclockwise") {
                 Task { await environment.resetAvatar() }
               }
               .font(.caption)
@@ -26,15 +26,15 @@ struct SettingsView: View {
         if let avatarError = environment.avatarError {
           Text(avatarError).foregroundStyle(.red)
         }
-        Text("PNG, JPEG, or HEIC. Maximum 20 MB.")
+        Text("支持 PNG、JPEG 或 HEIC，最大 20 MB。")
           .font(.caption)
           .foregroundStyle(.secondary)
       }
 
-      Section("Behavior") {
-        Toggle("Quiet mode", isOn: $environment.quietMode)
+      Section("行为") {
+        Toggle("静音模式", isOn: $environment.quietMode)
         Toggle(
-          "Open at login",
+          "登录时启动",
           isOn: Binding(
             get: { loginItem.isEnabled },
             set: { loginItem.setEnabled($0) }
@@ -45,12 +45,12 @@ struct SettingsView: View {
         }
       }
 
-      Section("Integrations") {
-        LabeledContent("WeChat / QQ notifications") {
+      Section("集成") {
+        LabeledContent("微信 / QQ 通知") {
           Text(notificationStatus)
             .foregroundStyle(.secondary)
         }
-        Text("PetDesk never reads message text or contact names.")
+        Text("PetDesk 不会读取消息内容或联系人姓名。")
           .font(.caption)
           .foregroundStyle(.secondary)
       }
@@ -98,8 +98,8 @@ struct SettingsView: View {
 
   private var notificationStatus: String {
     switch environment.notificationCapability {
-    case .available: "Available"
-    case .unsupported: "Unsupported on this system"
+    case .available: "可用"
+    case .unsupported: "当前系统不支持"
     }
   }
 }

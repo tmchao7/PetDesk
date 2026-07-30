@@ -39,12 +39,34 @@ struct PetView: View {
           withAnimation(.snappy(duration: 0.22)) { environment.quickActionsVisible.toggle() }
         }
         .contextMenu {
-          Button("Start Focus", systemImage: "timer") { environment.startFocus() }
+          if environment.focusSession.phase == .running
+            || environment.focusSession.phase == .pausedForIdle
+          {
+            Button("取消专注", systemImage: "xmark.circle") { environment.cancelFocus() }
+          } else {
+            Button("开始专注", systemImage: "timer") { environment.startFocus() }
+          }
+
           Button(
-            environment.quietMode ? "Disable Quiet Mode" : "Enable Quiet Mode",
-            systemImage: "speaker.slash"
+            environment.quietMode ? "关闭静音" : "开启静音",
+            systemImage: environment.quietMode ? "speaker.wave.2" : "speaker.slash"
           ) {
             environment.quietMode.toggle()
+          }
+
+          Divider()
+
+          Button("设置", systemImage: "gearshape") {
+            NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+          }
+          Button("诊断日志", systemImage: "waveform.path.ecg") {
+            NSApp.sendAction(Selector(("showDiagnosticsWindow:")), to: nil, from: nil)
+          }
+
+          Divider()
+
+          Button("隐藏桌宠", systemImage: "eye.slash") {
+            environment.quickActionsVisible = false
           }
         }
       }

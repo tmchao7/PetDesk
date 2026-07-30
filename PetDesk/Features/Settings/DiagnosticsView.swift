@@ -8,11 +8,11 @@ struct DiagnosticsView: View {
     VStack(alignment: .leading, spacing: 0) {
       HStack {
         VStack(alignment: .leading, spacing: 3) {
-          Text("Diagnostics").font(.headline)
+          Text("诊断日志").font(.headline)
           Text(statusLine).font(.caption).foregroundStyle(.secondary)
         }
         Spacer()
-        Button("Copy", systemImage: "doc.on.doc") { copyReport() }
+        Button("复制", systemImage: "doc.on.doc") { copyReport() }
       }
       .padding(16)
 

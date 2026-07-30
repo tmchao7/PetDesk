@@ -68,8 +68,8 @@ final class PetDeskSmokeTests: XCTestCase {
 
     // After tapping, a bubble or quick actions should appear
     let bubble = app.descendants(matching: .any).matching(identifier: "pet.bubble").firstMatch
-    let focusButton = app.buttons["Focus"]
-    let quietButton = app.buttons["Quiet"]
+    let focusButton = app.buttons["专注"]
+    let quietButton = app.buttons["静音"]
 
     let appeared =
       bubble.waitForExistence(timeout: 2)

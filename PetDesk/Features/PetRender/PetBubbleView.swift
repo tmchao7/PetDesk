@@ -15,13 +15,13 @@ struct PetBubbleView: View {
         .lineLimit(2)
       HStack(spacing: 8) {
         if environment.snapshot.bubble == .stretchReminder {
-          action("Done", icon: "checkmark") { environment.acknowledgeActivityBreak() }
-          action("10 min", icon: "clock") { environment.snoozeActivityReminder() }
+          action("完成了", icon: "checkmark") { environment.acknowledgeActivityBreak() }
+          action("10 分钟", icon: "clock") { environment.snoozeActivityReminder() }
         } else if environment.snapshot.bubble == .focusComplete {
-          action("Again", icon: "arrow.clockwise") { environment.startFocus() }
+          action("再来一次", icon: "arrow.clockwise") { environment.startFocus() }
         } else {
-          action("Focus", icon: "timer") { environment.startFocus() }
-          action("Quiet", icon: environment.quietMode ? "speaker.wave.2" : "speaker.slash") {
+          action("专注", icon: "timer") { environment.startFocus() }
+          action("静音", icon: environment.quietMode ? "speaker.wave.2" : "speaker.slash") {
             environment.quietMode.toggle()
           }
         }
@@ -36,10 +36,10 @@ struct PetBubbleView: View {
 
   private var title: String {
     switch environment.snapshot.bubble {
-    case .focusComplete: "Focus complete. Nice work."
-    case .stretchReminder: "Time to stand up and stretch."
-    case .focusInvite: "Start a focus session?"
-    case nil: showingQuickActions ? "What should we do next?" : ""
+    case .focusComplete: "专注完成，辛苦了！"
+    case .stretchReminder: "站起来活动一下吧。"
+    case .focusInvite: "开始专注？"
+    case nil: showingQuickActions ? "接下来做什么？" : ""
     }
   }
 
