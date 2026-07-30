@@ -43,6 +43,19 @@ final class AppEnvironment: ObservableObject {
     self.avatarRepository = try? AvatarRepository()
   }
 
+  init(
+    defaults: UserDefaults = .standard,
+    signalSources: [any PetSignalSource],
+    notificationCapability: NotificationCapability = .unsupported(.sourceApplicationUnavailable),
+    avatarRepository: AvatarRepository? = nil
+  ) {
+    self.defaults = defaults
+    self.quietMode = defaults.bool(forKey: Keys.quietMode)
+    self.notificationCapability = notificationCapability
+    self.signalSources = signalSources
+    self.avatarRepository = avatarRepository
+  }
+
   func start() {
     guard tasks.isEmpty else { return }
     for source in signalSources {

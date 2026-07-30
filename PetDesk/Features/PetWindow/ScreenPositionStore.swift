@@ -17,9 +17,8 @@ final class ScreenPositionStore {
     self.defaults = defaults
   }
 
-  func restore(size: NSSize, screens: [NSScreen]) -> NSRect {
-    let visibleFrames = screens.map(\.visibleFrame)
-    let fallbackFrame = defaultFrame(size: size, screens: screens)
+  func restore(size: NSSize, visibleFrames: [CGRect]) -> NSRect {
+    let fallbackFrame = defaultFrame(size: size, visibleFrames: visibleFrames)
     guard defaults.object(forKey: Keys.x) != nil, defaults.object(forKey: Keys.y) != nil else {
       return fallbackFrame
     }
@@ -28,6 +27,10 @@ final class ScreenPositionStore {
       size: size
     )
     return ScreenPositionResolver.clamped(frame: stored, visibleFrames: visibleFrames)
+  }
+
+  func restore(size: NSSize, screens: [NSScreen]) -> NSRect {
+    restore(size: size, visibleFrames: screens.map(\.visibleFrame))
   }
 
   func save(frame: NSRect) {
@@ -40,13 +43,17 @@ final class ScreenPositionStore {
     defaults.removeObject(forKey: Keys.y)
   }
 
-  private func defaultFrame(size: NSSize, screens: [NSScreen]) -> NSRect {
-    guard let screen = screens.first else { return NSRect(origin: .zero, size: size) }
+  private func defaultFrame(size: NSSize, visibleFrames: [CGRect]) -> NSRect {
+    guard let frame = visibleFrames.first else { return NSRect(origin: .zero, size: size) }
     return NSRect(
-      x: screen.visibleFrame.maxX - size.width - 24,
-      y: screen.visibleFrame.minY + 24,
+      x: frame.maxX - size.width - 24,
+      y: frame.minY + 24,
       width: size.width,
       height: size.height
     )
+  }
+
+  private func defaultFrame(size: NSSize, screens: [NSScreen]) -> NSRect {
+    defaultFrame(size: size, visibleFrames: screens.map(\.visibleFrame))
   }
 }
