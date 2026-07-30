@@ -2,14 +2,14 @@
 
 - Status: ready
 - Active owner: unassigned
-- Updated: 2026-07-30T15:35:39+0800
+- Updated: 2026-07-30T15:43:57+0800
 - Branch: `feat/petdesk-v1`
-- Latest implementation commit: `958edb0`
-- Latest session: [Codex agent handoff protocol](sessions/2026-07-30-1531-codex-agent-handoff-protocol.md)
+- Latest implementation commit: `832f707`
+- Latest session: [MimoCode debug review](sessions/2026-07-30-1543-mimocode-debug-review.md)
 
 ## Active Objective
 
-Continue PetDesk v1 with a structured MimoCode implementation, debugging, and code-review pass using the verified handoff protocol.
+Continue PetDesk v1. First MimoCode relay complete: code review, test gap analysis, and test coverage improvement. Next agent should address remaining test gaps and begin feature work or notification integration when full Xcode is available.
 
 ## Repository Snapshot
 
@@ -20,7 +20,8 @@ Continue PetDesk v1 with a structured MimoCode implementation, debugging, and co
 
 ## Latest Verification
 
-- `make verify` passed on 2026-07-30: handoff tests, live handoff validation, Swift formatting lint, `PetDeskAppCheck`, `PetDeskCoreChecks`, entitlements lint, and XcodeGen generation all succeeded.
+- `make verify` passed on 2026-07-30: handoff tests, live handoff validation, Swift formatting lint, `PetDeskAppCheck`, `PetDeskCoreChecks` (including new test cases), entitlements lint, and XcodeGen generation all succeeded.
+- `make lint` passed with no warnings.
 - Full Xcode app-bundle build and XCUITest were explicitly skipped because the selected developer directory is Command Line Tools.
 
 ## Blockers
@@ -29,11 +30,11 @@ Continue PetDesk v1 with a structured MimoCode implementation, debugging, and co
 
 ## Next Actions
 
-1. MimoCode reads `AGENT.md`, this file, the linked session, the active PetDesk plan, and relevant architecture docs; then runs `git status --short --branch` and `make verify`.
-2. If full Xcode 26 is available, select it and run the generated app scheme plus XCUITest; otherwise preserve the skip as a documented blocker.
-3. Review `AppEnvironment` task lifecycle and timers, `PetWindowController` hit testing and display recovery, `MachCPUSampler` delta handling, avatar persistence, and current test gaps.
-4. Reproduce confirmed defects with a failing test or check before fixing them, then run `make verify`.
-5. Create a new MimoCode session record, update this file, run `make handoff-check`, and commit the handoff.
+1. Next agent reads `AGENT.md`, this file, the linked session, the active PetDesk plan, and relevant architecture docs; then runs `git status --short --branch` and `make verify`.
+2. Install or select full Xcode 26 when authorized so app-bundle build and XCUITest can run.
+3. Address remaining test gaps: `ScreenPositionStore` persistence, `AvatarRepository.importAvatar` end-to-end, `PetHitTestHostingView` hit test regions, and `AppEnvironment` task lifecycle.
+4. Consider implementing `AccessibilityNotificationPulseMonitor` with real Accessibility API integration.
+5. Create a new session record, update this file, run `make handoff-check`, and commit the handoff.
 
 ## Working Rules
 
