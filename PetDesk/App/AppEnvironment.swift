@@ -18,12 +18,16 @@ final class AppEnvironment: ObservableObject {
   }
   @Published private(set) var avatarError: String?
   @Published private(set) var avatarSourceImage: CGImage?
+  @Published var avatarDisplayMode: AvatarDisplayMode {
+    didSet { defaults.set(avatarDisplayMode.rawValue, forKey: Keys.avatarDisplayMode) }
+  }
 
   let diagnostics = DiagnosticRecorder()
   let notificationCapability: NotificationCapability
 
   private enum Keys {
     static let quietMode = "quietMode"
+    static let avatarDisplayMode = "avatarDisplayMode"
   }
 
   private let defaults: UserDefaults
@@ -38,6 +42,9 @@ final class AppEnvironment: ObservableObject {
   init(defaults: UserDefaults = .standard) {
     self.defaults = defaults
     self.quietMode = defaults.bool(forKey: Keys.quietMode)
+    self.avatarDisplayMode =
+      defaults.string(forKey: Keys.avatarDisplayMode)
+      .flatMap(AvatarDisplayMode.init) ?? .circle
     let notificationMonitor = AccessibilityNotificationPulseMonitor()
     self.notificationCapability = notificationMonitor.capability
     self.signalSources = [SystemLoadMonitor(), UserIdleMonitor(), notificationMonitor]
@@ -52,6 +59,9 @@ final class AppEnvironment: ObservableObject {
   ) {
     self.defaults = defaults
     self.quietMode = defaults.bool(forKey: Keys.quietMode)
+    self.avatarDisplayMode =
+      defaults.string(forKey: Keys.avatarDisplayMode)
+      .flatMap(AvatarDisplayMode.init) ?? .circle
     self.notificationCapability = notificationCapability
     self.signalSources = signalSources
     self.avatarRepository = avatarRepository
