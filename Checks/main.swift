@@ -149,6 +149,16 @@ private func checkCoreServices() throws {
   try expect(cropped != nil, "AvatarCropper should produce a cropped image")
   try expect(cropped?.width == 32, "cropped width should match outputSize")
   try expect(cropped?.height == 32, "cropped height should match outputSize")
+
+  try expect(
+    AvatarDisplayMode.circle.rawValue == "circle",
+    "circle display mode raw value should be 'circle'")
+  try expect(
+    AvatarDisplayMode(rawValue: "original") == .original,
+    "raw value 'original' should produce original mode")
+  try expect(
+    AvatarDisplayMode(rawValue: "invalid") == nil,
+    "invalid raw value should produce nil")
 }
 
 do {

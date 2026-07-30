@@ -157,6 +157,28 @@ final class AppEnvironmentTests: XCTestCase {
     source.finish()
   }
 
+  // MARK: - Avatar display mode
+
+  @MainActor
+  func testAvatarDisplayModeDefaultsToCircle() {
+    let env = AppEnvironment(defaults: defaults, signalSources: [])
+    XCTAssertEqual(env.avatarDisplayMode, .circle)
+  }
+
+  @MainActor
+  func testAvatarDisplayModePersistsToDefaults() {
+    let env = AppEnvironment(defaults: defaults, signalSources: [])
+    env.avatarDisplayMode = .original
+    XCTAssertEqual(defaults.string(forKey: "avatarDisplayMode"), "original")
+  }
+
+  @MainActor
+  func testAvatarDisplayModeRestoresFromDefaults() {
+    defaults.set("original", forKey: "avatarDisplayMode")
+    let env = AppEnvironment(defaults: defaults, signalSources: [])
+    XCTAssertEqual(env.avatarDisplayMode, .original)
+  }
+
   // MARK: - Quiet mode
 
   @MainActor
