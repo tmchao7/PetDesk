@@ -8,6 +8,7 @@
 - [ ] `make lint`
 - [ ] `make test`
 - [ ] `make verify`
+- [ ] `make handoff-check`
 - [ ] Xcode app build and relevant XCUITest, or the missing Xcode-only check is documented below
 
 ## Review Checklist
@@ -17,6 +18,7 @@
 - [ ] Behavioral changes have tests and documentation changes are included.
 - [ ] Logs and diagnostics contain no message content, contacts, filenames, or private paths.
 - [ ] New permissions or system integrations are described in `SECURITY.md`.
+- [ ] `docs/agent-handoff/CURRENT.md` links the latest complete session record.
 
 ## Known Gaps
 

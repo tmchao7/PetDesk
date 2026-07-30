@@ -1,6 +1,8 @@
 #!/bin/zsh
 set -euo pipefail
 
+zsh scripts/tests/agent-handoff-tests.sh
+zsh scripts/check-agent-handoff.sh
 swift package dump-package >/dev/null
 swift format lint --recursive PetDesk Checks PetDeskTests PetDeskUITests
 swift build --product PetDeskAppCheck

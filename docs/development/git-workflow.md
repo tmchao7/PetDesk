@@ -52,6 +52,8 @@ chore(build): update XcodeGen settings
 
 Each commit must represent one coherent change, include its tests and documentation, and pass the configured pre-commit hook. Do not commit `.build/`, `DerivedData/`, generated `PetDesk.xcodeproj`, secrets, signing material, or user-specific Xcode data.
 
+Agent work must also satisfy `docs/agent-handoff/README.md`. A handoff record may be included with its coherent implementation commit. When it must refer to the final implementation commit hash, create a focused follow-up commit such as `docs(handoff): record mimocode debug review`.
+
 Do not amend, rebase, or otherwise rewrite commits that may have been shared. A private branch may be rebased onto `origin/main`; use a normal merge when other people or agents already consume the branch.
 
 ## Review and Integration
@@ -60,6 +62,7 @@ Before opening a pull request:
 
 ```bash
 make verify
+make handoff-check
 git status --short
 git log --oneline main..HEAD
 git diff --stat main...HEAD

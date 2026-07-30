@@ -12,3 +12,5 @@
 - `make verify` passes; Xcode-only checks are explicitly reported if unavailable.
 - The branch is not `main`, commits are scoped and conventional, and generated or local files remain untracked.
 - `git diff --cached --check` passes and the staged diff contains no unrelated user changes.
+- `CURRENT.md` links the newest agent session, the record has exact verification evidence, and `make handoff-check` passes.
+- Review-only and debug-only sessions record findings and next actions even when no production file changes.

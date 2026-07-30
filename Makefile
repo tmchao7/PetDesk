@@ -1,12 +1,23 @@
 SHELL := /bin/zsh
 
-.PHONY: bootstrap setup-git generate build test lint format verify run clean
+.PHONY: bootstrap setup-git handoff-new handoff-check handoff-test generate build test lint format verify run clean
 
 bootstrap:
 	./scripts/bootstrap.sh
 
 setup-git:
 	./scripts/setup-git.sh
+
+handoff-new:
+	@test -n "$(AGENT)" || (echo "Usage: make handoff-new AGENT=<agent> TASK=<task-slug>" && exit 1)
+	@test -n "$(TASK)" || (echo "Usage: make handoff-new AGENT=<agent> TASK=<task-slug>" && exit 1)
+	./scripts/new-agent-handoff.sh "$(AGENT)" "$(TASK)"
+
+handoff-check:
+	./scripts/check-agent-handoff.sh
+
+handoff-test:
+	zsh scripts/tests/agent-handoff-tests.sh
 
 generate:
 	@command -v xcodegen >/dev/null || (echo "Install XcodeGen with: brew install xcodegen" && exit 1)

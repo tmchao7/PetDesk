@@ -6,6 +6,7 @@ Read `docs/product/petdesk-v1-spec.md`, `docs/architecture/overview.md`, and
 `docs/architecture/state-machine.md` before changing behavior. Read the active plan in
 `docs/superpowers/plans/` before implementation work. Read
 `docs/development/git-workflow.md` before changing branches, committing, or publishing work.
+Before every task, read `docs/agent-handoff/CURRENT.md` and its latest linked session.
 
 ## Architecture Rules
 
@@ -42,3 +43,16 @@ Generated `PetDesk.xcodeproj` is never edited or committed. Change `project.yml`
 - Never amend or rebase shared commits, force push, delete branches, or run destructive Git commands without explicit owner approval.
 - Preserve unrelated and pre-existing user changes. Review `git diff --cached` before every commit.
 - Follow `docs/development/git-workflow.md` for synchronization, pull requests, recovery, and release tags.
+
+## Agent Handoff Rules
+
+- `docs/agent-handoff/README.md` is the canonical relay protocol for Codex, Claude Code, MimoCode, and other coding agents.
+- At session start, read `CURRENT.md`, its latest linked session, Git status and recent commits, the active plan, and relevant technical docs before editing.
+- Re-read `CURRENT.md` immediately before updating it. Preserve newer verified facts from other agents and reconcile rather than overwrite concurrent work.
+- Every implementation, debugging, review, research, documentation, blocked, or no-code session must create a new immutable file under `docs/agent-handoff/sessions/` before handoff.
+- Generate a session with `make handoff-new AGENT=<agent> TASK=<task-slug>`, replace every `REPLACE_ME`, then update `CURRENT.md` to link the new record.
+- Record exact commands and results, skipped checks with reasons, files and commits changed, decisions, confirmed risks, Git state, and ordered next actions. Never report an unrun check as passing.
+- Do not rewrite historical session records. Factual corrections must identify the correcting agent, date, and reason while preserving the original statement.
+- Keep secrets, credentials, private content, imported filenames, and unrelated personal paths out of handoff files.
+- Run `make handoff-check` before handoff and commit the record with the related work or as a focused `docs(handoff)` commit.
+- Handoff files complement Git, tests, plans, ADRs, issues, and pull requests; they never replace those sources of truth.
