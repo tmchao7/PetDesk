@@ -21,6 +21,7 @@ else
 fi
 
 if xcodebuild -version >/dev/null 2>&1; then
+  zsh scripts/check-xcode-target-identities.sh
   xcodebuild \
     -project PetDesk.xcodeproj \
     -scheme PetDesk \
@@ -30,8 +31,7 @@ if xcodebuild -version >/dev/null 2>&1; then
   xcodebuild \
     -project PetDesk.xcodeproj \
     -scheme PetDesk \
-    test \
-    CODE_SIGNING_ALLOWED=NO
+    test
 else
   echo "NOTE: Full Xcode is unavailable; app-bundle build, XCTest, and XCUITest were skipped."
 fi

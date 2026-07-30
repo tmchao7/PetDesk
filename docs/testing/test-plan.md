@@ -6,4 +6,8 @@
 
 `PetDeskUITests` launches deterministic demo states and verifies the pet remains accessible without Accessibility permission. Full Xcode is required for XCUITest.
 
+With full Xcode available, `make verify` validates unique target product/module identities, builds
+the app, and runs both XCTest and XCUITest. The build-only action may disable signing, but the test
+action must retain Xcode's local ad-hoc signing so the macOS UI test runner can load its bundle.
+
 Before release, manually test display disconnect/reconnect, Spaces and full screen, wake from sleep, login-item launch, invalid and large images, 30-minute resource stability, quiet mode, and both notification capability states.
