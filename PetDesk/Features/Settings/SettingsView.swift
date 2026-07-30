@@ -11,7 +11,7 @@ struct SettingsView: View {
     Form {
       Section("Avatar") {
         HStack(spacing: 14) {
-          AvatarView(image: environment.avatarImage)
+          AvatarView(image: environment.avatarImage, displayMode: environment.avatarDisplayMode)
             .frame(width: 64, height: 64)
           VStack(alignment: .leading, spacing: 6) {
             Button("Choose Image", systemImage: "photo") { showingImporter = true }
@@ -83,8 +83,10 @@ struct SettingsView: View {
         size: NSSize(width: sourceImage.width, height: sourceImage.height))
       AvatarEditorView(
         sourceImage: nsImage,
-        onConfirm: { cropped in
+        initialDisplayMode: environment.avatarDisplayMode,
+        onConfirm: { cropped, displayMode in
           showingEditor = false
+          environment.avatarDisplayMode = displayMode
           Task { await environment.saveCroppedAvatar(cropped) }
         },
         onCancel: {

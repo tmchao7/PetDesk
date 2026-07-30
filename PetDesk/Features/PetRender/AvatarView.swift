@@ -1,8 +1,13 @@
 import AppKit
 import SwiftUI
 
+#if SWIFT_PACKAGE
+  import PetDeskCore
+#endif
+
 struct AvatarView: View {
   let image: NSImage?
+  var displayMode: AvatarDisplayMode = .circle
 
   var body: some View {
     Group {
@@ -19,10 +24,28 @@ struct AvatarView: View {
         }
       }
     }
-    .clipShape(Circle())
-    .overlay(Circle().stroke(.white, lineWidth: 5))
+    .clipShape(
+      displayMode == .circle ? AnyShape(Circle()) : AnyShape(RoundedRectangle(cornerRadius: 20))
+    )
+    .overlay(
+      (displayMode == .circle
+        ? AnyShape(Circle())
+        : AnyShape(RoundedRectangle(cornerRadius: 20))).stroke(.white, lineWidth: 5)
+    )
     .shadow(color: .black.opacity(0.18), radius: 9, y: 5)
     .accessibilityLabel("Pet avatar")
     .accessibilityIdentifier("pet.avatar")
+  }
+}
+
+private struct AnyShape: Shape {
+  private let pathBuilder: @Sendable (CGRect) -> Path
+
+  init<S: Shape>(_ shape: S) {
+    pathBuilder = { rect in shape.path(in: rect) }
+  }
+
+  func path(in rect: CGRect) -> Path {
+    pathBuilder(rect)
   }
 }

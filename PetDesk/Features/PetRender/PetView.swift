@@ -20,7 +20,7 @@ struct PetView: View {
         }
 
         ZStack {
-          AvatarView(image: environment.avatarImage)
+          AvatarView(image: environment.avatarImage, displayMode: environment.avatarDisplayMode)
             .frame(width: 148, height: 148)
           OverlayEffectView(
             effects: environment.snapshot.effects,
@@ -30,7 +30,11 @@ struct PetView: View {
         .scaleEffect(scale(for: phase))
         .rotationEffect(.degrees(rotation(for: phase)))
         .offset(y: verticalOffset(for: phase))
-        .contentShape(Circle())
+        .contentShape(
+          environment.avatarDisplayMode == .circle
+            ? AnyShape(Circle())
+            : AnyShape(RoundedRectangle(cornerRadius: 20))
+        )
         .onTapGesture {
           withAnimation(.snappy(duration: 0.22)) { environment.quickActionsVisible.toggle() }
         }
@@ -81,5 +85,17 @@ struct PetView: View {
   private func scale(for phase: Double) -> CGFloat {
     if case .startled = environment.snapshot.transientState { return 1.08 }
     return CGFloat(1 + sin(phase) * 0.012)
+  }
+}
+
+private struct AnyShape: Shape {
+  private let pathBuilder: @Sendable (CGRect) -> Path
+
+  init<S: Shape>(_ shape: S) {
+    pathBuilder = { rect in shape.path(in: rect) }
+  }
+
+  func path(in rect: CGRect) -> Path {
+    pathBuilder(rect)
   }
 }
