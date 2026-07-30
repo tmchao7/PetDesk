@@ -12,7 +12,7 @@ final class PetHitTestHostingViewTests: XCTestCase {
   func testHitTestReturnsNilOutsideBothRegions() {
     let view = makeView(width: 320, height: 260)
     // Outside pet region (bottom-right 180x180) and bubble region (top-left 250x120)
-    XCTAssertNil(view.hitTest(NSPoint(x: 200, y: 130)))
+    XCTAssertNil(view.hitTest(NSPoint(x: 100, y: 100)))
   }
 
   @MainActor

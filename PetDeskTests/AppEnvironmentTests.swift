@@ -1,3 +1,4 @@
+import Synchronization
 import XCTest
 
 #if SWIFT_PACKAGE
@@ -9,44 +10,36 @@ import XCTest
 /// Controllable signal source: the test holds the continuation and emits
 /// events on demand. The stream stays open until the continuation is
 /// finished, so the receiving task does not terminate on its own.
-private final class ControllableSignalSource: PetSignalSource, @unchecked Sendable {
-  private var continuation: AsyncStream<PetEvent>.Continuation?
+private final class ControllableSignalSource: PetSignalSource {
+  private struct State {
+    var subscriptionCount = 0
+    var continuation: AsyncStream<PetEvent>.Continuation?
+  }
+
+  private let state = Mutex(State())
+
+  var subscriptionCount: Int {
+    state.withLock { $0.subscriptionCount }
+  }
 
   func events() -> AsyncStream<PetEvent> {
     AsyncStream { continuation in
-      self.continuation = continuation
+      state.withLock {
+        $0.subscriptionCount += 1
+        $0.continuation = continuation
+      }
     }
   }
 
   func emit(_ event: PetEvent) {
-    continuation?.yield(event)
+    _ = state.withLock { $0.continuation?.yield(event) }
   }
 
   func finish() {
-    continuation?.finish()
-    continuation = nil
-  }
-}
-
-/// Counts how many times `events()` is called, proving subscription count.
-private final class SubscriptionCountingSource: PetSignalSource, @unchecked Sendable {
-  private(set) var subscriptionCount = 0
-  private var continuation: AsyncStream<PetEvent>.Continuation?
-
-  func events() -> AsyncStream<PetEvent> {
-    subscriptionCount += 1
-    return AsyncStream { continuation in
-      self.continuation = continuation
+    state.withLock {
+      $0.continuation?.finish()
+      $0.continuation = nil
     }
-  }
-
-  func emit(_ event: PetEvent) {
-    continuation?.yield(event)
-  }
-
-  func finish() {
-    continuation?.finish()
-    continuation = nil
   }
 }
 
@@ -72,8 +65,9 @@ final class AppEnvironmentTests: XCTestCase {
     let env = AppEnvironment(defaults: defaults, signalSources: [source])
     env.start()
 
+    await waitUntil { source.subscriptionCount == 1 }
     source.emit(.systemMetrics(SystemMetrics(cpuLoad: 0.50, thermalLevel: .nominal)))
-    await Task.yield()
+    await waitUntil { env.snapshot.averageCPU > 0 }
 
     XCTAssertGreaterThan(env.snapshot.averageCPU, 0, "start should process signal events")
     env.stop()
@@ -86,15 +80,16 @@ final class AppEnvironmentTests: XCTestCase {
     let env = AppEnvironment(defaults: defaults, signalSources: [source])
 
     env.start()
+    await waitUntil { source.subscriptionCount == 1 }
     source.emit(.systemMetrics(SystemMetrics(cpuLoad: 0.50, thermalLevel: .nominal)))
-    await Task.yield()
+    await waitUntil { env.snapshot.averageCPU > 0 }
 
     env.stop()
     let snapshotAfterStop = env.snapshot
 
     // Emit another event AFTER stop — should be ignored because tasks are cancelled.
     source.emit(.systemMetrics(SystemMetrics(cpuLoad: 0.90, thermalLevel: .nominal)))
-    await Task.yield()
+    await yieldToScheduler()
 
     XCTAssertEqual(
       env.snapshot, snapshotAfterStop,
@@ -108,16 +103,18 @@ final class AppEnvironmentTests: XCTestCase {
     let env = AppEnvironment(defaults: defaults, signalSources: [source])
 
     env.start()
+    await waitUntil { source.subscriptionCount == 1 }
     source.emit(.systemMetrics(SystemMetrics(cpuLoad: 0.50, thermalLevel: .nominal)))
-    await Task.yield()
+    await waitUntil { env.snapshot.averageCPU > 0 }
     XCTAssertGreaterThan(env.snapshot.averageCPU, 0)
 
     env.stop()
 
     // Restart the SAME instance — it should resume processing events.
     env.start()
+    await waitUntil { source.subscriptionCount == 2 }
     source.emit(.systemMetrics(SystemMetrics(cpuLoad: 0.90, thermalLevel: .nominal)))
-    await Task.yield()
+    await waitUntil { env.snapshot.averageCPU > 0.50 }
 
     XCTAssertGreaterThan(
       env.snapshot.averageCPU, 0.50,
@@ -128,11 +125,12 @@ final class AppEnvironmentTests: XCTestCase {
 
   @MainActor
   func testDoubleStartCreatesSingleSubscription() async {
-    let source = SubscriptionCountingSource()
+    let source = ControllableSignalSource()
     let env = AppEnvironment(defaults: defaults, signalSources: [source])
 
     env.start()
     env.start()  // should be a no-op due to guard tasks.isEmpty
+    await waitUntil { source.subscriptionCount == 1 }
 
     XCTAssertEqual(
       source.subscriptionCount, 1,
@@ -143,12 +141,14 @@ final class AppEnvironmentTests: XCTestCase {
 
   @MainActor
   func testStopThenStartResubscribes() async {
-    let source = SubscriptionCountingSource()
+    let source = ControllableSignalSource()
     let env = AppEnvironment(defaults: defaults, signalSources: [source])
 
     env.start()
+    await waitUntil { source.subscriptionCount == 1 }
     env.stop()
     env.start()
+    await waitUntil { source.subscriptionCount == 2 }
 
     XCTAssertEqual(
       source.subscriptionCount, 2,
@@ -178,5 +178,23 @@ final class AppEnvironmentTests: XCTestCase {
       envQuiet.snapshot.transientState, "quiet mode should block notification pulses")
 
     envQuiet.stop()
+  }
+
+  @MainActor
+  private func waitUntil(
+    _ condition: () -> Bool,
+    file: StaticString = #filePath,
+    line: UInt = #line
+  ) async {
+    for _ in 0..<100 {
+      if condition() { return }
+      await Task.yield()
+    }
+    XCTFail("Condition was not satisfied after yielding to the scheduler", file: file, line: line)
+  }
+
+  @MainActor
+  private func yieldToScheduler() async {
+    for _ in 0..<10 { await Task.yield() }
   }
 }

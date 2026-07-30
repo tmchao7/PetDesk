@@ -7,11 +7,13 @@ import XCTest
 #endif
 
 final class CoreServicesTests: XCTestCase {
-  func testCPULoadUsesTickDeltasAndResetsAfterCounterRollback() {
+  func testCPULoadUsesTickDeltasAndResetsAfterCounterRollback() throws {
     var calculator = CPULoadCalculator()
     XCTAssertNil(calculator.record(CPUTicks(user: 100, system: 100, idle: 200, nice: 0)))
+    let load = try XCTUnwrap(
+      calculator.record(CPUTicks(user: 150, system: 150, idle: 300, nice: 0)))
     XCTAssertEqual(
-      calculator.record(CPUTicks(user: 150, system: 150, idle: 300, nice: 0)),
+      load,
       0.5,
       accuracy: 0.0001
     )
@@ -93,10 +95,11 @@ final class CoreServicesTests: XCTestCase {
     XCTAssertFalse(reminder.isDue)
   }
 
-  func testCPULoadReturnsZeroForIdleSystem() {
+  func testCPULoadReturnsZeroForIdleSystem() throws {
     var calculator = CPULoadCalculator()
     _ = calculator.record(CPUTicks(user: 0, system: 0, idle: 1_000, nice: 0))
-    let load = calculator.record(CPUTicks(user: 0, system: 0, idle: 2_000, nice: 0))
+    let load = try XCTUnwrap(
+      calculator.record(CPUTicks(user: 0, system: 0, idle: 2_000, nice: 0)))
     XCTAssertEqual(load, 0.0, accuracy: 0.0001)
   }
 

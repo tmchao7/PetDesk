@@ -20,6 +20,7 @@ final class ScreenPositionStoreTests: XCTestCase {
     super.tearDown()
   }
 
+  @MainActor
   func testSaveAndRestoreRoundTrips() {
     let store = ScreenPositionStore(defaults: defaults)
     let visible = [CGRect(x: 0, y: 0, width: 1_920, height: 1_080)]
@@ -32,6 +33,7 @@ final class ScreenPositionStoreTests: XCTestCase {
     XCTAssertEqual(restored.origin.y, 200)
   }
 
+  @MainActor
   func testResetClearsStoredPosition() {
     let store = ScreenPositionStore(defaults: defaults)
     let visible = [CGRect(x: 0, y: 0, width: 1_920, height: 1_080)]
@@ -45,6 +47,7 @@ final class ScreenPositionStoreTests: XCTestCase {
     XCTAssertNotEqual(restored.origin.y, 200)
   }
 
+  @MainActor
   func testRestoreClampsOffscreenPosition() {
     let store = ScreenPositionStore(defaults: defaults)
     let visible = [CGRect(x: 0, y: 0, width: 1_000, height: 800)]
@@ -57,6 +60,7 @@ final class ScreenPositionStoreTests: XCTestCase {
       visible[0].contains(restored), "restored frame should be clamped inside visible area")
   }
 
+  @MainActor
   func testRestoreDefaultsWhenNothingStored() {
     let store = ScreenPositionStore(defaults: defaults)
     let screen = CGRect(x: 0, y: 0, width: 1_920, height: 1_080)

@@ -5,6 +5,7 @@ final class PetDeskSmokeTests: XCTestCase {
     continueAfterFailure = false
   }
 
+  @MainActor
   func testPetAppearsInDemoState() {
     let app = XCUIApplication()
     app.launchArguments = ["--reset-window-position", "--demo-state", "working"]
@@ -13,6 +14,7 @@ final class PetDeskSmokeTests: XCTestCase {
     XCTAssertTrue(app.descendants(matching: .any)["pet.avatar"].waitForExistence(timeout: 5))
   }
 
+  @MainActor
   func testFakeNotificationStillLaunchesWithoutAccessibilityPermission() {
     let app = XCUIApplication()
     app.launchArguments = ["--fake-notification", "wechat"]

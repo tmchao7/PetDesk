@@ -1,3 +1,4 @@
+import UniformTypeIdentifiers
 import XCTest
 
 #if SWIFT_PACKAGE
@@ -119,11 +120,12 @@ final class AvatarRepositoryTests: XCTestCase {
     let sourceURL = try writeTestPNG(size: 64)
     let repo = try AvatarRepository(directoryURL: tempDirectory)
     _ = try await repo.importAvatar(from: sourceURL)
-    XCTAssertTrue(FileManager.default.fileExists(atPath: repo.avatarURL.path))
+    let avatarURL = await repo.avatarURL
+    XCTAssertTrue(FileManager.default.fileExists(atPath: avatarURL.path))
 
     try await repo.resetAvatar()
 
-    XCTAssertFalse(FileManager.default.fileExists(atPath: repo.avatarURL.path))
+    XCTAssertFalse(FileManager.default.fileExists(atPath: avatarURL.path))
   }
 
   func testResetAvatarIsNoOpWhenNoAvatar() async throws {
