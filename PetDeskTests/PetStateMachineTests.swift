@@ -99,6 +99,43 @@ final class PetStateMachineTests: XCTestCase {
     XCTAssertNil(machine.snapshot.bubble)
   }
 
+  func testCoolLoadEntersDrinkingTea() {
+    var machine = PetStateMachine()
+    feed(cpu: 0.10, seconds: 10, to: &machine)
+
+    XCTAssertEqual(machine.snapshot.baseState, .drinkingTea)
+    XCTAssertTrue(machine.snapshot.effects.contains(.tea))
+  }
+
+  func testCriticalThermalAddsSmoke() {
+    var machine = PetStateMachine()
+
+    machine.reduce(
+      .systemMetrics(SystemMetrics(cpuLoad: 0.10, thermalLevel: .critical)),
+      elapsed: .seconds(1)
+    )
+
+    XCTAssertTrue(machine.snapshot.effects.contains(.smoke))
+  }
+
+  func testFocusStartClearsBubble() {
+    var machine = PetStateMachine()
+    machine.reduce(.focusCommand(.showActivityReminder), elapsed: .zero)
+    XCTAssertNotNil(machine.snapshot.bubble)
+
+    machine.reduce(.focusCommand(.start), elapsed: .zero)
+    XCTAssertNil(machine.snapshot.bubble)
+    XCTAssertEqual(machine.snapshot.baseState, .focusing)
+  }
+
+  func testSleepingStateHasZzzEffects() {
+    var machine = PetStateMachine()
+    machine.reduce(.userIdleChanged(.seconds(301)), elapsed: .zero)
+
+    XCTAssertEqual(machine.snapshot.baseState, .sleeping)
+    XCTAssertEqual(machine.snapshot.effects, [.zzz])
+  }
+
   private func feed(cpu: Double, seconds: Int, to machine: inout PetStateMachine) {
     for _ in 0..<seconds {
       machine.reduce(

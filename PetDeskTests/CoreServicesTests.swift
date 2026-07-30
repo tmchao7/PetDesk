@@ -77,4 +77,39 @@ final class CoreServicesTests: XCTestCase {
     for value in 1...4 { buffer.append(value) }
     XCTAssertEqual(buffer.values, [2, 3, 4])
   }
+
+  func testActivityReminderAcknowledgeBreakResetsAccumulator() {
+    var reminder = ActivityReminderAccumulator(
+      remindAfter: .seconds(3_600), snoozeFor: .seconds(600))
+
+    reminder.advance(by: .seconds(3_600), userIdle: .zero)
+    XCTAssertTrue(reminder.isDue)
+
+    reminder.acknowledgeBreak()
+    XCTAssertFalse(reminder.isDue)
+    XCTAssertTrue(reminder.activeElapsed < .seconds(1))
+
+    reminder.advance(by: .seconds(3_599), userIdle: .zero)
+    XCTAssertFalse(reminder.isDue)
+  }
+
+  func testCPULoadReturnsZeroForIdleSystem() {
+    var calculator = CPULoadCalculator()
+    _ = calculator.record(CPUTicks(user: 0, system: 0, idle: 1_000, nice: 0))
+    let load = calculator.record(CPUTicks(user: 0, system: 0, idle: 2_000, nice: 0))
+    XCTAssertEqual(load, 0.0, accuracy: 0.0001)
+  }
+
+  func testScreenPositionResolverPrefersMostOverlappingScreen() {
+    let leftScreen = CGRect(x: 0, y: 0, width: 1_000, height: 800)
+    let rightScreen = CGRect(x: 1_000, y: 0, width: 1_000, height: 800)
+    let frame = CGRect(x: 900, y: 100, width: 200, height: 200)
+
+    let result = ScreenPositionResolver.clamped(
+      frame: frame, visibleFrames: [leftScreen, rightScreen])
+
+    XCTAssertTrue(
+      leftScreen.contains(result) || rightScreen.contains(result),
+      "result should be inside one of the screens")
+  }
 }

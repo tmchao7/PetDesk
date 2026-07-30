@@ -51,6 +51,11 @@ private func checkStateMachine() throws {
   )
   try expect(thermal.snapshot.effects.contains(.smoke), "critical thermal state should add smoke")
 
+  var sleeping = PetStateMachine()
+  sleeping.reduce(.userIdleChanged(.seconds(301)), elapsed: .zero)
+  try expect(sleeping.snapshot.baseState == .sleeping, "idle timeout should enter sleeping")
+  try expect(sleeping.snapshot.effects == [.zzz], "sleeping state should have zzz effect")
+
   var activity = PetStateMachine()
   activity.reduce(.focusCommand(.showActivityReminder), elapsed: .zero)
   try expect(activity.snapshot.transientState == .stretching, "activity reminder should stretch")
@@ -72,6 +77,11 @@ private func checkCoreServices() throws {
     calculator.record(CPUTicks(user: 10, system: 10, idle: 20, nice: 0)) == nil,
     "CPU rollback should reset baseline")
 
+  var idleCalc = CPULoadCalculator()
+  _ = idleCalc.record(CPUTicks(user: 0, system: 0, idle: 1_000, nice: 0))
+  let idleLoad = idleCalc.record(CPUTicks(user: 0, system: 0, idle: 2_000, nice: 0))
+  try expect(idleLoad != nil && abs(idleLoad! - 0.0) < 0.0001, "idle CPU should return zero load")
+
   var focus = FocusSession(duration: .seconds(120), idlePauseAfter: .seconds(60))
   focus.start()
   focus.advance(by: .seconds(30), userIdle: .seconds(90))
@@ -85,6 +95,12 @@ private func checkCoreServices() throws {
   reminder.snooze()
   reminder.advance(by: .seconds(600), userIdle: .zero)
   try expect(reminder.isDue, "snoozed activity reminder should return")
+
+  reminder.acknowledgeBreak()
+  try expect(!reminder.isDue, "acknowledgeBreak should clear isDue")
+  try expect(reminder.activeElapsed < .seconds(1), "acknowledgeBreak should reset activeElapsed")
+  reminder.advance(by: .seconds(3_599), userIdle: .zero)
+  try expect(!reminder.isDue, "reminder should not be due after partial re-accumulation")
 
   let avatarPolicy = AvatarImportPolicy()
   do {
