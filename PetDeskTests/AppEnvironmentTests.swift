@@ -6,17 +6,47 @@ import XCTest
   @testable import PetDesk
 #endif
 
-private struct MockSignalSource: PetSignalSource {
-  let events: [PetEvent]
+/// Controllable signal source: the test holds the continuation and emits
+/// events on demand. The stream stays open until the continuation is
+/// finished, so the receiving task does not terminate on its own.
+private final class ControllableSignalSource: PetSignalSource, @unchecked Sendable {
+  private var continuation: AsyncStream<PetEvent>.Continuation?
 
   func events() -> AsyncStream<PetEvent> {
-    let events = self.events
-    return AsyncStream { continuation in
-      for event in events {
-        continuation.yield(event)
-      }
-      continuation.finish()
+    AsyncStream { continuation in
+      self.continuation = continuation
     }
+  }
+
+  func emit(_ event: PetEvent) {
+    continuation?.yield(event)
+  }
+
+  func finish() {
+    continuation?.finish()
+    continuation = nil
+  }
+}
+
+/// Counts how many times `events()` is called, proving subscription count.
+private final class SubscriptionCountingSource: PetSignalSource, @unchecked Sendable {
+  private(set) var subscriptionCount = 0
+  private var continuation: AsyncStream<PetEvent>.Continuation?
+
+  func events() -> AsyncStream<PetEvent> {
+    subscriptionCount += 1
+    return AsyncStream { continuation in
+      self.continuation = continuation
+    }
+  }
+
+  func emit(_ event: PetEvent) {
+    continuation?.yield(event)
+  }
+
+  func finish() {
+    continuation?.finish()
+    continuation = nil
   }
 }
 
@@ -34,59 +64,100 @@ final class AppEnvironmentTests: XCTestCase {
     super.tearDown()
   }
 
+  // MARK: - Lifecycle
+
   @MainActor
   func testStartProcessesSignalEvents() async {
-    let source = MockSignalSource(events: [
-      .systemMetrics(SystemMetrics(cpuLoad: 0.50, thermalLevel: .nominal))
-    ])
+    let source = ControllableSignalSource()
     let env = AppEnvironment(defaults: defaults, signalSources: [source])
-
     env.start()
-    try? await Task.sleep(for: .milliseconds(100))
 
-    XCTAssertGreaterThan(env.snapshot.averageCPU, 0)
+    source.emit(.systemMetrics(SystemMetrics(cpuLoad: 0.50, thermalLevel: .nominal)))
+    await Task.yield()
+
+    XCTAssertGreaterThan(env.snapshot.averageCPU, 0, "start should process signal events")
     env.stop()
+    source.finish()
   }
 
   @MainActor
   func testStopCancelsAllTasks() async {
-    let source = MockSignalSource(events: [
-      .systemMetrics(SystemMetrics(cpuLoad: 0.50, thermalLevel: .nominal))
-    ])
+    let source = ControllableSignalSource()
     let env = AppEnvironment(defaults: defaults, signalSources: [source])
 
     env.start()
-    try? await Task.sleep(for: .milliseconds(50))
+    source.emit(.systemMetrics(SystemMetrics(cpuLoad: 0.50, thermalLevel: .nominal)))
+    await Task.yield()
+
     env.stop()
-
     let snapshotAfterStop = env.snapshot
-    try? await Task.sleep(for: .milliseconds(100))
 
-    XCTAssertEqual(env.snapshot, snapshotAfterStop, "snapshot should not change after stop")
+    // Emit another event AFTER stop — should be ignored because tasks are cancelled.
+    source.emit(.systemMetrics(SystemMetrics(cpuLoad: 0.90, thermalLevel: .nominal)))
+    await Task.yield()
+
+    XCTAssertEqual(
+      env.snapshot, snapshotAfterStop,
+      "snapshot should not change after stop even if new events arrive")
+    source.finish()
   }
 
   @MainActor
-  func testRestartAfterStop() async {
-    let source = MockSignalSource(events: [
-      .systemMetrics(SystemMetrics(cpuLoad: 0.50, thermalLevel: .nominal))
-    ])
+  func testSameInstanceRestartAfterStop() async {
+    let source = ControllableSignalSource()
     let env = AppEnvironment(defaults: defaults, signalSources: [source])
 
     env.start()
-    try? await Task.sleep(for: .milliseconds(50))
+    source.emit(.systemMetrics(SystemMetrics(cpuLoad: 0.50, thermalLevel: .nominal)))
+    await Task.yield()
+    XCTAssertGreaterThan(env.snapshot.averageCPU, 0)
+
     env.stop()
 
-    let source2 = MockSignalSource(events: [
-      .systemMetrics(SystemMetrics(cpuLoad: 0.90, thermalLevel: .nominal))
-    ])
-    // Create a new environment since signalSources is immutable
-    let env2 = AppEnvironment(defaults: defaults, signalSources: [source2])
-    env2.start()
-    try? await Task.sleep(for: .milliseconds(100))
+    // Restart the SAME instance — it should resume processing events.
+    env.start()
+    source.emit(.systemMetrics(SystemMetrics(cpuLoad: 0.90, thermalLevel: .nominal)))
+    await Task.yield()
 
-    XCTAssertGreaterThan(env2.snapshot.averageCPU, 0)
-    env2.stop()
+    XCTAssertGreaterThan(
+      env.snapshot.averageCPU, 0.50,
+      "same-instance restart should resume processing events")
+    env.stop()
+    source.finish()
   }
+
+  @MainActor
+  func testDoubleStartCreatesSingleSubscription() async {
+    let source = SubscriptionCountingSource()
+    let env = AppEnvironment(defaults: defaults, signalSources: [source])
+
+    env.start()
+    env.start()  // should be a no-op due to guard tasks.isEmpty
+
+    XCTAssertEqual(
+      source.subscriptionCount, 1,
+      "double start should not create duplicate subscriptions")
+    env.stop()
+    source.finish()
+  }
+
+  @MainActor
+  func testStopThenStartResubscribes() async {
+    let source = SubscriptionCountingSource()
+    let env = AppEnvironment(defaults: defaults, signalSources: [source])
+
+    env.start()
+    env.stop()
+    env.start()
+
+    XCTAssertEqual(
+      source.subscriptionCount, 2,
+      "stop then start should create a fresh subscription")
+    env.stop()
+    source.finish()
+  }
+
+  // MARK: - Quiet mode
 
   @MainActor
   func testQuietModeBlocksNotifications() {
@@ -96,32 +167,16 @@ final class AppEnvironmentTests: XCTestCase {
     env.injectNotification(.wechat)
     XCTAssertNotNil(env.snapshot.transientState, "non-quiet notification should produce transient")
 
-    // Enable quiet mode
+    env.stop()
+
     defaults.set(true, forKey: "quietMode")
     let envQuiet = AppEnvironment(defaults: defaults, signalSources: [])
     envQuiet.start()
 
     envQuiet.injectNotification(.wechat)
-    // In quiet mode, notification events should be filtered
-    // The snapshot should not have a startled transient state
-    XCTAssertNil(envQuiet.snapshot.transientState, "quiet mode should block notification pulses")
+    XCTAssertNil(
+      envQuiet.snapshot.transientState, "quiet mode should block notification pulses")
 
-    env.stop()
     envQuiet.stop()
-  }
-
-  @MainActor
-  func testDoubleStartIsIdempotent() async {
-    let source = MockSignalSource(events: [
-      .systemMetrics(SystemMetrics(cpuLoad: 0.50, thermalLevel: .nominal))
-    ])
-    let env = AppEnvironment(defaults: defaults, signalSources: [source])
-
-    env.start()
-    env.start()  // should be a no-op
-    try? await Task.sleep(for: .milliseconds(100))
-
-    XCTAssertGreaterThan(env.snapshot.averageCPU, 0)
-    env.stop()
   }
 }
