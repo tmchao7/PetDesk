@@ -103,13 +103,14 @@ final class CoreServicesTests: XCTestCase {
   func testScreenPositionResolverPrefersMostOverlappingScreen() {
     let leftScreen = CGRect(x: 0, y: 0, width: 1_000, height: 800)
     let rightScreen = CGRect(x: 1_000, y: 0, width: 1_000, height: 800)
-    let frame = CGRect(x: 900, y: 100, width: 200, height: 200)
+    // Left overlap: 150*200 = 30,000; right overlap: 50*200 = 10,000
+    let frame = CGRect(x: 850, y: 100, width: 200, height: 200)
 
     let result = ScreenPositionResolver.clamped(
       frame: frame, visibleFrames: [leftScreen, rightScreen])
 
     XCTAssertTrue(
-      leftScreen.contains(result) || rightScreen.contains(result),
-      "result should be inside one of the screens")
+      leftScreen.contains(result),
+      "result should be clamped into leftScreen which has more overlap")
   }
 }
