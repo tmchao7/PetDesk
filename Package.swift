@@ -21,6 +21,7 @@ let package = Package(
                 "Features/Settings",
                 "Features/Todo/TodoView.swift",
                 "Features/UsageStats/StatsView.swift",
+                "Features/Avatar/AnimatedAvatarView.swift",
             ],
             sources: [
                 "Features/Avatar",
@@ -44,7 +45,12 @@ let package = Package(
             dependencies: ["PetDeskCore"],
             path: "PetDesk",
             exclude: [
-                "Features/Avatar",
+                "Features/Avatar/AvatarCropper.swift",
+                "Features/Avatar/AvatarCropState.swift",
+                "Features/Avatar/AvatarImageLoader.swift",
+                "Features/Avatar/AvatarImportPolicy.swift",
+                "Features/Avatar/AvatarRepository.swift",
+                "Features/Avatar/SpriteSheetSpec.swift",
                 "Features/Focus",
                 "Features/Notification",
                 "Features/PetDomain",
@@ -63,6 +69,7 @@ let package = Package(
                 "Features/Settings",
                 "Features/Todo/TodoView.swift",
                 "Features/UsageStats/StatsView.swift",
+                "Features/Avatar/AnimatedAvatarView.swift",
             ]
         ),
     ]

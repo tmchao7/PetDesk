@@ -10,6 +10,7 @@ import Foundation
 final class AppEnvironment: ObservableObject {
   @Published private(set) var snapshot = PetSnapshot()
   @Published private(set) var avatarImage: NSImage?
+  @Published private(set) var avatarSpritesheet: CGImage?
   @Published private(set) var focusSession = FocusSession()
   @Published var quickActionsVisible = false
   @Published private(set) var petWindowFrame: CGRect?
@@ -408,6 +409,7 @@ final class AppEnvironment: ObservableObject {
     let url = await avatarRepository.avatarURL
     guard FileManager.default.fileExists(atPath: url.path) else { return }
     avatarImage = AvatarImageLoader.load(from: url)
+    avatarSpritesheet = await avatarRepository.loadSpritesheet()
   }
 
   private func feedDemoCPU(_ load: Double) {

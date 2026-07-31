@@ -31,6 +31,41 @@ public actor AvatarRepository {
     directoryURL.appendingPathComponent("avatar.png")
   }
 
+  public var spritesheetURL: URL {
+    directoryURL.appendingPathComponent("spritesheet.png")
+  }
+
+  /// 加载精灵图（不存在时返回 nil）。
+  public func loadSpritesheet() -> CGImage? {
+    guard fileManager.fileExists(atPath: spritesheetURL.path) else { return nil }
+    guard let source = CGImageSourceCreateWithURL(spritesheetURL as CFURL, nil) else { return nil }
+    return CGImageSourceCreateImageAtIndex(source, 0, nil)
+  }
+
+  /// 保存精灵图。
+  public func saveSpritesheet(_ image: CGImage) throws {
+    try fileManager.createDirectory(at: directoryURL, withIntermediateDirectories: true)
+    let temporaryURL = directoryURL.appendingPathComponent("spritesheet-import.png")
+    defer { try? fileManager.removeItem(at: temporaryURL) }
+    guard
+      let destination = CGImageDestinationCreateWithURL(
+        temporaryURL as CFURL,
+        UTType.png.identifier as CFString,
+        1,
+        nil
+      )
+    else { throw AvatarImportError.encodingFailed }
+    CGImageDestinationAddImage(destination, image, nil)
+    guard CGImageDestinationFinalize(destination) else {
+      throw AvatarImportError.encodingFailed
+    }
+    if fileManager.fileExists(atPath: spritesheetURL.path) {
+      _ = try fileManager.replaceItemAt(spritesheetURL, withItemAt: temporaryURL)
+    } else {
+      try fileManager.moveItem(at: temporaryURL, to: spritesheetURL)
+    }
+  }
+
   public func importAvatar(from sourceURL: URL) throws -> URL {
     let values = try sourceURL.resourceValues(forKeys: [.fileSizeKey])
     try policy.validate(
