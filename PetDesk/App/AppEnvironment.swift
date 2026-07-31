@@ -25,6 +25,14 @@ final class AppEnvironment: ObservableObject {
   let diagnostics = DiagnosticRecorder()
   let notificationCapability: NotificationCapability
 
+  /// Set by PetDeskApp to relay `@Environment(\.openSettings)` into the view
+  /// hierarchy (e.g. context menus) where the environment is unavailable.
+  var openSettings: (() -> Void)?
+  /// Set by PetDeskApp to relay `@Environment(\.openWindow)` similarly.
+  var openDiagnosticsWindow: (() -> Void)?
+  /// Set by PetDeskApp — hides the floating pet window.
+  var hidePet: (() -> Void)?
+
   private enum Keys {
     static let quietMode = "quietMode"
     static let avatarDisplayMode = "avatarDisplayMode"

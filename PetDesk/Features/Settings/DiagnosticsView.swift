@@ -31,6 +31,13 @@ struct DiagnosticsView: View {
       }
     }
     .frame(minWidth: 660, minHeight: 420)
+    .onAppear {
+      NSApp.setActivationPolicy(.regular)
+      NSApp.activate(ignoringOtherApps: true)
+    }
+    .onDisappear {
+      NSApp.setActivationPolicy(.accessory)
+    }
   }
 
   private var statusLine: String {

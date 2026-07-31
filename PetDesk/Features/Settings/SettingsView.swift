@@ -57,6 +57,13 @@ struct SettingsView: View {
     }
     .formStyle(.grouped)
     .frame(width: 480, height: 430)
+    .onAppear {
+      NSApp.setActivationPolicy(.regular)
+      NSApp.activate(ignoringOtherApps: true)
+    }
+    .onDisappear {
+      NSApp.setActivationPolicy(.accessory)
+    }
     .fileImporter(
       isPresented: $showingImporter,
       allowedContentTypes: [.png, .jpeg, .heic],

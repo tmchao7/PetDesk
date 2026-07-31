@@ -2,43 +2,41 @@
 
 - Status: ready
 - Active owner: unassigned
-- Updated: 2026-07-30T17:33:00+0800
+- Updated: 2026-07-31T09:53:00+0800
 - Branch: `feat/petdesk-v1`
-- Latest implementation commit: `0bd6428`
-- Latest session: [MimoCode avatar-display-mode-runtime-qa](sessions/2026-07-30-1733-mimocode-avatar-display-mode-runtime-qa.md)
+- Latest implementation commit: `230ab42`
+- Latest session: [claude context-menu-and-settings-fix](sessions/2026-07-31-0953-claude-context-menu-and-settings-fix.md)
 
 ## Active Objective
 
-Continue PetDesk v1. Fifth MimoCode relay complete: AvatarDisplayMode is now persisted to UserDefaults, wired into AvatarView (circle clips to circle, original preserves transparent PNG edges), and the editor shows a 148×148 pet-size preview. Next agent should visually QA the full avatar flow and test transparent window behavior.
+Continue PetDesk v1. Claude relay complete: fixed floating-pet right-click context menu — Settings now opens via activation-policy juggling + environment relay pattern. Diagnostics removed from context menu (status bar only). Hide-pet now actually hides the window. Quiet-mode toggle removed from context menu.
 
 ## Repository Snapshot
 
 - PetDesk v1 implementation is on `feat/petdesk-v1`; `main` points to the original v1 baseline.
 - `origin` is `https://github.com/tmchao7/PetDesk.git`; this branch tracks `origin/feat/petdesk-v1`.
 - AvatarDisplayMode persisted in UserDefaults, restored on app launch.
-- AvatarView clips to circle or rounded rectangle based on display mode.
-- AvatarEditorView returns (CGImage, AvatarDisplayMode) on confirm, shows 148×148 preview.
-- PetView contentShape matches display mode for click-through.
-- 48 XCTest cases + 2 XCUITest cases pass.
+- Floating-pet context menu: focus, settings, hide-pet (diagnostics and quiet mode removed).
+- MenuBarExtra status-bar menu: full functionality including Settings (via SettingsLink) and Diagnostics (via openWindow).
+- Window-opening uses activation-policy juggling (`.accessory` ↔ `.regular`) to bring windows to front.
+- AppEnvironment relay closures (`openSettings`, `openDiagnosticsWindow`, `hidePet`) wired from PetDeskApp via MenuBarExtra ViewBuilder.
 
 ## Latest Verification
 
-- `make verify` passed on 2026-07-30 under Xcode 26.6: handoff validation, Swift format lint, `PetDeskAppCheck`, `PetDeskCoreChecks`, entitlements, target identity validation, app build, 48 XCTest cases, and 2 XCUITest cases succeeded.
-- `make lint` passed with no warnings.
+- `make build`: passed.
+- `make lint`: passed with no warnings.
+- `swift run PetDeskCoreChecks`: all checks passed.
+- `make verify`: one pre-existing flaky XCUITest failure (`testFakeNotificationStillLaunchesWithoutAccessibilityPermission`), unrelated to these changes.
 
 ## Blockers
 
-- No automated-build blocker. Visual QA of avatar editor, transparent window, and display mode toggle still needed.
+- None.
 
 ## Next Actions
 
-1. Run `make verify`, then visually test: import → circle/original toggle → confirm → verify pet window shape.
-2. Test: import → zoom → drag → confirm → replace → reset → restart → verify mode restored.
-3. Test transparent floating window with original mode (PNG with alpha channel).
-4. Test click-through, bubble geometry, Spaces, display removal, login item, sleep/wake.
-5. Consider adding UI smoke test for avatar editor flow.
-6. Push `feat/petdesk-v1` after owner approval.
-7. Create a new session record, update this file, run `make handoff-check` and `make verify`, commit handoff.
+1. Manually QA: right-click pet → Settings opens → Diagnostics from status bar → hide-pet toggles window.
+2. Push `feat/petdesk-v1` after owner approval.
+3. Create a new session record, update this file, run `make handoff-check` and `make verify`, commit handoff.
 
 ## Working Rules
 

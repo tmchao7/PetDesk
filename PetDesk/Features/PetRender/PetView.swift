@@ -47,26 +47,16 @@ struct PetView: View {
             Button("开始专注", systemImage: "timer") { environment.startFocus() }
           }
 
-          Button(
-            environment.quietMode ? "关闭静音" : "开启静音",
-            systemImage: environment.quietMode ? "speaker.wave.2" : "speaker.slash"
-          ) {
-            environment.quietMode.toggle()
-          }
-
           Divider()
 
           Button("设置", systemImage: "gearshape") {
-            NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
-          }
-          Button("诊断日志", systemImage: "waveform.path.ecg") {
-            NSApp.sendAction(Selector(("showDiagnosticsWindow:")), to: nil, from: nil)
+            environment.openSettings?()
           }
 
           Divider()
 
           Button("隐藏桌宠", systemImage: "eye.slash") {
-            environment.quickActionsVisible = false
+            environment.hidePet?()
           }
         }
       }
