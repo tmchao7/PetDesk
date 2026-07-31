@@ -35,11 +35,15 @@ final class PetWindowController: NSWindowController, NSWindowDelegate {
       guard let self else { return }
       hostingView.bubbleVisible = visible || environment.snapshot.bubble != nil
       if hostingView.bubbleVisible {
+        // Agent apps never become active on their own; activate explicitly so
+        // the panel can become key and SwiftUI controls receive events.
+        NSApp.activate(ignoringOtherApps: true)
         window?.makeKey()
       }
     }
     scaleCancellable = environment.$petScale.sink { [weak self] scale in
       guard let self, let window = self.window else { return }
+      hostingView.petSize = environment.petAvatarSize
       let newSize = environment.petWindowSize
       guard window.frame.size != newSize else { return }
       let origin = window.frame.origin

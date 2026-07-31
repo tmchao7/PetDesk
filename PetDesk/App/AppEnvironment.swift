@@ -57,6 +57,7 @@ final class AppEnvironment: ObservableObject {
   private var machine = PetStateMachine()
   private var activityReminder = ActivityReminderAccumulator()
   private var latestIdle: Duration = .zero
+  private var forcedSleepRemaining: Duration = .zero
   private var tasks: [Task<Void, Never>] = []
   private var reminderWasDue = false
 
@@ -255,13 +256,16 @@ final class AppEnvironment: ObservableObject {
     }
   }
 
-  /// Show a stretching/relaxing animation for ~5 seconds.
+  /// Put the pet to sleep (Zzz) for 15 seconds.  Real idle events are
+  /// intercepted while the forced sleep is active so the effect is not
+  /// immediately overwritten by the monitor's next reading.
   func relax() {
     quickActionsVisible = false
     if focusSession.phase == .running || focusSession.phase == .pausedForIdle {
       cancelFocus()
     }
-    handle(.focusCommand(.relax))
+    forcedSleepRemaining = .seconds(15)
+    handle(.userIdleChanged(.seconds(301)))
   }
 
   func injectNotification(_ source: NotificationSource) {
@@ -285,6 +289,20 @@ final class AppEnvironment: ObservableObject {
 
   private func handle(_ event: PetEvent) {
     if case .userIdleChanged(let duration) = event { latestIdle = duration }
+    if forcedSleepRemaining > .zero {
+      switch event {
+      case .userIdleChanged:
+        return  // keep forced sleep state; ignore the monitor's real reading
+      case .tick(let duration):
+        forcedSleepRemaining -= duration
+        if forcedSleepRemaining <= .zero {
+          forcedSleepRemaining = .zero
+          return  // drop the tick that ended the forced sleep
+        }
+      default:
+        break
+      }
+    }
     if quietMode, case .notificationPulse = event { return }
     snapshot = machine.reduce(event, elapsed: eventElapsed(event))
     if case .tick = event {
