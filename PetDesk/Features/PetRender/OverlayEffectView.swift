@@ -27,10 +27,13 @@ struct OverlayEffectView: View {
         prop("cloud.fog.fill", color: .gray, x: 0, y: -92 * scale)
       }
       if effects.contains(.zzz) {
-        Text("Zzz")
-          .font(.system(size: zzzSize, weight: .bold))
+        // 睡觉表情：月亮 + Zzz，带柔和浮动动画
+        Image(systemName: "moon.zzz.fill")
+          .font(.system(size: 32 * scale, weight: .semibold))
           .foregroundStyle(.indigo)
+          .shadow(color: .indigo.opacity(0.45), radius: 5)
           .offset(x: 62 * scale, y: -72 * scale)
+          .modifier(SleepFloatAnimation(scale: scale))
       }
       if case .startled = transient {
         prop("bell.badge.fill", color: .red, x: -70 * scale, y: -68 * scale)
@@ -52,5 +55,21 @@ struct OverlayEffectView: View {
       .padding(7 * scale)
       .background(.regularMaterial, in: Circle())
       .offset(x: x, y: y)
+  }
+}
+
+/// 让睡觉表情缓慢上下浮动，模拟呼吸节奏。
+private struct SleepFloatAnimation: ViewModifier {
+  let scale: Double
+  @State private var floating = false
+
+  func body(content: Content) -> some View {
+    content
+      .offset(y: floating ? -7 * scale : 5 * scale)
+      .animation(
+        .easeInOut(duration: 1.6).repeatForever(autoreverses: true),
+        value: floating
+      )
+      .onAppear { floating = true }
   }
 }
