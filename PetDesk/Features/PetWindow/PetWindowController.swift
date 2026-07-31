@@ -13,12 +13,13 @@ final class PetWindowController: NSWindowController, NSWindowDelegate {
   private let hostingView: PetHitTestHostingView<PetView>
   private var snapshotCancellable: AnyCancellable?
   private var quickActionsCancellable: AnyCancellable?
+  private var scaleCancellable: AnyCancellable?
 
   init(environment: AppEnvironment, positionStore: ScreenPositionStore = ScreenPositionStore()) {
     self.environment = environment
     self.positionStore = positionStore
     self.hostingView = PetHitTestHostingView(rootView: PetView(environment: environment))
-    let size = NSSize(width: 320, height: 260)
+    let size = environment.petWindowSize
     let panel = PetPanel(contentRect: positionStore.restore(size: size, screens: NSScreen.screens))
     panel.contentView = hostingView
     super.init(window: panel)
@@ -31,6 +32,14 @@ final class PetWindowController: NSWindowController, NSWindowDelegate {
     quickActionsCancellable = environment.$quickActionsVisible.sink { [weak self] visible in
       guard let self else { return }
       hostingView.bubbleVisible = visible || environment.snapshot.bubble != nil
+    }
+    scaleCancellable = environment.$petScale.sink { [weak self] scale in
+      guard let self, let window = self.window else { return }
+      let newSize = NSSize(width: 320 * scale, height: 260 * scale)
+      guard window.frame.size != newSize else { return }
+      let origin = window.frame.origin
+      window.setFrame(NSRect(origin: origin, size: newSize), display: true, animate: true)
+      self.environment.updatePetWindowFrame(window.frame)
     }
     NotificationCenter.default.addObserver(
       self,

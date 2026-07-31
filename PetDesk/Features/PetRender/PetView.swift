@@ -7,6 +7,13 @@ import SwiftUI
 struct PetView: View {
   @ObservedObject var environment: AppEnvironment
 
+  private var avatarSize: CGFloat { environment.petAvatarSize }
+  private var bubbleOffsetX: CGFloat { -78 * environment.petScale }
+  private var bubbleOffsetY: CGFloat { -142 * environment.petScale }
+  private var petWidth: CGFloat { 320 * environment.petScale }
+  private var petHeight: CGFloat { 260 * environment.petScale }
+  private var cornerRadius: CGFloat { 20 * environment.petScale }
+
   var body: some View {
     TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { timeline in
       let phase = timeline.date.timeIntervalSinceReferenceDate * animationSpeed
@@ -15,7 +22,7 @@ struct PetView: View {
         // hit-testing priority.
         ZStack {
           AvatarView(image: environment.avatarImage, displayMode: environment.avatarDisplayMode)
-            .frame(width: 148, height: 148)
+            .frame(width: avatarSize, height: avatarSize)
           OverlayEffectView(
             effects: environment.snapshot.effects,
             transient: environment.snapshot.transientState
@@ -27,7 +34,7 @@ struct PetView: View {
         .contentShape(
           environment.avatarDisplayMode == .circle
             ? AnyShape(Circle())
-            : AnyShape(RoundedRectangle(cornerRadius: 20))
+            : AnyShape(RoundedRectangle(cornerRadius: cornerRadius))
         )
         .onTapGesture {
           withAnimation(.snappy(duration: 0.22)) { environment.quickActionsVisible.toggle() }
@@ -53,11 +60,11 @@ struct PetView: View {
           PetBubbleView(
             environment: environment, showingQuickActions: environment.quickActionsVisible
           )
-          .offset(x: -78, y: -142)
+          .offset(x: bubbleOffsetX, y: bubbleOffsetY)
           .transition(.scale(scale: 0.92, anchor: .bottomTrailing).combined(with: .opacity))
         }
       }
-      .frame(width: 320, height: 260, alignment: .bottomTrailing)
+      .frame(width: petWidth, height: petHeight, alignment: .bottomTrailing)
     }
   }
 

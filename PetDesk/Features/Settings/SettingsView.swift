@@ -31,6 +31,15 @@ struct SettingsView: View {
           .foregroundStyle(.secondary)
       }
 
+      Section("外观") {
+        Picker("桌宠大小", selection: $environment.petScale) {
+          Text("小").tag(0.75)
+          Text("中").tag(1.0)
+          Text("大").tag(1.25)
+        }
+        .pickerStyle(.segmented)
+      }
+
       Section("行为") {
         Toggle("静音模式", isOn: $environment.quietMode)
         Toggle(

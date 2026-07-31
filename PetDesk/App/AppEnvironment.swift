@@ -21,6 +21,14 @@ final class AppEnvironment: ObservableObject {
   @Published var avatarDisplayMode: AvatarDisplayMode {
     didSet { defaults.set(avatarDisplayMode.rawValue, forKey: Keys.avatarDisplayMode) }
   }
+  @Published var petScale: Double {
+    didSet { defaults.set(petScale, forKey: Keys.petScale) }
+  }
+
+  /// Base avatar size (148 pt at 1.0× scale).
+  var petAvatarSize: CGFloat { 148 * petScale }
+  /// Base window size (320 × 260 at 1.0× scale).
+  var petWindowSize: NSSize { NSSize(width: 320 * petScale, height: 260 * petScale) }
 
   let diagnostics = DiagnosticRecorder()
   let notificationCapability: NotificationCapability
@@ -39,6 +47,7 @@ final class AppEnvironment: ObservableObject {
   private enum Keys {
     static let quietMode = "quietMode"
     static let avatarDisplayMode = "avatarDisplayMode"
+    static let petScale = "petScale"
   }
 
   private let defaults: UserDefaults
@@ -57,6 +66,8 @@ final class AppEnvironment: ObservableObject {
     self.avatarDisplayMode =
       defaults.string(forKey: Keys.avatarDisplayMode)
       .flatMap(AvatarDisplayMode.init) ?? .circle
+    let storedScale = defaults.double(forKey: Keys.petScale)
+    self.petScale = storedScale > 0 ? storedScale : 1.0
     let notificationMonitor = AccessibilityNotificationPulseMonitor()
     self.notificationCapability = notificationMonitor.capability
     self.signalSources = [SystemLoadMonitor(), UserIdleMonitor(), notificationMonitor]
@@ -76,6 +87,8 @@ final class AppEnvironment: ObservableObject {
     self.avatarDisplayMode =
       defaults.string(forKey: Keys.avatarDisplayMode)
       .flatMap(AvatarDisplayMode.init) ?? .circle
+    let storedScale = defaults.double(forKey: Keys.petScale)
+    self.petScale = storedScale > 0 ? storedScale : 1.0
     self.notificationCapability = notificationCapability
     self.signalSources = signalSources
     self.avatarRepository = avatarRepository
