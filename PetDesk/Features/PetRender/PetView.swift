@@ -18,6 +18,7 @@ struct PetView: View {
           PetBubbleView(
             environment: environment, showingQuickActions: environment.quickActionsVisible
           )
+          .zIndex(1)
           .transition(.scale(scale: 0.92, anchor: .bottomTrailing).combined(with: .opacity))
         }
         petContent(phase: phase)
