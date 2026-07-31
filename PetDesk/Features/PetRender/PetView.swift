@@ -8,8 +8,6 @@ struct PetView: View {
   @ObservedObject var environment: AppEnvironment
 
   private var avatarSize: CGFloat { environment.petAvatarSize }
-  private var bubbleOffsetX: CGFloat { -78 * environment.petScale }
-  private var bubbleOffsetY: CGFloat { -142 * environment.petScale }
   private var petWidth: CGFloat { 320 * environment.petScale }
   private var petHeight: CGFloat { 260 * environment.petScale }
   private var cornerRadius: CGFloat { 20 * environment.petScale }
@@ -61,7 +59,7 @@ struct PetView: View {
           PetBubbleView(
             environment: environment, showingQuickActions: environment.quickActionsVisible
           )
-          .offset(x: bubbleOffsetX, y: bubbleOffsetY)
+          .offset(x: -78, y: -142)
           .zIndex(1)
           .transition(.scale(scale: 0.92, anchor: .bottomTrailing).combined(with: .opacity))
         }
