@@ -216,6 +216,7 @@ final class AppEnvironment: ObservableObject {
     do {
       let storedURL = try await avatarRepository.saveAvatar(image)
       avatarImage = AvatarImageLoader.load(from: storedURL)
+      avatarSpritesheet = await generateSpritesheet(from: image)
       avatarSourceImage = nil
       avatarError = nil
       diagnostics.record(category: "avatar", message: "avatar-cropped")
@@ -230,7 +231,9 @@ final class AppEnvironment: ObservableObject {
     guard let avatarRepository else { return }
     do {
       try await avatarRepository.resetAvatar()
+      try await avatarRepository.deleteSpritesheet()
       avatarImage = nil
+      avatarSpritesheet = nil
       avatarError = nil
       diagnostics.record(category: "avatar", message: "avatar-reset")
     } catch {
@@ -433,6 +436,20 @@ final class AppEnvironment: ObservableObject {
     case .notificationPulse: "notificationPulse"
     case .focusCommand: "focusCommand"
     case .tick: "tick"
+    }
+  }
+
+  /// 用裁切后的头像生成精灵图并保存；失败时保留旧精灵图（静默降级）。
+  private func generateSpritesheet(from image: CGImage) async -> CGImage? {
+    guard let avatarRepository, let sheet = SpriteSheetGenerator.generate(from: image) else {
+      return nil
+    }
+    do {
+      try await avatarRepository.saveSpritesheet(sheet)
+      return sheet
+    } catch {
+      AppLog.avatar.error("Spritesheet generation failed")
+      return nil
     }
   }
 

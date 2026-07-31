@@ -157,4 +157,10 @@ public actor AvatarRepository {
     guard fileManager.fileExists(atPath: avatarURL.path) else { return }
     try fileManager.removeItem(at: avatarURL)
   }
+
+  /// 删除精灵图（重置头像时清理）。
+  public func deleteSpritesheet() throws {
+    guard fileManager.fileExists(atPath: spritesheetURL.path) else { return }
+    try fileManager.removeItem(at: spritesheetURL)
+  }
 }
