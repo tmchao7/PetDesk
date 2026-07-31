@@ -255,17 +255,13 @@ final class AppEnvironment: ObservableObject {
     }
   }
 
-  /// Cancel any active focus then feed very low CPU.  The pet trends toward
-  /// 喝茶 naturally and stays there — the CPU moving average resists quick
-  /// changes, unlike idle which resets on every user input.
+  /// Show a stretching/relaxing animation for ~5 seconds.
   func relax() {
     quickActionsVisible = false
     if focusSession.phase == .running || focusSession.phase == .pausedForIdle {
       cancelFocus()
     }
-    for _ in 0..<10 {
-      handle(.systemMetrics(SystemMetrics(cpuLoad: 0.06, thermalLevel: .nominal)))
-    }
+    handle(.focusCommand(.relax))
   }
 
   func injectNotification(_ source: NotificationSource) {

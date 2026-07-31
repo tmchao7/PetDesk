@@ -31,6 +31,7 @@ public enum FocusCommand: Sendable, Equatable {
   case cancel
   case showActivityReminder
   case snoozeActivity
+  case relax  // 放松 — show stretching transient
 }
 
 public enum PetEvent: Sendable, Equatable {

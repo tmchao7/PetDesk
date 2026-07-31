@@ -129,6 +129,11 @@ public struct PetStateMachine: Sendable {
       snapshot.transientState = nil
       snapshot.bubble = nil
       transientRemaining = .zero
+    case .relax:
+      focusActive = false
+      snapshot.transientState = .stretching
+      snapshot.bubble = nil
+      transientRemaining = .seconds(5)
     }
   }
 
