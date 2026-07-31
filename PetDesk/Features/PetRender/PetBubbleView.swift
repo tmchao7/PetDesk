@@ -8,21 +8,55 @@ struct PetBubbleView: View {
   @ObservedObject var environment: AppEnvironment
   let showingQuickActions: Bool
 
+  /// Incomplete todo items (max 5 shown in bubble).
+  private var incompleteItems: [TodoItem] {
+    Array(environment.todoItems.filter { !$0.isCompleted }.prefix(5))
+  }
+
   var body: some View {
     VStack(alignment: .leading, spacing: 10) {
       Text(title)
         .font(.system(size: 13, weight: .semibold))
         .lineLimit(2)
-      HStack(spacing: 8) {
-        if environment.snapshot.bubble == .stretchReminder {
+
+      if environment.snapshot.bubble == .stretchReminder {
+        HStack(spacing: 8) {
           action("完成了", icon: "checkmark") { environment.acknowledgeActivityBreak() }
           action("10 分钟", icon: "clock") { environment.snoozeActivityReminder() }
-        } else if environment.snapshot.bubble == .focusComplete {
+        }
+      } else if environment.snapshot.bubble == .focusComplete {
+        HStack(spacing: 8) {
           action("再来一次", icon: "arrow.clockwise") { environment.startFocus() }
-        } else {
-          action("专注", icon: "timer") { environment.startFocus() }
-          action("静音", icon: environment.quietMode ? "speaker.wave.2" : "speaker.slash") {
-            environment.quietMode.toggle()
+        }
+      } else {
+        // Quick actions: show today's todo + three action buttons
+        if showingQuickActions || environment.snapshot.bubble == .focusInvite {
+          if !incompleteItems.isEmpty {
+            VStack(alignment: .leading, spacing: 4) {
+              ForEach(incompleteItems) { item in
+                HStack(spacing: 6) {
+                  Button {
+                    environment.toggleTodoItem(id: item.id)
+                  } label: {
+                    Image(systemName: "circle")
+                      .font(.system(size: 11))
+                      .foregroundStyle(.secondary)
+                  }
+                  .buttonStyle(.plain)
+
+                  Text(item.title)
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                }
+              }
+            }
+          }
+
+          HStack(spacing: 8) {
+            action("专注", icon: "timer") { environment.startFocus() }
+            action("摸鱼", icon: "cup.and.heat.waves") { environment.slackOff() }
+            action("放松", icon: "leaf") { environment.relax() }
           }
         }
       }

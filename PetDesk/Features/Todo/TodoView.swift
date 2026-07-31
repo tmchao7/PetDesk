@@ -6,9 +6,8 @@ import SwiftUI
 #endif
 
 struct TodoView: View {
-  @State private var items: [TodoItem] = []
+  @ObservedObject var environment: AppEnvironment
   @State private var newItemTitle = ""
-  @State private var store: TodoStore?
 
   var body: some View {
     VStack(alignment: .leading, spacing: 0) {
@@ -39,7 +38,7 @@ struct TodoView: View {
       Divider()
 
       // Todo list
-      if items.isEmpty {
+      if environment.todoItems.isEmpty {
         Spacer()
         Text("还没有待办事项")
           .foregroundStyle(.secondary)
@@ -47,11 +46,10 @@ struct TodoView: View {
         Spacer()
       } else {
         List {
-          ForEach($items) { $item in
+          ForEach($environment.todoItems) { $item in
             HStack(spacing: 10) {
               Button {
-                item.isCompleted.toggle()
-                persist()
+                environment.toggleTodoItem(id: item.id)
               } label: {
                 Image(systemName: item.isCompleted ? "checkmark.circle.fill" : "circle")
                   .font(.title3)
@@ -67,7 +65,7 @@ struct TodoView: View {
               Spacer()
 
               Button {
-                deleteItem(item)
+                environment.deleteTodoItem(id: item.id)
               } label: {
                 Image(systemName: "trash")
                   .foregroundStyle(.secondary)
@@ -82,7 +80,6 @@ struct TodoView: View {
       }
     }
     .frame(width: 340, height: 420)
-    .task { await loadStore() }
     .onAppear {
       NSApp.setActivationPolicy(.regular)
       NSApp.activate(ignoringOtherApps: true)
@@ -93,34 +90,13 @@ struct TodoView: View {
   }
 
   private var incompleteCount: Int {
-    items.filter { !$0.isCompleted }.count
+    environment.todoItems.filter { !$0.isCompleted }.count
   }
 
   private func addItem() {
     let trimmed = newItemTitle.trimmingCharacters(in: .whitespaces)
     guard !trimmed.isEmpty else { return }
-    items.append(TodoItem(title: trimmed))
+    environment.addTodoItem(trimmed)
     newItemTitle = ""
-    persist()
-  }
-
-  private func deleteItem(_ item: TodoItem) {
-    items.removeAll { $0.id == item.id }
-    persist()
-  }
-
-  private func persist() {
-    guard let store else { return }
-    Task { try? await store.save(items) }
-  }
-
-  private func loadStore() async {
-    do {
-      let store = try TodoStore()
-      self.store = store
-      items = await store.load()
-    } catch {
-      items = []
-    }
   }
 }

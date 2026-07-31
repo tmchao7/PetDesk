@@ -36,7 +36,7 @@ struct PetDeskApp: App {
     .defaultSize(width: 700, height: 460)
 
     Window("待办事项", id: "todo") {
-      TodoView()
+      TodoView(environment: appDelegate.environment)
     }
     .defaultSize(width: 340, height: 420)
   }

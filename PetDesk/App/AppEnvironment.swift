@@ -34,6 +34,7 @@ final class AppEnvironment: ObservableObject {
   var hidePet: (() -> Void)?
   /// Set by PetDeskApp — opens the Todo window.
   var openTodoWindow: (() -> Void)?
+  @Published var todoItems: [TodoItem] = []
 
   private enum Keys {
     static let quietMode = "quietMode"
@@ -42,6 +43,7 @@ final class AppEnvironment: ObservableObject {
 
   private let defaults: UserDefaults
   private let avatarRepository: AvatarRepository?
+  private let todoStore: TodoStore?
   private let signalSources: [any PetSignalSource]
   private var machine = PetStateMachine()
   private var activityReminder = ActivityReminderAccumulator()
@@ -59,13 +61,15 @@ final class AppEnvironment: ObservableObject {
     self.notificationCapability = notificationMonitor.capability
     self.signalSources = [SystemLoadMonitor(), UserIdleMonitor(), notificationMonitor]
     self.avatarRepository = try? AvatarRepository()
+    self.todoStore = try? TodoStore()
   }
 
   init(
     defaults: UserDefaults = .standard,
     signalSources: [any PetSignalSource],
     notificationCapability: NotificationCapability = .unsupported(.sourceApplicationUnavailable),
-    avatarRepository: AvatarRepository? = nil
+    avatarRepository: AvatarRepository? = nil,
+    todoStore: TodoStore? = nil
   ) {
     self.defaults = defaults
     self.quietMode = defaults.bool(forKey: Keys.quietMode)
@@ -75,6 +79,7 @@ final class AppEnvironment: ObservableObject {
     self.notificationCapability = notificationCapability
     self.signalSources = signalSources
     self.avatarRepository = avatarRepository
+    self.todoStore = todoStore
   }
 
   func start() {
@@ -97,6 +102,7 @@ final class AppEnvironment: ObservableObject {
         }
       })
     tasks.append(Task { [weak self] in await self?.loadStoredAvatar() })
+    tasks.append(Task { [weak self] in await self?.loadTodoItems() })
     diagnostics.record(category: "app", message: "started")
     AppLog.app.info("PetDesk started")
   }
@@ -204,6 +210,39 @@ final class AppEnvironment: ObservableObject {
     }
   }
 
+  // MARK: Todo
+
+  func addTodoItem(_ title: String) {
+    let item = TodoItem(title: title)
+    todoItems.append(item)
+    persistTodo()
+  }
+
+  func toggleTodoItem(id: UUID) {
+    guard let index = todoItems.firstIndex(where: { $0.id == id }) else { return }
+    todoItems[index].isCompleted.toggle()
+    persistTodo()
+  }
+
+  func deleteTodoItem(id: UUID) {
+    todoItems.removeAll { $0.id == id }
+    persistTodo()
+  }
+
+  /// Feed low CPU to nudge the pet toward 喝茶 (drinkingTea).
+  func slackOff() {
+    for _ in 0..<10 {
+      handle(.systemMetrics(SystemMetrics(cpuLoad: 0.12, thermalLevel: .nominal)))
+    }
+  }
+
+  /// Feed very low CPU to nudge the pet toward 喝茶 (drinkingTea).
+  func relax() {
+    for _ in 0..<10 {
+      handle(.systemMetrics(SystemMetrics(cpuLoad: 0.06, thermalLevel: .nominal)))
+    }
+  }
+
   func injectNotification(_ source: NotificationSource) {
     handle(.notificationPulse(source))
   }
@@ -249,6 +288,17 @@ final class AppEnvironment: ObservableObject {
       reminderWasDue = true
       handle(.focusCommand(.showActivityReminder))
     }
+  }
+
+  private func loadTodoItems() async {
+    guard let todoStore else { return }
+    todoItems = await todoStore.load()
+  }
+
+  private func persistTodo() {
+    guard let todoStore else { return }
+    let snapshot = todoItems
+    Task { try? await todoStore.save(snapshot) }
   }
 
   private func loadStoredAvatar() async {
