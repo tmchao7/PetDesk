@@ -5,6 +5,11 @@ import SwiftUI
 final class PetHitTestHostingView<Content: View>: NSHostingView<Content> {
   var bubbleVisible = false
 
+  /// Required for buttons and gestures to work inside a non-activating
+  /// NSPanel.  Without this the panel never becomes key and SwiftUI
+  /// interactions silently fail.
+  override var needsPanelToBecomeKey: Bool { true }
+
   override func viewDidMoveToWindow() {
     super.viewDidMoveToWindow()
     wantsLayer = true
