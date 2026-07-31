@@ -22,6 +22,8 @@ final class PetWindowController: NSWindowController, NSWindowDelegate {
     let size = environment.petWindowSize
     let panel = PetPanel(contentRect: positionStore.restore(size: size, screens: NSScreen.screens))
     panel.contentView = hostingView
+    panel.contentView?.wantsLayer = true
+    panel.contentView?.layer?.masksToBounds = false
     super.init(window: panel)
     panel.delegate = self
     environment.updatePetWindowFrame(panel.frame)

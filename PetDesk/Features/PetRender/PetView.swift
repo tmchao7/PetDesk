@@ -8,63 +8,60 @@ struct PetView: View {
   @ObservedObject var environment: AppEnvironment
 
   private var avatarSize: CGFloat { environment.petAvatarSize }
-  private var petWidth: CGFloat { 320 * environment.petScale }
-  private var petHeight: CGFloat { 260 * environment.petScale }
   private var cornerRadius: CGFloat { 20 * environment.petScale }
 
   var body: some View {
     TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { timeline in
       let phase = timeline.date.timeIntervalSinceReferenceDate * animationSpeed
-      ZStack(alignment: .bottomTrailing) {
-        // Pet avatar — rendered first so the bubble (rendered later) gets
-        // hit-testing priority.
-        ZStack {
-          AvatarView(image: environment.avatarImage, displayMode: environment.avatarDisplayMode)
-            .frame(width: avatarSize, height: avatarSize)
-          OverlayEffectView(
-            effects: environment.snapshot.effects,
-            transient: environment.snapshot.transientState,
-            scale: environment.petScale
-          )
-        }
-        .scaleEffect(scale(for: phase))
-        .rotationEffect(.degrees(rotation(for: phase)))
-        .offset(y: verticalOffset(for: phase))
-        .contentShape(
-          environment.avatarDisplayMode == .circle
-            ? AnyShape(Circle())
-            : AnyShape(RoundedRectangle(cornerRadius: cornerRadius))
-        )
-        .onTapGesture {
-          withAnimation(.snappy(duration: 0.22)) { environment.quickActionsVisible.toggle() }
-        }
-        .contextMenu {
-          Button("待办事项", systemImage: "checklist") {
-            environment.openTodoWindow?()
-          }
-
-          Button("设置", systemImage: "gearshape") {
-            environment.openSettings?()
-          }
-
-          Divider()
-
-          Button("隐藏桌宠", systemImage: "eye.slash") {
-            environment.hidePet?()
-          }
-        }
-
-        // Bubble overlay — rendered on top so its buttons receive taps first.
+      VStack(alignment: .trailing, spacing: -14) {
         if environment.quickActionsVisible || environment.snapshot.bubble != nil {
           PetBubbleView(
             environment: environment, showingQuickActions: environment.quickActionsVisible
           )
-          .offset(x: -78, y: -142)
-          .zIndex(1)
           .transition(.scale(scale: 0.92, anchor: .bottomTrailing).combined(with: .opacity))
         }
+        petContent(phase: phase)
       }
-      .frame(width: petWidth, height: petHeight, alignment: .bottomTrailing)
+      .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+    }
+  }
+
+  @ViewBuilder
+  private func petContent(phase: Double) -> some View {
+    ZStack {
+      AvatarView(image: environment.avatarImage, displayMode: environment.avatarDisplayMode)
+        .frame(width: avatarSize, height: avatarSize)
+      OverlayEffectView(
+        effects: environment.snapshot.effects,
+        transient: environment.snapshot.transientState,
+        scale: environment.petScale
+      )
+    }
+    .scaleEffect(scale(for: phase))
+    .rotationEffect(.degrees(rotation(for: phase)))
+    .offset(y: verticalOffset(for: phase))
+    .contentShape(
+      environment.avatarDisplayMode == .circle
+        ? AnyShape(Circle())
+        : AnyShape(RoundedRectangle(cornerRadius: cornerRadius))
+    )
+    .onTapGesture {
+      withAnimation(.snappy(duration: 0.22)) { environment.quickActionsVisible.toggle() }
+    }
+    .contextMenu {
+      Button("待办事项", systemImage: "checklist") {
+        environment.openTodoWindow?()
+      }
+
+      Button("设置", systemImage: "gearshape") {
+        environment.openSettings?()
+      }
+
+      Divider()
+
+      Button("隐藏桌宠", systemImage: "eye.slash") {
+        environment.hidePet?()
+      }
     }
   }
 
