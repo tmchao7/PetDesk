@@ -42,7 +42,10 @@ final class AppEnvironment: ObservableObject {
   var hidePet: (() -> Void)?
   /// Set by PetDeskApp — opens the Todo window.
   var openTodoWindow: (() -> Void)?
+  /// Set by PetDeskApp — opens the usage stats window.
+  var openStatsWindow: (() -> Void)?
   @Published var todoItems: [TodoItem] = []
+  @Published var usageStatsByDay: [String: DayStats] = [:]
 
   private enum Keys {
     static let quietMode = "quietMode"
@@ -53,11 +56,15 @@ final class AppEnvironment: ObservableObject {
   private let defaults: UserDefaults
   private let avatarRepository: AvatarRepository?
   private let todoStore: TodoStore?
+  private let usageStore: UsageStatsStore?
   private let signalSources: [any PetSignalSource]
   private var machine = PetStateMachine()
   private var activityReminder = ActivityReminderAccumulator()
   private var latestIdle: Duration = .zero
   private var forcedSleepRemaining: Duration = .zero
+  private var currentDayKey = DayStats.todayKey()
+  private var dayAccumulator = DayStats(date: DayStats.todayKey())
+  private var secondsSinceStatsFlush = 0
   private var tasks: [Task<Void, Never>] = []
   private var reminderWasDue = false
 
@@ -74,6 +81,7 @@ final class AppEnvironment: ObservableObject {
     self.signalSources = [SystemLoadMonitor(), UserIdleMonitor(), notificationMonitor]
     self.avatarRepository = try? AvatarRepository()
     self.todoStore = try? TodoStore()
+    self.usageStore = try? UsageStatsStore()
   }
 
   init(
@@ -81,7 +89,8 @@ final class AppEnvironment: ObservableObject {
     signalSources: [any PetSignalSource],
     notificationCapability: NotificationCapability = .unsupported(.sourceApplicationUnavailable),
     avatarRepository: AvatarRepository? = nil,
-    todoStore: TodoStore? = nil
+    todoStore: TodoStore? = nil,
+    usageStore: UsageStatsStore? = nil
   ) {
     self.defaults = defaults
     self.quietMode = defaults.bool(forKey: Keys.quietMode)
@@ -94,6 +103,7 @@ final class AppEnvironment: ObservableObject {
     self.signalSources = signalSources
     self.avatarRepository = avatarRepository
     self.todoStore = todoStore
+    self.usageStore = usageStore
   }
 
   func start() {
@@ -117,6 +127,7 @@ final class AppEnvironment: ObservableObject {
       })
     tasks.append(Task { [weak self] in await self?.loadStoredAvatar() })
     tasks.append(Task { [weak self] in await self?.loadTodoItems() })
+    tasks.append(Task { [weak self] in await self?.loadUsageStats() })
     diagnostics.record(category: "app", message: "started")
     AppLog.app.info("PetDesk started")
   }
@@ -126,6 +137,7 @@ final class AppEnvironment: ObservableObject {
       task.cancel()
     }
     tasks.removeAll()
+    flushUsageStats()
     diagnostics.record(category: "app", message: "stopped")
   }
 
@@ -329,6 +341,54 @@ final class AppEnvironment: ObservableObject {
     if activityReminder.isDue, !reminderWasDue, !quietMode {
       reminderWasDue = true
       handle(.focusCommand(.showActivityReminder))
+    }
+
+    accumulateUsageStats()
+  }
+
+  /// 按宠物当前状态累计 专注/摸鱼/休息 时长，每 30 秒批量写盘。
+  private func accumulateUsageStats() {
+    switch snapshot.baseState {
+    case .focusing: dayAccumulator.focusSeconds += 1
+    case .drinkingTea: dayAccumulator.teaSeconds += 1
+    case .sleeping: dayAccumulator.sleepSeconds += 1
+    default: break
+    }
+
+    // 跨天检测：日期变化时归档旧数据并开启新一天。
+    let todayKey = DayStats.todayKey()
+    if todayKey != currentDayKey {
+      flushUsageStats()
+      currentDayKey = todayKey
+      dayAccumulator = DayStats(date: todayKey)
+    }
+
+    secondsSinceStatsFlush += 1
+    if secondsSinceStatsFlush >= 30 {
+      flushUsageStats()
+      secondsSinceStatsFlush = 0
+    }
+  }
+
+  private func loadUsageStats() async {
+    guard let usageStore else { return }
+    let days = await usageStore.loadAll()
+    usageStatsByDay = Dictionary(uniqueKeysWithValues: days.map { ($0.date, $0) })
+    // 恢复今天已存的累计值，避免重启后丢失。
+    if let existing = usageStatsByDay[currentDayKey] {
+      dayAccumulator = existing
+    }
+  }
+
+  private func flushUsageStats() {
+    guard let usageStore else { return }
+    let day = dayAccumulator
+    let key = currentDayKey
+    Task {
+      try? await usageStore.upsert(day)
+      await MainActor.run {
+        usageStatsByDay[key] = day
+      }
     }
   }
 

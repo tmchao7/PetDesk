@@ -40,6 +40,12 @@ struct SettingsView: View {
         .pickerStyle(.segmented)
       }
 
+      Section("统计") {
+        Button("查看使用统计", systemImage: "chart.bar.fill") {
+          environment.openStatsWindow?()
+        }
+      }
+
       Section("行为") {
         Toggle(
           "登录时启动",

@@ -58,6 +58,9 @@ struct PetView: View {
       Button("待办事项", systemImage: "checklist") {
         environment.openTodoWindow?()
       }
+      Button("使用统计", systemImage: "chart.bar.fill") {
+        environment.openStatsWindow?()
+      }
       Button("设置", systemImage: "gearshape") {
         environment.openSettings?()
       }

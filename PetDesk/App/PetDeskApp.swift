@@ -39,6 +39,11 @@ struct PetDeskApp: App {
       TodoView(environment: appDelegate.environment)
     }
     .defaultSize(width: 340, height: 420)
+
+    Window("使用统计", id: "stats") {
+      StatsView(environment: appDelegate.environment)
+    }
+    .defaultSize(width: 360, height: 420)
   }
 
   /// Capture `openSettings` and `openWindow` from the App's environment and
@@ -62,6 +67,11 @@ struct PetDeskApp: App {
       NSApp.setActivationPolicy(.regular)
       NSApp.activate(ignoringOtherApps: true)
       openWindow(id: "todo")
+    }
+    appDelegate.environment.openStatsWindow = { [openWindow] in
+      NSApp.setActivationPolicy(.regular)
+      NSApp.activate(ignoringOtherApps: true)
+      openWindow(id: "stats")
     }
   }
 }
