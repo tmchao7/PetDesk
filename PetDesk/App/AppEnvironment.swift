@@ -27,12 +27,11 @@ final class AppEnvironment: ObservableObject {
 
   /// Base avatar size (148 pt at 1.0× scale).
   var petAvatarSize: CGFloat { 148 * petScale }
-  /// Window size — at least 320×260 so the fixed-size bubble (220 pt wide
-  /// at offset -78) always fits within the window bounds.
+  /// Window size — padded to give overlay effects room without clipping.
   var petWindowSize: NSSize {
     NSSize(
-      width: max(320 * petScale, 320),
-      height: max(260 * petScale, 260)
+      width: max(320 * petScale, 320) + 80,
+      height: max(260 * petScale, 260) + 80
     )
   }
 
@@ -259,12 +258,16 @@ final class AppEnvironment: ObservableObject {
     }
   }
 
-  /// Cancel any active focus then put the pet to sleep (Zzz).
+  /// Cancel any active focus then feed very low CPU.  The pet trends toward
+  /// 喝茶 naturally and stays there — the CPU moving average resists quick
+  /// changes, unlike idle which resets on every user input.
   func relax() {
     if focusSession.phase == .running || focusSession.phase == .pausedForIdle {
       cancelFocus()
     }
-    handle(.userIdleChanged(.seconds(301)))
+    for _ in 0..<10 {
+      handle(.systemMetrics(SystemMetrics(cpuLoad: 0.06, thermalLevel: .nominal)))
+    }
   }
 
   func injectNotification(_ source: NotificationSource) {

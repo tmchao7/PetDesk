@@ -22,6 +22,7 @@ struct PetView: View {
         }
         petContent(phase: phase)
       }
+      .padding(40)
       .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
     }
   }
