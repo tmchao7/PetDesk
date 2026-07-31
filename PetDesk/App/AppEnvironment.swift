@@ -27,13 +27,8 @@ final class AppEnvironment: ObservableObject {
 
   /// Base avatar size (148 pt at 1.0× scale).
   var petAvatarSize: CGFloat { 148 * petScale }
-  /// Window size — padded to give overlay effects room without clipping.
-  var petWindowSize: NSSize {
-    NSSize(
-      width: max(320 * petScale, 320) + 80,
-      height: max(260 * petScale, 260) + 80
-    )
-  }
+  /// Window size — generous to prevent bubble/effect clipping.
+  var petWindowSize: NSSize { NSSize(width: 500, height: 500) }
 
   let diagnostics = DiagnosticRecorder()
   let notificationCapability: NotificationCapability

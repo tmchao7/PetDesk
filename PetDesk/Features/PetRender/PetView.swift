@@ -11,25 +11,22 @@ struct PetView: View {
   private var cornerRadius: CGFloat { 20 * environment.petScale }
 
   var body: some View {
-    ZStack(alignment: .bottom) {
-      // Animated pet — TimelineView only for animation, no interactive
-      // controls inside it so gestures are not disrupted by frame rebuilds.
+    ZStack(alignment: .bottomTrailing) {
+      // Animated pet — TimelineView only for animation.
       TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { timeline in
         let phase = timeline.date.timeIntervalSinceReferenceDate * animationSpeed
         petContent(phase: phase)
       }
 
-      // Bubble — rendered outside TimelineView so its Button gestures
-      // work reliably.
+      // Bubble — outside TimelineView so Button gestures work.
       if environment.quickActionsVisible || environment.snapshot.bubble != nil {
         PetBubbleView(
           environment: environment, showingQuickActions: environment.quickActionsVisible
         )
-        .offset(y: -(avatarSize + 10))
+        .offset(x: -20, y: -(avatarSize + 20))
         .transition(.scale(scale: 0.92).combined(with: .opacity))
       }
     }
-    .padding(40)
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
   }
 
@@ -59,13 +56,10 @@ struct PetView: View {
       Button("待办事项", systemImage: "checklist") {
         environment.openTodoWindow?()
       }
-
       Button("设置", systemImage: "gearshape") {
         environment.openSettings?()
       }
-
       Divider()
-
       Button("隐藏桌宠", systemImage: "eye.slash") {
         environment.hidePet?()
       }
