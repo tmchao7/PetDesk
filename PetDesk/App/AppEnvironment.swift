@@ -134,6 +134,7 @@ final class AppEnvironment: ObservableObject {
   }
 
   func startFocus() {
+    quickActionsVisible = false
     focusSession.start()
     handle(.focusCommand(.start))
     diagnostics.record(category: "focus", message: "session-started")
@@ -250,6 +251,7 @@ final class AppEnvironment: ObservableObject {
   /// Cancel any active focus then feed low CPU to nudge the pet toward
   /// 喝茶 (drinkingTea).
   func slackOff() {
+    quickActionsVisible = false
     if focusSession.phase == .running || focusSession.phase == .pausedForIdle {
       cancelFocus()
     }
@@ -262,6 +264,7 @@ final class AppEnvironment: ObservableObject {
   /// 喝茶 naturally and stays there — the CPU moving average resists quick
   /// changes, unlike idle which resets on every user input.
   func relax() {
+    quickActionsVisible = false
     if focusSession.phase == .running || focusSession.phase == .pausedForIdle {
       cancelFocus()
     }
