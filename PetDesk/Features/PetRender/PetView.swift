@@ -49,6 +49,10 @@ struct PetView: View {
 
           Divider()
 
+          Button("待办事项", systemImage: "checklist") {
+            environment.openTodoWindow?()
+          }
+
           Button("设置", systemImage: "gearshape") {
             environment.openSettings?()
           }

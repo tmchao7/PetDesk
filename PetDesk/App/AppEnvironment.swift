@@ -32,6 +32,8 @@ final class AppEnvironment: ObservableObject {
   var openDiagnosticsWindow: (() -> Void)?
   /// Set by PetDeskApp — hides the floating pet window.
   var hidePet: (() -> Void)?
+  /// Set by PetDeskApp — opens the Todo window.
+  var openTodoWindow: (() -> Void)?
 
   private enum Keys {
     static let quietMode = "quietMode"

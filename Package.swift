@@ -19,6 +19,7 @@ let package = Package(
                 "Features/PetRender",
                 "Features/PetWindow",
                 "Features/Settings",
+                "Features/Todo/TodoView.swift",
             ],
             sources: [
                 "Features/Avatar",
@@ -26,6 +27,7 @@ let package = Package(
                 "Features/Notification",
                 "Features/PetDomain",
                 "Features/SystemLoad",
+                "Features/Todo",
                 "Features/UserActivity",
                 "Shared",
             ]
@@ -45,6 +47,8 @@ let package = Package(
                 "Features/Notification",
                 "Features/PetDomain",
                 "Features/SystemLoad",
+                "Features/Todo/TodoItem.swift",
+                "Features/Todo/TodoStore.swift",
                 "Features/UserActivity",
                 "Shared",
             ],
@@ -53,6 +57,7 @@ let package = Package(
                 "Features/PetRender",
                 "Features/PetWindow",
                 "Features/Settings",
+                "Features/Todo/TodoView.swift",
             ]
         ),
     ]

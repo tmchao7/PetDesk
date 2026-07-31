@@ -34,6 +34,11 @@ struct PetDeskApp: App {
       DiagnosticsView(environment: appDelegate.environment)
     }
     .defaultSize(width: 700, height: 460)
+
+    Window("待办事项", id: "todo") {
+      TodoView()
+    }
+    .defaultSize(width: 340, height: 420)
   }
 
   /// Capture `openSettings` and `openWindow` from the App's environment and
@@ -52,6 +57,11 @@ struct PetDeskApp: App {
     }
     appDelegate.environment.hidePet = { [weak appDelegate] in
       appDelegate?.togglePet()
+    }
+    appDelegate.environment.openTodoWindow = { [openWindow] in
+      NSApp.setActivationPolicy(.regular)
+      NSApp.activate(ignoringOtherApps: true)
+      openWindow(id: "todo")
     }
   }
 }

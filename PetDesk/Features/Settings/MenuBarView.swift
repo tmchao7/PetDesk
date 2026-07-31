@@ -23,6 +23,9 @@ struct MenuBarView: View {
 
     Divider()
 
+    Button("待办事项", systemImage: "checklist") {
+      dismissThen { environment.openTodoWindow?() }
+    }
     Button("诊断日志", systemImage: "waveform.path.ecg") {
       dismissThen { openDiagnostics() }
     }
