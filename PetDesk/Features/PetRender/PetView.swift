@@ -25,7 +25,8 @@ struct PetView: View {
             .frame(width: avatarSize, height: avatarSize)
           OverlayEffectView(
             effects: environment.snapshot.effects,
-            transient: environment.snapshot.transientState
+            transient: environment.snapshot.transientState,
+            scale: environment.petScale
           )
         }
         .scaleEffect(scale(for: phase))

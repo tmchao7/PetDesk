@@ -7,35 +7,39 @@ import SwiftUI
 struct OverlayEffectView: View {
   let effects: Set<PetEffect>
   let transient: TransientPetState?
+  let scale: Double
+
+  private var iconSize: CGFloat { 25 * scale }
+  private var zzzSize: CGFloat { 22 * scale }
 
   var body: some View {
     ZStack {
       if effects.contains(.tea) {
-        prop("cup.and.saucer.fill", color: .brown, x: 62, y: 54)
+        prop("cup.and.saucer.fill", color: .brown, x: 62 * scale, y: 54 * scale)
       }
       if effects.contains(.keyboard) {
-        prop("keyboard", color: .secondary, x: 0, y: 72)
+        prop("keyboard", color: .secondary, x: 0, y: 72 * scale)
       }
       if effects.contains(.sweat) {
-        prop("drop.fill", color: .cyan, x: 68, y: -52)
+        prop("drop.fill", color: .cyan, x: 68 * scale, y: -52 * scale)
       }
       if effects.contains(.smoke) {
-        prop("cloud.fog.fill", color: .gray, x: 0, y: -92)
+        prop("cloud.fog.fill", color: .gray, x: 0, y: -92 * scale)
       }
       if effects.contains(.zzz) {
         Text("Zzz")
-          .font(.system(size: 22, weight: .bold))
+          .font(.system(size: zzzSize, weight: .bold))
           .foregroundStyle(.indigo)
-          .offset(x: 62, y: -72)
+          .offset(x: 62 * scale, y: -72 * scale)
       }
       if case .startled = transient {
-        prop("bell.badge.fill", color: .red, x: -70, y: -68)
+        prop("bell.badge.fill", color: .red, x: -70 * scale, y: -68 * scale)
       }
       if transient == .celebrating {
-        prop("sparkles", color: .yellow, x: -68, y: -70)
+        prop("sparkles", color: .yellow, x: -68 * scale, y: -70 * scale)
       }
       if transient == .stretching {
-        prop("figure.cooldown", color: .green, x: -72, y: -62)
+        prop("figure.cooldown", color: .green, x: -72 * scale, y: -62 * scale)
       }
     }
     .allowsHitTesting(false)
@@ -43,9 +47,9 @@ struct OverlayEffectView: View {
 
   private func prop(_ systemName: String, color: Color, x: CGFloat, y: CGFloat) -> some View {
     Image(systemName: systemName)
-      .font(.system(size: 25, weight: .semibold))
+      .font(.system(size: iconSize, weight: .semibold))
       .foregroundStyle(color)
-      .padding(7)
+      .padding(7 * scale)
       .background(.regularMaterial, in: Circle())
       .offset(x: x, y: y)
   }
