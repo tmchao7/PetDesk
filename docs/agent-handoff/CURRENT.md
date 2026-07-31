@@ -2,29 +2,27 @@
 
 - Status: ready
 - Active owner: unassigned
-- Updated: 2026-07-31T14:49:00+0800
+- Updated: 2026-07-31T15:31:00+0800
 - Branch: `feat/petdesk-v1`
-- Latest implementation commit: `927d059`
-- Latest session: [claude todo-bubble-stability-qa](sessions/2026-07-31-1449-claude-todo-bubble-stability-qa.md)
+- Latest implementation commit: `9c3d23e`
+- Latest session: [claude bubble-button-hit-test-fix](sessions/2026-07-31-1531-claude-bubble-button-hit-test-fix.md)
 
 ## Active Objective
 
-Continue PetDesk v1. Claude relay complete: todo bubble quick actions (专注/摸鱼/放松) stabilized. Pet clicks now handled at the AppKit layer (reliable for manual + XCUITest events); TimelineView pinned to avatar size so the pet anchors bottom-right; panel stays key via makeKey. Full `make verify` passes (all unit + UI tests).
+Continue PetDesk v1. Claude relay complete: fixed bubble quick-action buttons (专注/摸鱼/放松) not responding. Root cause was two Combine sinks overwriting `bubbleVisible` (snapshot publishes every second, clobbering the quickActions flag). Now derived in a single combineLatest pipeline. `make verify` passes twice in a row including a new assertion that clicking 专注 dismisses the bubble.
 
 ## Repository Snapshot
 
 - PetDesk v1 implementation on `feat/petdesk-v1`.
-- Left-click pet → bubble with todo items (max 5) + 专注/摸鱼/放松 actions.
-- 专注 → keyboard effect; 摸鱼 → tea; 放松 → 15s forced sleep (Zzz).
-- Pet size setting (小/中/大) persists; avatar, effects, window scale.
-- Right-click context menu: todo, settings, hide pet.
-- Status bar menu: full features (todo, diagnostics, settings, quit).
+- Left-click pet → bubble (todo + 专注/摸鱼/放松) — all actions respond.
+- 专注 → keyboard; 摸鱼 → tea; 放松 → 15s forced sleep (Zzz).
+- Pet size setting persists; TimelineView pinned to avatar size keeps the pet bottom-right.
+- Panel stays key (makeKey + acceptsFirstMouse) so single clicks fire immediately.
 
 ## Latest Verification
 
-- `make verify`: TEST SUCCEEDED — all unit tests + 6 XCUITests.
+- `make verify`: TEST SUCCEEDED twice in a row (unit + 6 XCUITests).
 - `make lint`: passed.
-- Manual QA pending for post-makeKey click behavior.
 
 ## Blockers
 
@@ -32,10 +30,9 @@ Continue PetDesk v1. Claude relay complete: todo bubble quick actions (专注/�
 
 ## Next Actions
 
-1. Manual QA: pet click → bubble → all three actions respond; pet size toggle still works.
+1. Manual QA by owner: click pet → bubble → all three actions switch states.
 2. Push `feat/petdesk-v1` after owner approval.
-3. Consider documenting AppKit-layer pet click handling in `docs/architecture/overview.md`.
-4. Create a new session record, update this file, run `make handoff-check`, commit handoff.
+3. Create a new session record, update this file, run `make handoff-check`, commit handoff.
 
 ## Working Rules
 
