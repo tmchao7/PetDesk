@@ -11,20 +11,16 @@ struct PetView: View {
   private var cornerRadius: CGFloat { 20 * environment.petScale }
 
   var body: some View {
-    ZStack(alignment: .bottomTrailing) {
-      // Animated pet — TimelineView only for animation.
-      TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { timeline in
-        let phase = timeline.date.timeIntervalSinceReferenceDate * animationSpeed
-        petContent(phase: phase)
-      }
-
-      // Bubble — outside TimelineView so Button gestures work.
+    VStack(alignment: .trailing, spacing: 8) {
       if environment.quickActionsVisible || environment.snapshot.bubble != nil {
         PetBubbleView(
           environment: environment, showingQuickActions: environment.quickActionsVisible
         )
-        .offset(x: -20, y: -(avatarSize + 20))
         .transition(.scale(scale: 0.92).combined(with: .opacity))
+      }
+      TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { timeline in
+        let phase = timeline.date.timeIntervalSinceReferenceDate * animationSpeed
+        petContent(phase: phase)
       }
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
