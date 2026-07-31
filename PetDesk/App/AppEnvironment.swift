@@ -242,15 +242,23 @@ final class AppEnvironment: ObservableObject {
     persistTodo()
   }
 
-  /// Feed low CPU to nudge the pet toward 喝茶 (drinkingTea).
+  /// Cancel any active focus then feed low CPU to nudge the pet toward
+  /// 喝茶 (drinkingTea).
   func slackOff() {
+    if focusSession.phase == .running || focusSession.phase == .pausedForIdle {
+      cancelFocus()
+    }
     for _ in 0..<10 {
       handle(.systemMetrics(SystemMetrics(cpuLoad: 0.12, thermalLevel: .nominal)))
     }
   }
 
-  /// Feed very low CPU to nudge the pet toward 喝茶 (drinkingTea).
+  /// Cancel any active focus then feed very low CPU to nudge the pet toward
+  /// 喝茶 (drinkingTea).
   func relax() {
+    if focusSession.phase == .running || focusSession.phase == .pausedForIdle {
+      cancelFocus()
+    }
     for _ in 0..<10 {
       handle(.systemMetrics(SystemMetrics(cpuLoad: 0.06, thermalLevel: .nominal)))
     }
