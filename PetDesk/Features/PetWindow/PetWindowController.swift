@@ -35,7 +35,7 @@ final class PetWindowController: NSWindowController, NSWindowDelegate {
     }
     scaleCancellable = environment.$petScale.sink { [weak self] scale in
       guard let self, let window = self.window else { return }
-      let newSize = NSSize(width: 320 * scale, height: 260 * scale)
+      let newSize = environment.petWindowSize
       guard window.frame.size != newSize else { return }
       let origin = window.frame.origin
       window.setFrame(NSRect(origin: origin, size: newSize), display: true, animate: true)

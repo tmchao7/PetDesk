@@ -27,8 +27,14 @@ final class AppEnvironment: ObservableObject {
 
   /// Base avatar size (148 pt at 1.0× scale).
   var petAvatarSize: CGFloat { 148 * petScale }
-  /// Base window size (320 × 260 at 1.0× scale).
-  var petWindowSize: NSSize { NSSize(width: 320 * petScale, height: 260 * petScale) }
+  /// Window size — at least 320×260 so the fixed-size bubble (220 pt wide
+  /// at offset -78) always fits within the window bounds.
+  var petWindowSize: NSSize {
+    NSSize(
+      width: max(320 * petScale, 320),
+      height: max(260 * petScale, 260)
+    )
+  }
 
   let diagnostics = DiagnosticRecorder()
   let notificationCapability: NotificationCapability
