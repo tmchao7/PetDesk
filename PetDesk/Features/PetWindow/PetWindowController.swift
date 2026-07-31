@@ -19,6 +19,10 @@ final class PetWindowController: NSWindowController, NSWindowDelegate {
     self.environment = environment
     self.positionStore = positionStore
     self.hostingView = PetHitTestHostingView(rootView: PetView(environment: environment))
+    hostingView.petSize = environment.petAvatarSize
+    hostingView.onPetClick = { [weak environment] in
+      environment?.quickActionsVisible.toggle()
+    }
     let size = environment.petWindowSize
     let panel = PetPanel(contentRect: positionStore.restore(size: size, screens: NSScreen.screens))
     panel.contentView = hostingView
@@ -63,6 +67,9 @@ final class PetWindowController: NSWindowController, NSWindowDelegate {
   func showPet() {
     guard let window else { return }
     window.orderFrontRegardless()
+    // Keep the panel key so clicks dispatch mouse events immediately
+    // instead of being swallowed by window activation.
+    window.makeKey()
     AppLog.window.debug("Pet window shown")
   }
 

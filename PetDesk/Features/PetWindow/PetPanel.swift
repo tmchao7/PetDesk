@@ -18,7 +18,7 @@ final class PetPanel: NSPanel {
     isMovableByWindowBackground = true
     animationBehavior = .utilityWindow
     acceptsMouseMovedEvents = true
-    becomesKeyOnlyIfNeeded = true
+    becomesKeyOnlyIfNeeded = false
   }
 
   override var canBecomeKey: Bool { true }

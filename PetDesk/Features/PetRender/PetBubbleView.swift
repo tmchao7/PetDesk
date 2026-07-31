@@ -65,6 +65,7 @@ struct PetBubbleView: View {
     .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
     .overlay(RoundedRectangle(cornerRadius: 8).stroke(.white.opacity(0.7)))
     .shadow(color: .black.opacity(0.14), radius: 10, y: 5)
+    .accessibilityIdentifier("pet.bubble")
   }
 
   private var title: String {

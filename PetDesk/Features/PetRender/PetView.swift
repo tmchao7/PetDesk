@@ -11,16 +11,22 @@ struct PetView: View {
   private var cornerRadius: CGFloat { 20 * environment.petScale }
 
   var body: some View {
-    VStack(alignment: .trailing, spacing: 8) {
+    ZStack(alignment: .bottomTrailing) {
+      // Pin the TimelineView to the pet's size.  Without an explicit frame
+      // the TimelineView expands to fill the window, centering the pet in
+      // the middle of the panel instead of the bottom-right corner.
+      TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { timeline in
+        let phase = timeline.date.timeIntervalSinceReferenceDate * animationSpeed
+        petContent(phase: phase)
+      }
+      .frame(width: avatarSize, height: avatarSize)
+
       if environment.quickActionsVisible || environment.snapshot.bubble != nil {
         PetBubbleView(
           environment: environment, showingQuickActions: environment.quickActionsVisible
         )
+        .offset(x: -20, y: -(avatarSize + 20))
         .transition(.scale(scale: 0.92).combined(with: .opacity))
-      }
-      TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { timeline in
-        let phase = timeline.date.timeIntervalSinceReferenceDate * animationSpeed
-        petContent(phase: phase)
       }
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
@@ -45,9 +51,6 @@ struct PetView: View {
         ? AnyShape(Circle())
         : AnyShape(RoundedRectangle(cornerRadius: cornerRadius))
     )
-    .onTapGesture {
-      withAnimation(.snappy(duration: 0.22)) { environment.quickActionsVisible.toggle() }
-    }
     .contextMenu {
       Button("待办事项", systemImage: "checklist") {
         environment.openTodoWindow?()
