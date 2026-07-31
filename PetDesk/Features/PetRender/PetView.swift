@@ -11,14 +11,8 @@ struct PetView: View {
     TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { timeline in
       let phase = timeline.date.timeIntervalSinceReferenceDate * animationSpeed
       ZStack(alignment: .bottomTrailing) {
-        if environment.quickActionsVisible || environment.snapshot.bubble != nil {
-          PetBubbleView(
-            environment: environment, showingQuickActions: environment.quickActionsVisible
-          )
-          .offset(x: -78, y: -142)
-          .transition(.scale(scale: 0.92, anchor: .bottomTrailing).combined(with: .opacity))
-        }
-
+        // Pet avatar — rendered first so the bubble (rendered later) gets
+        // hit-testing priority.
         ZStack {
           AvatarView(image: environment.avatarImage, displayMode: environment.avatarDisplayMode)
             .frame(width: 148, height: 148)
@@ -39,16 +33,6 @@ struct PetView: View {
           withAnimation(.snappy(duration: 0.22)) { environment.quickActionsVisible.toggle() }
         }
         .contextMenu {
-          if environment.focusSession.phase == .running
-            || environment.focusSession.phase == .pausedForIdle
-          {
-            Button("取消专注", systemImage: "xmark.circle") { environment.cancelFocus() }
-          } else {
-            Button("开始专注", systemImage: "timer") { environment.startFocus() }
-          }
-
-          Divider()
-
           Button("待办事项", systemImage: "checklist") {
             environment.openTodoWindow?()
           }
@@ -62,6 +46,15 @@ struct PetView: View {
           Button("隐藏桌宠", systemImage: "eye.slash") {
             environment.hidePet?()
           }
+        }
+
+        // Bubble overlay — rendered on top so its buttons receive taps first.
+        if environment.quickActionsVisible || environment.snapshot.bubble != nil {
+          PetBubbleView(
+            environment: environment, showingQuickActions: environment.quickActionsVisible
+          )
+          .offset(x: -78, y: -142)
+          .transition(.scale(scale: 0.92, anchor: .bottomTrailing).combined(with: .opacity))
         }
       }
       .frame(width: 320, height: 260, alignment: .bottomTrailing)
