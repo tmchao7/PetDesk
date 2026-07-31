@@ -41,7 +41,6 @@ struct SettingsView: View {
       }
 
       Section("行为") {
-        Toggle("静音模式", isOn: $environment.quietMode)
         Toggle(
           "登录时启动",
           isOn: Binding(

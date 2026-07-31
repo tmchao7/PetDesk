@@ -61,6 +61,7 @@ struct PetView: View {
             environment: environment, showingQuickActions: environment.quickActionsVisible
           )
           .offset(x: bubbleOffsetX, y: bubbleOffsetY)
+          .zIndex(1)
           .transition(.scale(scale: 0.92, anchor: .bottomTrailing).combined(with: .opacity))
         }
       }
