@@ -34,6 +34,9 @@ final class PetWindowController: NSWindowController, NSWindowDelegate {
     quickActionsCancellable = environment.$quickActionsVisible.sink { [weak self] visible in
       guard let self else { return }
       hostingView.bubbleVisible = visible || environment.snapshot.bubble != nil
+      if hostingView.bubbleVisible {
+        window?.makeKey()
+      }
     }
     scaleCancellable = environment.$petScale.sink { [weak self] scale in
       guard let self, let window = self.window else { return }
