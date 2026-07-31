@@ -65,12 +65,7 @@ final class PetDeskSmokeTests: XCTestCase {
     let avatar = app.descendants(matching: .any)["pet.avatar"]
     XCTAssertTrue(avatar.waitForExistence(timeout: 5))
 
-    // The SwiftUI accessibility frame is reported in the wrong location for
-    // this borderless panel (the panel surfaces as a Dialog element), so tap
-    // by panel coordinates instead: the pet sits at the bottom-right corner
-    // of the 500x500 panel.
-    let panel = app.dialogs.firstMatch
-    panel.coordinate(withNormalizedOffset: CGVector(dx: 0.85, dy: 0.85)).click()
+    avatar.tap()
 
     // After tapping, the bubble with quick actions should appear.
     // The action labels are rendered as custom gesture views, so match
@@ -89,5 +84,15 @@ final class PetDeskSmokeTests: XCTestCase {
       print("DEBUG UI TREE AFTER TAP:\n\(app.debugDescription)")
     }
     XCTAssertTrue(appeared, "bubble or quick actions should appear after tapping pet")
+
+    // Click the 专注 action in the bubble, then verify the bubble dismisses
+    // (startFocus() hides the quick actions).
+    let focusCenter = focusLabel.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+    focusCenter.click()
+    let bubbleGone = bubble.waitForNonExistence(timeout: 2)
+    if !bubbleGone {
+      print("DEBUG UI TREE AFTER FOCUS CLICK:\n\(app.debugDescription)")
+    }
+    XCTAssertTrue(bubbleGone, "bubble should dismiss after tapping 专注")
   }
 }

@@ -9,11 +9,6 @@ final class PetHitTestHostingView<Content: View>: NSHostingView<Content> {
   /// Whether the bubble overlay is currently shown.
   var bubbleVisible = false
 
-  /// Called when the user clicks the pet avatar.  Handled at the AppKit
-  /// layer because SwiftUI gestures inside a non-activating transparent
-  /// NSPanel are unreliable for synthesized (XCUITest) click events.
-  var onPetClick: (() -> Void)?
-
   /// Required for buttons and gestures to work inside a non-activating
   /// NSPanel.  Without this the panel never becomes key and SwiftUI
   /// interactions silently fail.
@@ -46,20 +41,5 @@ final class PetHitTestHostingView<Content: View>: NSHostingView<Content> {
 
     guard petRegion.contains(point) else { return nil }
     return super.hitTest(point)
-  }
-
-  override func mouseDown(with event: NSEvent) {
-    // Use window coordinates (bottom-left origin) to match petRegion, which
-    // hitTest receives in the same coordinate space.  Converting to the
-    // hosting view's flipped coordinates would invert the y axis and miss
-    // the region check.
-    let point = event.locationInWindow
-    // Clicks on the pet toggle the quick actions; clicks elsewhere in the
-    // window fall through (handled by hitTest returning nil).
-    if !bubbleVisible, petRegion.contains(point) {
-      onPetClick?()
-      return
-    }
-    super.mouseDown(with: event)
   }
 }

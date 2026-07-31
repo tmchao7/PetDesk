@@ -11,8 +11,7 @@ final class PetWindowController: NSWindowController, NSWindowDelegate {
   private let environment: AppEnvironment
   private let positionStore: ScreenPositionStore
   private let hostingView: PetHitTestHostingView<PetView>
-  private var snapshotCancellable: AnyCancellable?
-  private var quickActionsCancellable: AnyCancellable?
+  private var bubbleCancellable: AnyCancellable?
   private var scaleCancellable: AnyCancellable?
 
   init(environment: AppEnvironment, positionStore: ScreenPositionStore = ScreenPositionStore()) {
@@ -20,9 +19,6 @@ final class PetWindowController: NSWindowController, NSWindowDelegate {
     self.positionStore = positionStore
     self.hostingView = PetHitTestHostingView(rootView: PetView(environment: environment))
     hostingView.petSize = environment.petAvatarSize
-    hostingView.onPetClick = { [weak environment] in
-      environment?.quickActionsVisible.toggle()
-    }
     let size = environment.petWindowSize
     let panel = PetPanel(contentRect: positionStore.restore(size: size, screens: NSScreen.screens))
     panel.contentView = hostingView
@@ -32,19 +28,23 @@ final class PetWindowController: NSWindowController, NSWindowDelegate {
     panel.delegate = self
     environment.updatePetWindowFrame(panel.frame)
 
-    snapshotCancellable = environment.$snapshot.sink { [weak hostingView] snapshot in
-      hostingView?.bubbleVisible = snapshot.bubble != nil
-    }
-    quickActionsCancellable = environment.$quickActionsVisible.sink { [weak self] visible in
-      guard let self else { return }
-      hostingView.bubbleVisible = visible || environment.snapshot.bubble != nil
-      if hostingView.bubbleVisible {
-        // Agent apps never become active on their own; activate explicitly so
-        // the panel can become key and SwiftUI controls receive events.
-        NSApp.activate(ignoringOtherApps: true)
-        window?.makeKey()
+    // bubbleVisible must be derived from both sources in one pipeline —
+    // two separate sinks would overwrite each other (snapshot publishes
+    // every second, clobbering the quickActions flag and breaking bubble
+    // hit-testing).
+    bubbleCancellable = environment.$quickActionsVisible
+      .combineLatest(environment.$snapshot)
+      .sink { [weak self] visible, snapshot in
+        guard let self else { return }
+        let isVisible = visible || snapshot.bubble != nil
+        hostingView.bubbleVisible = isVisible
+        if isVisible {
+          // Agent apps never become active on their own; activate explicitly
+          // so the panel can become key and SwiftUI controls receive events.
+          NSApp.activate(ignoringOtherApps: true)
+          window?.makeKey()
+        }
       }
-    }
     scaleCancellable = environment.$petScale.sink { [weak self] scale in
       guard let self, let window = self.window else { return }
       hostingView.petSize = environment.petAvatarSize

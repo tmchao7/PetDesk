@@ -85,6 +85,6 @@ struct PetBubbleView: View {
       .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 6))
       .overlay(RoundedRectangle(cornerRadius: 6).stroke(.secondary.opacity(0.3)))
       .contentShape(RoundedRectangle(cornerRadius: 6))
-      .highPriorityGesture(TapGesture().onEnded { action() })
+      .onTapGesture { action() }
   }
 }

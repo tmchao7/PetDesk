@@ -51,6 +51,9 @@ struct PetView: View {
         ? AnyShape(Circle())
         : AnyShape(RoundedRectangle(cornerRadius: cornerRadius))
     )
+    .onTapGesture {
+      withAnimation(.snappy(duration: 0.22)) { environment.quickActionsVisible.toggle() }
+    }
     .contextMenu {
       Button("待办事项", systemImage: "checklist") {
         environment.openTodoWindow?()
