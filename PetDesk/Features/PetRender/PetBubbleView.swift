@@ -77,12 +77,13 @@ struct PetBubbleView: View {
   }
 
   private func action(_ title: String, icon: String, action: @escaping () -> Void) -> some View {
-    Label(title, systemImage: icon)
-      .font(.system(size: 11, weight: .medium))
-      .padding(.horizontal, 10)
-      .padding(.vertical, 4)
-      .background(.quaternary, in: RoundedRectangle(cornerRadius: 6))
-      .contentShape(RoundedRectangle(cornerRadius: 6))
-      .onTapGesture { action() }
+    Button(action: action) {
+      Label(title, systemImage: icon)
+        .font(.system(size: 11, weight: .medium))
+        .padding(.horizontal, 10)
+        .padding(.vertical, 4)
+    }
+    .buttonStyle(.bordered)
+    .controlSize(.small)
   }
 }

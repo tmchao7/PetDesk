@@ -11,21 +11,26 @@ struct PetView: View {
   private var cornerRadius: CGFloat { 20 * environment.petScale }
 
   var body: some View {
-    TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { timeline in
-      let phase = timeline.date.timeIntervalSinceReferenceDate * animationSpeed
-      VStack(alignment: .trailing, spacing: -14) {
-        if environment.quickActionsVisible || environment.snapshot.bubble != nil {
-          PetBubbleView(
-            environment: environment, showingQuickActions: environment.quickActionsVisible
-          )
-          .zIndex(1)
-          .transition(.scale(scale: 0.92, anchor: .bottomTrailing).combined(with: .opacity))
-        }
+    ZStack(alignment: .bottom) {
+      // Animated pet — TimelineView only for animation, no interactive
+      // controls inside it so gestures are not disrupted by frame rebuilds.
+      TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { timeline in
+        let phase = timeline.date.timeIntervalSinceReferenceDate * animationSpeed
         petContent(phase: phase)
       }
-      .padding(40)
-      .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+
+      // Bubble — rendered outside TimelineView so its Button gestures
+      // work reliably.
+      if environment.quickActionsVisible || environment.snapshot.bubble != nil {
+        PetBubbleView(
+          environment: environment, showingQuickActions: environment.quickActionsVisible
+        )
+        .offset(y: -(avatarSize + 10))
+        .transition(.scale(scale: 0.92).combined(with: .opacity))
+      }
     }
+    .padding(40)
+    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
   }
 
   @ViewBuilder
