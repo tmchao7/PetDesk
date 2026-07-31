@@ -94,5 +94,18 @@ final class PetDeskSmokeTests: XCTestCase {
       print("DEBUG UI TREE AFTER FOCUS CLICK:\n\(app.debugDescription)")
     }
     XCTAssertTrue(bubbleGone, "bubble should dismiss after tapping 专注")
+
+    // Re-open the bubble, then click 放松 — the pet should enter the
+    // sleeping state (moon.zzz effect appears) and the bubble dismisses.
+    avatar.tap()
+    XCTAssertTrue(
+      relaxLabel.waitForExistence(timeout: 2), "bubble should reappear after second tap")
+    let relaxCenter = relaxLabel.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+    relaxCenter.click()
+    XCTAssertTrue(
+      bubble.waitForNonExistence(timeout: 2),
+      "bubble should dismiss after tapping 放松")
+    let zzz = app.images["moon.zzz.fill"]
+    XCTAssertTrue(zzz.waitForExistence(timeout: 2), "sleeping Zzz effect should appear after 放松")
   }
 }

@@ -264,8 +264,11 @@ final class AppEnvironment: ObservableObject {
     if focusSession.phase == .running || focusSession.phase == .pausedForIdle {
       cancelFocus()
     }
-    forcedSleepRemaining = .seconds(15)
+    // Send the sleep trigger BEFORE arming the interception, otherwise
+    // handle() drops it as a "real idle" event while forcedSleepRemaining
+    // is already non-zero and the pet never enters sleeping.
     handle(.userIdleChanged(.seconds(301)))
+    forcedSleepRemaining = .seconds(15)
   }
 
   func injectNotification(_ source: NotificationSource) {
