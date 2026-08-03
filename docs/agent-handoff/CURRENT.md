@@ -2,19 +2,19 @@
 
 - Status: ready
 - Active owner: unassigned
-- Updated: 2026-08-03T14:17:00+0800
+- Updated: 2026-08-03T14:24:00+0800
 - Branch: `feat/ai-pose-vision-animation`
-- Latest implementation commit: `a1cf050`
-- Latest session: [codex pin-manual-pose-states](sessions/2026-08-03-1417-codex-pin-manual-pose-states.md)
+- Latest implementation commit: `d034960`
+- Latest session: [codex duration-reminders](sessions/2026-08-03-1423-codex-duration-reminders.md)
 
 ## Active Objective
 
-Manual 摸鱼/放松 states are now pinned: after the user clicks one, real CPU/idle readings are ignored until they pick another action (专注 clears the pin; focus keeps its timed session). The 15s forced-sleep interception was removed entirely.
+Duration reminders shipped: Settings has per-state minute intervals (专注/摸鱼/放松, persisted), and the pet bubbles “你已连续专注 25 分钟” at each threshold multiple without switching state or stealing focus; the bubble auto-dismisses after ~4 s.
 
 ## Repository Snapshot
 
-- Feature branch `feat/ai-pose-vision-animation` (feature commits … `1fcb052`, `a1cf050`); local `main` unchanged but still 2 commits ahead of `origin/main` with no upstream configured.
-- Shipped: pinned manual 摸鱼/放松 states (no auto switch-back); 99.8% pose framing window (no character-edge clipping); custom-pose state restore from spritesheet; density-guarded mass-window trimming; transparent native-aspect sprite rendering (card border removed); regenerated spritesheet; single-channel file import (avatar / spritesheet / pose) fixing the pose-import race; pose import outcome logging; build marker (`app-build.txt` + Settings footer) and `make run-app`; emoji overlays removed; static per-state display; per-state pose import (专注/摸鱼/休息) with thumbnails + confirmations; grid auto-normalization + error feedback; status-bar focus removed.
+- Feature branch `feat/ai-pose-vision-animation` (feature commits … `a1cf050`, `d034960`); local `main` unchanged but still 2 commits ahead of `origin/main` with no upstream configured.
+- Shipped: per-state duration reminders + Settings intervals; pinned manual 摸鱼/放松 states (no auto switch-back); 99.8% pose framing window (no character-edge clipping); custom-pose state restore from spritesheet; density-guarded mass-window trimming; transparent native-aspect sprite rendering (card border removed); regenerated spritesheet; single-channel file import (avatar / spritesheet / pose) fixing the pose-import race; pose import outcome logging; build marker (`app-build.txt` + Settings footer) and `make run-app`; emoji overlays removed; static per-state display; per-state pose import (专注/摸鱼/休息) with thumbnails + confirmations; grid auto-normalization + error feedback; status-bar focus removed.
 - Docs updated: architecture overview, product spec, debugging runbook, v1 plan, `docs/design/spritesheet-authoring.md` (copy-paste prompts).
 
 ## Latest Verification
@@ -22,8 +22,8 @@ Manual 摸鱼/放松 states are now pinned: after the user clicks one, real CPU/
 - `make lint`: passed.
 - `swift run PetDeskCoreChecks`: passed (includes new spritesheet-policy check).
 - `swift build --product PetDeskAppCheck`: BUILD SUCCEEDED.
-- `make test`: TEST SUCCEEDED — 75 XCTest + 6 XCUITest (commit `a1cf050`).
-- `make verify`: passed (2026-08-03 14:17, commits `a1cf050` + `8980abf`).
+- `make test`: TEST SUCCEEDED — 77 XCTest + 6 XCUITest (commit `d034960`).
+- `make verify`: passed (2026-08-03 14:17, commits `a1cf050` + `8980abf`); rerun pending after this handoff record.
 
 ## Blockers
 
@@ -31,9 +31,10 @@ Manual 摸鱼/放松 states are now pinned: after the user clicks one, real CPU/
 
 ## Next Actions
 
-1. User: `make run-app`, then confirm 放松 stays sleeping and 摸鱼 stays drinking tea until another action is picked.
-2. Optional later: re-enable micro-motion animation; extend pose import to all 8 rows; real-key trial of Plan C; pin 专注 if its timed completion bothers the user.
-3. Push after owner approval: feature branch, then `main` (currently 2 unpushed docs commits).
+1. Commit the handoff record (`docs(handoff)`) and rerun `make verify`.
+2. User: `make run-app`, open Settings → 状态时长提醒 to tune intervals (e.g. set 专注 to 1 minute), then confirm the bubble appears after the continuous duration and auto-dismisses.
+3. Optional later: re-enable micro-motion animation; extend pose import to all 8 rows; real-key trial of Plan C; pin 专注 if its timed completion bothers the user.
+4. Push after owner approval: feature branch, then `main` (currently 2 unpushed docs commits).
 
 ## Working Rules
 
