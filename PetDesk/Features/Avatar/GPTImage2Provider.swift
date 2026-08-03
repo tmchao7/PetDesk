@@ -216,6 +216,10 @@ public struct GPTImage2Provider: AIPoseProvider {
     else {
       throw AIPoseError.decodingFailed
     }
+    // 校验返回尺寸：抠底/色键阈值按 ~1024px 调参，过小的图会模糊。
+    guard image.width >= 256, image.height >= 256 else {
+      throw AIPoseError.decodingFailed
+    }
     return image
   }
 
