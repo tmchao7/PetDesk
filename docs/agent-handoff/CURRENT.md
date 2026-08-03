@@ -2,26 +2,26 @@
 
 - Status: ready
 - Active owner: unassigned
-- Updated: 2026-08-03T09:40:00+0800
+- Updated: 2026-08-03T09:53:00+0800
 - Branch: `feat/ai-pose-vision-animation`
-- Latest implementation commit: `ca70a72`
-- Latest session: [codex ai-pose-vision-animation](sessions/2026-08-03-0939-codex-ai-pose-vision-animation.md)
+- Latest implementation commit: `d06800a`
+- Latest session: [codex spritesheet-import](sessions/2026-08-03-0952-codex-spritesheet-import.md)
 
 ## Active Objective
 
-Codex relay complete: optional v1 polish shipped on `feat/ai-pose-vision-animation` — GPT Image 2 pose provider (env-configured, off by default) behind AIPoseProvider, Vision eye-band locator, occlusion/hidden animation pause, and a spritesheet row-crop fix. Next is manual QA and an optional real-key AI trial.
+Codex relay complete: Plan A (user-made spritesheet import with validation) shipped on top of the earlier AI-pose/animation work — Settings → 导入精灵图 accepts a validated 1536×1664 PNG/WebP atlas; Plan C (`GPTImage2Provider`) remains as the opt-in API path. Next is manual QA of both import paths.
 
 ## Repository Snapshot
 
-- Feature branch `feat/ai-pose-vision-animation` (2 feature commits: `e52cc38`, `ca70a72`); local `main` unchanged but still 2 commits ahead of `origin/main` with no upstream configured.
-- Shipped on top of v1: `GPTImage2Provider` (OpenAI-compatible HTTP, `PoseCellProcessor` magenta chroma-key, single-pose default + opt-in extra poses), `VisionEyeBandLocator`, animation pause when hidden/occluded, spritesheet crop orientation + base-fit fixes.
-- Docs updated: architecture overview, product spec, debugging runbook, review checklist, v1 plan.
+- Feature branch `feat/ai-pose-vision-animation` (feature commits `e52cc38`, `ca70a72`, `d06800a`); local `main` unchanged but still 2 commits ahead of `origin/main` with no upstream configured.
+- Shipped: `SpritesheetImportPolicy` + `AvatarRepository.importSpritesheet` + `AppEnvironment.importSpritesheet` + Settings 导入精灵图 UI; earlier: `GPTImage2Provider` (Plan C, env-configured), `VisionEyeBandLocator`, animation pause, spritesheet row-crop/base-fit fixes.
+- Docs updated: architecture overview, product spec, debugging runbook (import spec + row order), review checklist, v1 plan.
 
 ## Latest Verification
 
-- `make test`: TEST SUCCEEDED — PetDeskTests 60 (4 new) + 6 XCUITests, 0 failures (commits `e52cc38`/`ca70a72`).
+- `make test`: TEST SUCCEEDED — PetDeskTests 66 (6 new for spritesheet import) + 6 XCUITests, 0 failures (commit `d06800a`).
 - `make lint`: passed.
-- `swift run PetDeskCoreChecks`: passed (new eye-band / row-cell / pose-cell / provider / Vision checks).
+- `swift run PetDeskCoreChecks`: passed (includes new spritesheet-policy check).
 - `swift build --product PetDeskAppCheck`: BUILD SUCCEEDED.
 - `make verify`: pending (handoff record first).
 
@@ -32,9 +32,9 @@ Codex relay complete: optional v1 polish shipped on `feat/ai-pose-vision-animati
 ## Next Actions
 
 1. Run `make verify` and commit the handoff record (`docs(handoff)`).
-2. Manual QA: re-import avatar → verify blink band position, per-state row mapping, motion quality, and animation pausing when hidden/occluded.
-3. Optional: real-key trial of single- and multi-pose AI generation; tune prompts/chroma tolerance.
-4. Optional: RunComfy CLI transport (binary not installed; HTTP base-URL override already supported).
+2. Manual QA: import valid/invalid PNG + WebP sheets → playback mapping, error messages, restart persistence; re-check avatar blink, animation pause.
+3. Optional: ship a template atlas or layout guide for online-AI authoring; real-key trial of Plan C poses.
+4. Optional: RunComfy CLI transport (binary not installed).
 5. Push after owner approval: feature branch, then `main` (currently 2 unpushed docs commits).
 
 ## Working Rules
