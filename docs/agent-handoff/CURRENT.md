@@ -23,7 +23,7 @@ Manual 摸鱼/放松 states are now pinned: after the user clicks one, real CPU/
 - `swift run PetDeskCoreChecks`: passed (includes new spritesheet-policy check).
 - `swift build --product PetDeskAppCheck`: BUILD SUCCEEDED.
 - `make test`: TEST SUCCEEDED — 75 XCTest + 6 XCUITest (commit `a1cf050`).
-- `make verify`: passed (2026-08-03 14:12, commits `1fcb052` + `cd07f60`); rerun pending after this handoff record.
+- `make verify`: passed (2026-08-03 14:17, commits `a1cf050` + `8980abf`).
 
 ## Blockers
 
@@ -31,10 +31,9 @@ Manual 摸鱼/放松 states are now pinned: after the user clicks one, real CPU/
 
 ## Next Actions
 
-1. Commit the handoff record (`docs(handoff)`) and rerun `make verify`.
-2. User: `make run-app`, then confirm 放松 stays sleeping and 摸鱼 stays drinking tea until another action is picked.
-3. Optional later: re-enable micro-motion animation; extend pose import to all 8 rows; real-key trial of Plan C; pin 专注 if its timed completion bothers the user.
-4. Push after owner approval: feature branch, then `main` (currently 2 unpushed docs commits).
+1. User: `make run-app`, then confirm 放松 stays sleeping and 摸鱼 stays drinking tea until another action is picked.
+2. Optional later: re-enable micro-motion animation; extend pose import to all 8 rows; real-key trial of Plan C; pin 专注 if its timed completion bothers the user.
+3. Push after owner approval: feature branch, then `main` (currently 2 unpushed docs commits).
 
 ## Working Rules
 
