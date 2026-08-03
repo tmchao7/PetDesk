@@ -36,7 +36,13 @@ public enum AvatarCropper {
 
     guard safeW > 0, safeH > 0 else { return nil }
 
-    let cropRect = CGRect(x: safeX, y: safeY, width: safeW, height: safeH)
+    // 输出是方形：裁剪区必须保持方形，否则非方形区域会被拉伸变形。
+    // 取 min 后围绕请求中心重新居中，并夹紧到图像边界。
+    let side = min(safeW, safeH)
+    let clampedX = min(max(safeX, 0), max(imageW - side, 0))
+    let clampedY = min(max(safeY, 0), max(imageH - side, 0))
+
+    let cropRect = CGRect(x: clampedX, y: clampedY, width: side, height: side)
     guard let cropped = image.cropping(to: cropRect) else { return nil }
 
     let colorSpace = CGColorSpaceCreateDeviceRGB()
