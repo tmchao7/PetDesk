@@ -2,37 +2,36 @@
 
 - Status: ready
 - Active owner: unassigned
-- Updated: 2026-08-03T19:50:00+0800
-- Branch: `feat/code-review-round5`（第五轮 review，未提交）
-- Latest implementation commit: `13c83d4`（基点）
-- Latest session: [claude-code code-review-round5](sessions/2026-08-03-1949-claude-code-code-review-round5.md)
+- Updated: 2026-08-03T20:20:00+0800
+- Branch: `feat/multi-frame-animation`（专注多帧动画，未提交）
+- Latest implementation commit: `eee7aca`（基点）
+- Latest session: [claude-code multi-frame-animation](sessions/2026-08-03-2019-claude-code-multi-frame-animation.md)
 
 ## Active Objective
 
-第五轮 review：cancelFocus 提醒重置、XCUITest 假阳性断言修复、测试名修正、
-make-dmg 版本覆盖修复、5 个新测试。XCUITest 本地环境 runner 启动 SIGKILL
-（环境问题，unit 83 全过）。GitHub 默认分支已切 main。
+专注状态多帧动画 + CPU 驱动速度（RunCat 模式）：数据模型多帧化、
+多选导入 UI、FrameAnimator 引擎（100Hz 仅动画行运行）、RunCat 公式映射、
+5 个新测试、豆包提示词文档。待 owner 导入 8 帧实测后 tag v0.1.2。
 
 ## Repository Snapshot
 
-- `feat/code-review-round5`：基点 13c83d4，未提交改动。
-- main @ 13c83d4 与 origin 同步；默认分支 = main。
-- 已发布 v0.1.0 / v0.1.1（v0.1.1 内版本号 0.1.0 瑕疵已修脚本）。
+- `feat/multi-frame-animation`：基点 eee7aca，12 文件未提交。
+- main @ eee7aca 与 origin 同步（前五轮 review 已合并推送）。
 
 ## Latest Verification
 
-- unit：83 XCTest 全过。
-- lint：passed。
-- XCUITest：环境问题（未通过，未虚报）。
+- `make verify`：passed。unit 87 全过。lint 干净。
+- 手工：make run-app 启动成功。
 
 ## Blockers
 
-- XCUITest 本地环境问题（runner 启动 SIGKILL）——系统会话级，非代码。
+- 无。等待 owner 实测动画效果。
 
 ## Next Actions
 
-1. 提交 docs(handoff) + 第五轮分组提交 + 推送。
-2. 可选：workflow 加 test；v0.1.2 发布（版本号脚本已修）。
+1. 提交 docs(handoff) + 分组提交 + 推送。
+2. owner 用豆包生成 8 帧（docs/design/spritesheet-authoring.md 用法三）
+   → 导入专注姿势实测 → 反馈后 tag v0.1.2 发布。
 
 ## Working Rules
 
