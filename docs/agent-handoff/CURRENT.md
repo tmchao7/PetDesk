@@ -23,7 +23,7 @@ Self code-review round complete: two edge cases fixed — startFocus now cancels
 - `swift run PetDeskCoreChecks`: passed (includes new spritesheet-policy check).
 - `swift build --product PetDeskAppCheck`: BUILD SUCCEEDED.
 - `make test`: TEST SUCCEEDED — 73 XCTest + 6 XCUITest (commits `10544ab` + `78802a8`).
-- `make verify`: passed (2026-08-03 11:51, commits `0ec5857` + `022a5d3`); rerun pending after this handoff record.
+- `make verify`: passed (2026-08-03 12:36, commits `10544ab` + `78802a8` + `c1a3ce0`).
 
 ## Blockers
 
@@ -31,10 +31,9 @@ Self code-review round complete: two edge cases fixed — startFocus now cancels
 
 ## Next Actions
 
-1. Commit the handoff record (`docs(handoff)`) and rerun `make verify`.
-2. User: `make run-app`, then confirm the floating pet has a fully transparent background, looks larger/centered, and 专注/摸鱼/放松 switch instantly.
-3. Optional later: re-enable micro-motion animation; extend pose import to all 8 rows; real-key trial of Plan C; restore custom-pose row state after restart.
-4. Push after owner approval: feature branch, then `main` (currently 2 unpushed docs commits).
+1. User: `make run-app`, then confirm the floating pet has a fully transparent background, looks larger/centered, and 专注/摸鱼/放松 switch instantly.
+2. Optional later: re-enable micro-motion animation; extend pose import to all 8 rows; real-key trial of Plan C; restore custom-pose row state after restart.
+3. Push after owner approval: feature branch, then `main` (currently 2 unpushed docs commits).
 
 ## Working Rules
 
