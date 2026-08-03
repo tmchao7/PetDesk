@@ -15,6 +15,11 @@ struct AnimatedAvatarView: View {
   let displayMode: AvatarDisplayMode
   let avatarSize: CGFloat
 
+  /// 帧缓存：裁剪是 O(1) 但 NSImage 包装/释放有分配流量，状态切换时复用。
+  /// cachedFrameSheet 强引用精灵图，保证缓存命中比较时其地址不被复用。
+  @State private var cachedFrameSheet: CGImage?
+  @State private var cachedFrame: (sheetID: UInt, row: AnimationRow, index: Int, image: NSImage)?
+
   private var row: AnimationRow { animState.row }
 
   /// 精灵帧是 192×208 竖构图，按同比例放大显示，避免方形框 scaledToFill
@@ -47,14 +52,7 @@ struct AnimatedAvatarView: View {
   /// 精灵图路径：保持 192×208 比例、无边框无卡片，背景完全透明，
   /// 只给角色本体加一点投影，在浅色桌面上仍可辨认。
   private func spriteView(_ sheet: CGImage) -> some View {
-    let nsImage = NSImage(
-      cgImage: frameImage(from: sheet),
-      size: NSSize(
-        width: SpriteSheetSpec.frameWidth,
-        height: SpriteSheetSpec.frameHeight
-      )
-    )
-    return Image(nsImage: nsImage)
+    Image(nsImage: cachedFrameImage(from: sheet))
       .resizable()
       .interpolation(.high)
       .scaledToFit()
@@ -85,18 +83,33 @@ struct AnimatedAvatarView: View {
     }
   }
 
-  private func frameImage(from sheet: CGImage) -> CGImage {
-    // 静态模式：直接显示当前状态行的基准帧，不做帧动画（先不启用微动作）。
-    let rect = animState.frameRect(index: staticFrameIndex)
-    // 精灵图规范与 CGImage.cropping 同为“y=0 在视觉顶部”，直接按行/列裁剪。
-    // （实测：本 SDK 上 cropping 的 y=0 对应图像顶部；曾误做 y 翻转导致行映射上下颠倒。）
+  /// 按当前状态行裁剪基准帧（静态模式，不做帧动画），结果按
+  /// (精灵图地址, 行, 帧索引) 缓存复用。精灵图规范与 CGImage.cropping
+  /// 同为“y=0 在视觉顶部”，直接按行/列裁剪，不做 y 翻转。
+  private func cachedFrameImage(from sheet: CGImage) -> NSImage {
+    let sheetID = UInt(bitPattern: Unmanaged.passUnretained(sheet).toOpaque())
+    let index = staticFrameIndex
+    if let cached = cachedFrame, cached.sheetID == sheetID, cached.row == row,
+      cached.index == index
+    {
+      return cached.image
+    }
+    let rect = animState.frameRect(index: index)
     let cropRect = CGRect(
       x: rect.minX,
       y: rect.minY,
       width: SpriteSheetSpec.frameWidth,
       height: SpriteSheetSpec.frameHeight
     )
-    return sheet.cropping(to: cropRect) ?? sheet
+    let cropped = sheet.cropping(to: cropRect) ?? sheet
+    let image = NSImage(
+      cgImage: cropped,
+      size: NSSize(width: SpriteSheetSpec.frameWidth, height: SpriteSheetSpec.frameHeight)
+    )
+    // 先强引用精灵图再缓存，保证地址在命中比较期间不被复用。
+    cachedFrameSheet = sheet
+    cachedFrame = (sheetID, row, index, image)
+    return image
   }
 
   /// 静态模式下每个状态行显示的基准帧（避开眨眼/位移/旋转帧）。
@@ -105,17 +118,5 @@ struct AnimatedAvatarView: View {
     case .happy, .surprised: 1
     default: 0
     }
-  }
-}
-
-private struct AnyShape: Shape {
-  private let pathBuilder: @Sendable (CGRect) -> Path
-
-  init<S: Shape>(_ shape: S) {
-    pathBuilder = { rect in shape.path(in: rect) }
-  }
-
-  func path(in rect: CGRect) -> Path {
-    pathBuilder(rect)
   }
 }

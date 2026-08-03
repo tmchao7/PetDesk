@@ -19,10 +19,16 @@ public struct DayStats: Sendable, Equatable, Codable {
     focusSeconds + teaSeconds + sleepSeconds
   }
 
-  public static func todayKey(calendar: Calendar = .current, now: Date = Date()) -> String {
+  /// DateFormatter 创建开销大（加载 locale 数据），而 todayKey 每秒都会被
+  /// 调用（统计累计），必须复用共享实例。
+  private static let keyFormatter: DateFormatter = {
     let formatter = DateFormatter()
-    formatter.calendar = calendar
     formatter.dateFormat = "yyyy-MM-dd"
-    return formatter.string(from: now)
+    return formatter
+  }()
+
+  public static func todayKey(calendar: Calendar = .current, now: Date = Date()) -> String {
+    keyFormatter.calendar = calendar
+    return keyFormatter.string(from: now)
   }
 }

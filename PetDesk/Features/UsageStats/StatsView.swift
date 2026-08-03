@@ -9,15 +9,25 @@ import SwiftUI
 struct StatsView: View {
   @ObservedObject var environment: AppEnvironment
 
+  /// DateFormatter 创建开销大，全部用共享实例（body 每次求值曾分配约 21 个）。
+  private static let dateKeyFormatter: DateFormatter = {
+    let formatter = DateFormatter()
+    formatter.dateFormat = "yyyy-MM-dd"
+    return formatter
+  }()
+  private static let displayFormatter: DateFormatter = {
+    let formatter = DateFormatter()
+    formatter.dateFormat = "M月d日 EEEE"
+    return formatter
+  }()
+
   /// 最近 7 天（含今天）。
   private var recentDays: [String] {
     let calendar = Calendar.current
     let today = Date()
     return (0..<7).compactMap { offset in
       guard let date = calendar.date(byAdding: .day, value: -offset, to: today) else { return nil }
-      let formatter = DateFormatter()
-      formatter.dateFormat = "yyyy-MM-dd"
-      return formatter.string(from: date)
+      return Self.dateKeyFormatter.string(from: date)
     }
   }
 
@@ -107,12 +117,8 @@ struct StatsView: View {
   }
 
   private func displayDate(_ dateKey: String) -> String {
-    let formatter = DateFormatter()
-    formatter.dateFormat = "yyyy-MM-dd"
-    guard let date = formatter.date(from: dateKey) else { return dateKey }
-    let display = DateFormatter()
-    display.dateFormat = "M月d日 EEEE"
-    return display.string(from: date)
+    guard let date = Self.dateKeyFormatter.date(from: dateKey) else { return dateKey }
+    return Self.displayFormatter.string(from: date)
   }
 
   private func formatDuration(_ seconds: Int) -> String {
