@@ -23,7 +23,7 @@ Self-review continued: custom pose state (rows/cells/thumbnails) is now re-deriv
 - `swift run PetDeskCoreChecks`: passed (includes new spritesheet-policy check).
 - `swift build --product PetDeskAppCheck`: BUILD SUCCEEDED.
 - `make test`: TEST SUCCEEDED — 74 XCTest + 6 XCUITest (commit `3b1a48d`).
-- `make verify`: passed (2026-08-03 12:36, commits `10544ab` + `78802a8` + `c1a3ce0`); rerun pending after this handoff record.
+- `make verify`: passed (2026-08-03 12:47, commits `3b1a48d` + `6935544`).
 
 ## Blockers
 
@@ -31,10 +31,9 @@ Self-review continued: custom pose state (rows/cells/thumbnails) is now re-deriv
 
 ## Next Actions
 
-1. Commit the handoff record (`docs(handoff)`) and rerun `make verify`.
-2. User: `make run-app`, then confirm Settings shows 更换/清除 + thumbnails for the three poses after relaunch, the floating pet is transparent/centered, and 专注/摸鱼/放松 switch instantly.
-3. Optional later: re-enable micro-motion animation; extend pose import to all 8 rows; real-key trial of Plan C.
-4. Push after owner approval: feature branch, then `main` (currently 2 unpushed docs commits).
+1. User: `make run-app`, then confirm Settings shows 更换/清除 + thumbnails for the three poses after relaunch, the floating pet is transparent/centered, and 专注/摸鱼/放松 switch instantly.
+2. Optional later: re-enable micro-motion animation; extend pose import to all 8 rows; real-key trial of Plan C.
+3. Push after owner approval: feature branch, then `main` (currently 2 unpushed docs commits).
 
 ## Working Rules
 
