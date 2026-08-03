@@ -654,6 +654,45 @@ private func checkPoseCellBBoxTrimsCornerNoise() throws {
     "subject should remain opaque after bbox trimming")
 }
 
+private func checkPoseCellPreservesInteriorBackgroundColor() throws {
+  // 白底 + 蓝色圆环包裹内部白色圆：模拟“蓝色轮廓 + 白色肚皮/脸”。
+  // 旧逻辑会把内部白色（与背景同色）一起抠成透明；
+  // 边缘 flood-fill 应只移除与边缘连通的背景，内部白色保留不透明。
+  let white = (r: CGFloat(1.0), g: CGFloat(1.0), b: CGFloat(1.0))
+  guard
+    let canvas = makeSolidImage(width: 256, height: 256, color: white),
+    let context = CGContext(
+      data: nil,
+      width: 256,
+      height: 256,
+      bitsPerComponent: 8,
+      bytesPerRow: 0,
+      space: CGColorSpaceCreateDeviceRGB(),
+      bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+    )
+  else {
+    throw CheckFailure(description: "could not create interior-color canvas")
+  }
+  context.draw(canvas, in: CGRect(x: 0, y: 0, width: 256, height: 256))
+  context.setFillColor(CGColor(red: 0, green: 0.3, blue: 0.9, alpha: 1))
+  context.fillEllipse(in: CGRect(x: 18, y: 18, width: 220, height: 220))
+  context.setFillColor(CGColor(red: 1, green: 1, blue: 1, alpha: 1))
+  context.fillEllipse(in: CGRect(x: 68, y: 68, width: 120, height: 120))
+  guard let subjectImage = context.makeImage() else {
+    throw CheckFailure(description: "could not make interior-color subject image")
+  }
+
+  guard let cell = PoseCellProcessor.makeCell(from: subjectImage) else {
+    throw CheckFailure(description: "interior-color pose processing returned nil")
+  }
+  let center = pixel(cell, x: 96, y: 104)
+  try expect(
+    center.a > 200 && center.r > 200 && center.g > 200 && center.b > 200,
+    "interior background-colored region should stay opaque")
+  let corner = pixel(cell, x: 0, y: 0)
+  try expect(corner.a == 0, "exterior background should be removed")
+}
+
 private func checkGPTImage2Provider() async throws {
   guard
     let pngData = makePosePNGData(),
@@ -811,6 +850,7 @@ private func runAllChecks() async throws {
   try checkSpriteSheetEyeBand()
   try checkPoseCellProcessor()
   try checkPoseCellBBoxTrimsCornerNoise()
+  try checkPoseCellPreservesInteriorBackgroundColor()
   try await checkGPTImage2Provider()
   try checkVisionEyeBandLocator()
   try checkSpritesheetImportPolicy()

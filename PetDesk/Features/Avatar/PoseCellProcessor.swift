@@ -59,29 +59,35 @@ public enum PoseCellProcessor {
     context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
 
     let bytes = data.bindMemory(to: UInt8.self, capacity: height * context.bytesPerRow)
-    // 从四角采样实际背景色（色彩管理可能偏移 #FF00FF），再按该色做软抠图。
-    let background = Self.averageBackgroundColor(
+    // 图片本身带透明背景（边缘有明显透明像素）时直接使用原 alpha，不做抠底。
+    let hasTransparentBackground = Self.edgeIsTransparent(
       bytes: bytes,
       width: width,
       height: height,
       bytesPerRow: context.bytesPerRow
     )
+    // 否则从四角采样实际背景色（色彩管理可能偏移 #FF00FF），按该色做软抠图。
+    let background =
+      hasTransparentBackground
+      ? (r: CGFloat(0), g: CGFloat(0), b: CGFloat(0))
+      : Self.averageBackgroundColor(
+        bytes: bytes,
+        width: width,
+        height: height,
+        bytesPerRow: context.bytesPerRow
+      )
     let inner = chromaTolerance * 0.55
     let outer = chromaTolerance
-    var minColumn = width
-    var maxColumn = -1
-    var minRow = height
-    var maxRow = -1
-    // 强主体像素（软抠底后 alpha ≥ 0.5）的行/列投影，用于收紧包围盒：
-    // AI 生成图常带场景（桌面/床/渐变阴影）或角落水印，若把整幅图计入包围盒，
-    // 角色会被缩放变小且位置偏移。
-    var strongRowDensity = [Int](repeating: 0, count: height)
-    var strongColumnDensity = [Int](repeating: 0, count: width)
-    var strongTotal = 0
 
+    // 每个像素的软抠 alpha（0-255）。先不动原始字节，稍后按 flood 结果统一输出。
+    var alpha8 = [UInt8](repeating: 0, count: width * height)
     for row in 0..<height {
       for column in 0..<width {
         let offset = row * context.bytesPerRow + column * 4
+        if hasTransparentBackground {
+          alpha8[row * width + column] = bytes[offset + 3]
+          continue
+        }
         let r = CGFloat(bytes[offset]) / 255
         let g = CGFloat(bytes[offset + 1]) / 255
         let b = CGFloat(bytes[offset + 2]) / 255
@@ -98,29 +104,71 @@ public enum PoseCellProcessor {
         } else {
           alpha = (distance - inner) / (outer - inner)
         }
+        alpha8[row * width + column] = UInt8((alpha * 255).rounded())
+      }
+    }
 
-        // 预乘 alpha：RGB 存 color*alpha；全透明像素清为 0，避免隐藏残留色。
-        if alpha < 0.02 {
+    // 边缘 flood-fill 抠底：只移除与图像边缘连通的背景区域。
+    // 主体内部与背景同色的部分（如哆啦A梦的白色肚皮/脸）因 flood 无法进入
+    // 而被保留为不透明，避免“白色部分变透明”的问题（参考 pixa/transparent.rs
+    // 与 R2beat 精灵图脚本的边缘连通策略）。
+    var flood = [UInt8](repeating: 0, count: width * height)
+    if !hasTransparentBackground {
+      Self.floodBackground(alpha8: alpha8, flood: &flood, width: width, height: height)
+    }
+
+    // 统一输出 + 统计最终 bbox / 强主体密度。
+    var minColumn = width
+    var maxColumn = -1
+    var minRow = height
+    var maxRow = -1
+    // 强主体像素（软抠底后 alpha ≥ 0.5）的行/列投影，用于收紧包围盒：
+    // AI 生成图常带场景（桌面/床/渐变阴影）或角落水印，若把整幅图计入包围盒，
+    // 角色会被缩放变小且位置偏移。
+    var strongRowDensity = [Int](repeating: 0, count: height)
+    var strongColumnDensity = [Int](repeating: 0, count: width)
+    var strongTotal = 0
+
+    for row in 0..<height {
+      for column in 0..<width {
+        let offset = row * context.bytesPerRow + column * 4
+        let index = row * width + column
+        let a = alpha8[index]
+        if flood[index] == 1 {
           bytes[offset] = 0
           bytes[offset + 1] = 0
           bytes[offset + 2] = 0
           bytes[offset + 3] = 0
+        } else if hasTransparentBackground {
+          // 自带透明背景：像素原样保留（字节已是正确预乘）；过低的 alpha 清为 0。
+          if a < 8 {
+            bytes[offset] = 0
+            bytes[offset + 1] = 0
+            bytes[offset + 2] = 0
+            bytes[offset + 3] = 0
+          }
+        } else if a < 8 {
+          // 主体内部的背景色（白色肚皮等）：恢复为不透明，保留原始颜色。
+          bytes[offset + 3] = 255
         } else {
-          bytes[offset] = UInt8((r * alpha * 255).rounded())
-          bytes[offset + 1] = UInt8((g * alpha * 255).rounded())
-          bytes[offset + 2] = UInt8((b * alpha * 255).rounded())
-          bytes[offset + 3] = UInt8((alpha * 255).rounded())
-          if alpha >= 0.5 {
-            strongRowDensity[row] += 1
-            strongColumnDensity[column] += 1
-            strongTotal += 1
-          }
-          if bytes[offset + 3] > 8 {
-            minColumn = min(minColumn, column)
-            maxColumn = max(maxColumn, column)
-            minRow = min(minRow, row)
-            maxRow = max(maxRow, row)
-          }
+          // 半透明边缘：预乘 alpha，RGB 存 color*alpha。
+          let scale = CGFloat(a) / 255
+          bytes[offset] = UInt8((CGFloat(bytes[offset]) * scale).rounded())
+          bytes[offset + 1] = UInt8((CGFloat(bytes[offset + 1]) * scale).rounded())
+          bytes[offset + 2] = UInt8((CGFloat(bytes[offset + 2]) * scale).rounded())
+          bytes[offset + 3] = a
+        }
+        let finalAlpha = bytes[offset + 3]
+        if finalAlpha > 8 {
+          minColumn = min(minColumn, column)
+          maxColumn = max(maxColumn, column)
+          minRow = min(minRow, row)
+          maxRow = max(maxRow, row)
+        }
+        if finalAlpha >= 128 {
+          strongRowDensity[row] += 1
+          strongColumnDensity[column] += 1
+          strongTotal += 1
         }
       }
     }
@@ -228,6 +276,66 @@ public enum PoseCellProcessor {
     }
     guard let start, start <= end else { return (fallbackMin, fallbackMax) }
     return (start, end)
+  }
+
+  /// 图片边缘是否自带透明背景：四条边缘平均 alpha 明显低于不透明则判定为透明底。
+  private static func edgeIsTransparent(
+    bytes: UnsafeMutablePointer<UInt8>,
+    width: Int,
+    height: Int,
+    bytesPerRow: Int
+  ) -> Bool {
+    var total = 0
+    var count = 0
+    for column in 0..<width {
+      total += Int(bytes[column * 4 + 3])
+      total += Int(bytes[(height - 1) * bytesPerRow + column * 4 + 3])
+      count += 2
+    }
+    for row in 0..<height {
+      total += Int(bytes[row * bytesPerRow + 3])
+      total += Int(bytes[row * bytesPerRow + (width - 1) * 4 + 3])
+      count += 2
+    }
+    guard count > 0 else { return false }
+    return total / count < 250
+  }
+
+  /// 从图像四条边缘做 4-连通 flood-fill，标记与边缘连通的背景像素。
+  /// 候选判定：软抠 alpha < 0.9（含白色背景与主体内部同色像素——后者因被主体
+  /// 包围而无法被 flood 到达，得以保留为不透明）。
+  private static func floodBackground(
+    alpha8: [UInt8],
+    flood: inout [UInt8],
+    width: Int,
+    height: Int
+  ) {
+    let threshold: UInt8 = 230
+    var stack: [Int] = []
+
+    func push(_ index: Int) {
+      guard flood[index] == 0, alpha8[index] < threshold else { return }
+      flood[index] = 1
+      stack.append(index)
+    }
+
+    for column in 0..<width {
+      push(column)
+      push((height - 1) * width + column)
+    }
+    for row in 0..<height {
+      push(row * width)
+      push(row * width + width - 1)
+    }
+
+    while let index = stack.popLast() {
+      let row = index / width
+      let column = index % width
+      if row > 0 { push(index - width) }
+      if row + 1 < height { push(index + width) }
+      if column > 0 { push(index - 1) }
+      if column + 1 < width { push(index + 1) }
+    }
   }
 
   private static func averageBackgroundColor(
