@@ -78,6 +78,31 @@ final class AppEnvironmentTests: XCTestCase {
   }
 
   @MainActor
+  func testStartFocusCancelsForcedSleepWindow() async {
+    let source = ControllableSignalSource()
+    let env = AppEnvironment(defaults: defaults, signalSources: [source])
+    env.start()
+    await waitUntil { source.subscriptionCount == 1 }
+
+    env.relax()
+    XCTAssertEqual(env.snapshot.baseState, .sleeping, "relax should enter sleeping")
+    env.startFocus()
+    XCTAssertEqual(env.snapshot.baseState, .focusing, "focus should override sleeping")
+
+    // 专注应该取消强制睡眠窗口：真实 idle 读数不再被拦截，
+    // 取消专注后宠物按真实 idle 恢复，而不是带着 301 秒旧值直接睡回去。
+    source.emit(.userIdleChanged(.seconds(10)))
+    await yieldToScheduler()
+    env.cancelFocus()
+    XCTAssertEqual(
+      env.snapshot.baseState, .drinkingTea,
+      "real idle readings should flow again after 专注 cancels the forced-sleep window")
+
+    env.stop()
+    source.finish()
+  }
+
+  @MainActor
   func testStartProcessesSignalEvents() async {
     let source = ControllableSignalSource()
     let env = AppEnvironment(defaults: defaults, signalSources: [source])

@@ -163,6 +163,9 @@ final class AppEnvironment: ObservableObject {
 
   func startFocus() {
     quickActionsVisible = false
+    // 用户手动进入专注时解除强制睡眠窗口：否则 15 秒内真实 idle 读数仍被拦截，
+    // 取消专注后可能带着旧的 301 秒 idle 直接睡回去。
+    forcedSleepRemaining = .zero
     focusSession.start()
     handle(.focusCommand(.start))
     diagnostics.record(category: "focus", message: "session-started")
