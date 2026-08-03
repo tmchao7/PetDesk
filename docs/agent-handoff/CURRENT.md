@@ -23,7 +23,7 @@ Fixed the Settings pose-import bug: `fileImporter` clears `isPresented` before i
 - `swift run PetDeskCoreChecks`: passed (includes new spritesheet-policy check).
 - `swift build --product PetDeskAppCheck`: BUILD SUCCEEDED.
 - `make test`: TEST SUCCEEDED — 71 XCTest + 6 XCUITest (commit `b24d717`).
-- `make verify`: pending (after this handoff record).
+- `make verify`: passed (2026-08-03 11:23, commits `b24d717` + `372f755`).
 
 ## Blockers
 
@@ -31,10 +31,9 @@ Fixed the Settings pose-import bug: `fileImporter` clears `isPresented` before i
 
 ## Next Actions
 
-1. Commit the handoff record (`docs(handoff)`) and run `make verify`.
-2. User: `make run-app` for a fresh build, re-import 专注/摸鱼/休息 in Settings (thumbnails + “已导入” alert now appear), then click 专注/摸鱼/放松 in the floating pet to confirm static switching.
-3. Optional later: re-enable micro-motion animation; extend pose import to all 8 rows; real-key trial of Plan C.
-4. Push after owner approval: feature branch, then `main` (currently 2 unpushed docs commits).
+1. User: `make run-app` for a fresh build, re-import 专注/摸鱼/休息 in Settings (thumbnails + “已导入” alert now appear), then click 专注/摸鱼/放松 in the floating pet to confirm static switching.
+2. Optional later: re-enable micro-motion animation; extend pose import to all 8 rows; real-key trial of Plan C.
+3. Push after owner approval: feature branch, then `main` (currently 2 unpushed docs commits).
 
 ## Working Rules
 
