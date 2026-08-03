@@ -140,11 +140,10 @@ struct SettingsView: View {
     .formStyle(.grouped)
     .frame(width: 480, height: 880)
     .onAppear {
-      NSApp.setActivationPolicy(.regular)
-      NSApp.activate(ignoringOtherApps: true)
+      environment.auxiliaryWindowDidAppear()
     }
     .onDisappear {
-      NSApp.setActivationPolicy(.accessory)
+      environment.auxiliaryWindowDidDisappear()
     }
     .fileImporter(
       isPresented: $showingFileImporter,
@@ -212,6 +211,7 @@ struct SettingsView: View {
         },
         onCancel: {
           showingEditor = false
+          environment.cancelAvatarEdit()
         }
       )
     }

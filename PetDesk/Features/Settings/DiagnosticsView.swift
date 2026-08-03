@@ -32,11 +32,10 @@ struct DiagnosticsView: View {
     }
     .frame(minWidth: 660, minHeight: 420)
     .onAppear {
-      NSApp.setActivationPolicy(.regular)
-      NSApp.activate(ignoringOtherApps: true)
+      environment.auxiliaryWindowDidAppear()
     }
     .onDisappear {
-      NSApp.setActivationPolicy(.accessory)
+      environment.auxiliaryWindowDidDisappear()
     }
   }
 

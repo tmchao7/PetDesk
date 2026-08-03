@@ -35,7 +35,8 @@ struct MenuBarView: View {
   /// own `.onDisappear` switches back to `.accessory`.
   private func dismissThen(_ action: @escaping () -> Void) {
     DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-      NSApp.setActivationPolicy(.regular)
+      // 激活策略由窗口自己的 onAppear（引用计数）切换：这里只激活，
+      // 避免窗口未显示时 .regular 泄漏（Dock 图标残留）。
       NSApp.activate(ignoringOtherApps: true)
       action()
     }

@@ -81,11 +81,10 @@ struct TodoView: View {
     }
     .frame(width: 340, height: 420)
     .onAppear {
-      NSApp.setActivationPolicy(.regular)
-      NSApp.activate(ignoringOtherApps: true)
+      environment.auxiliaryWindowDidAppear()
     }
     .onDisappear {
-      NSApp.setActivationPolicy(.accessory)
+      environment.auxiliaryWindowDidDisappear()
     }
   }
 

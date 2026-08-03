@@ -19,7 +19,6 @@ struct PetDeskApp: App {
         environment: appDelegate.environment,
         togglePet: { appDelegate.togglePet() },
         openDiagnostics: {
-          NSApp.setActivationPolicy(.regular)
           NSApp.activate(ignoringOtherApps: true)
           openWindow(id: "diagnostics")
         }

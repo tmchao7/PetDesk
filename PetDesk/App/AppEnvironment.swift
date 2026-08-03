@@ -52,6 +52,25 @@ final class AppEnvironment: ObservableObject {
   }
   /// 宠物窗口不可见或被遮挡时为 true，视图据此暂停帧动画与 Timeline 驱动。
   @Published private(set) var isPetAnimationPaused = true
+  /// 辅助窗口（设置/统计/待办/诊断）可见计数：任一可见时保持 .regular
+  /// （Dock 图标 + Cmd-Tab），全部关闭才回 .accessory——避免多窗口同时
+  /// 打开时关掉一个就把应用降级导致其余窗口失焦/Dock 图标消失。
+  private var auxiliaryWindowCount = 0
+
+  /// 辅助窗口出现：切 .regular 并激活（幂等），计数 +1。
+  func auxiliaryWindowDidAppear() {
+    auxiliaryWindowCount += 1
+    NSApp.setActivationPolicy(.regular)
+    NSApp.activate(ignoringOtherApps: true)
+  }
+
+  /// 辅助窗口关闭：计数 -1；归零时回 .accessory。
+  func auxiliaryWindowDidDisappear() {
+    auxiliaryWindowCount = max(0, auxiliaryWindowCount - 1)
+    if auxiliaryWindowCount == 0 {
+      NSApp.setActivationPolicy(.accessory)
+    }
+  }
 
   /// Base avatar size (148 pt at 1.0× scale).
   var petAvatarSize: CGFloat { 148 * petScale }
@@ -293,6 +312,11 @@ final class AppEnvironment: ObservableObject {
     }
   }
 
+  /// 取消头像编辑：释放源图内存（不落盘、不改头像）。
+  func cancelAvatarEdit() {
+    avatarSourceImage = nil
+  }
+
   func loadSourceForEdit(from url: URL) async {
     guard let avatarRepository else {
       avatarError = "头像存储不可用。"
@@ -304,8 +328,11 @@ final class AppEnvironment: ObservableObject {
       avatarError = nil
     } catch let error as AvatarImportError {
       avatarError = Self.avatarMessage(for: error)
+      // 清掉上次导入的残留源图，避免编辑器弹旧图（可能误确认覆盖当前头像）。
+      avatarSourceImage = nil
     } catch {
       avatarError = "图片加载失败。"
+      avatarSourceImage = nil
     }
   }
 
@@ -515,6 +542,8 @@ final class AppEnvironment: ObservableObject {
     // 摸鱼/放松的 manualState 拦截对称（点的是什么状态就是什么状态）。
     if manualState == .focusing {
       reduced.baseState = .focusing
+      // 钉住期间系统事件被拦截、状态机 thermal 停在旧值；这里统一清空效果
+      // 覆盖（含高温 smoke）——设计如此：专注形象不带特效叠加。
       reduced.effects = []
     }
     // 发布门控：CPU 读数每秒都在变，但宠物外观（状态/特效/气泡）不变时
