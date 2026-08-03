@@ -179,6 +179,36 @@ final class AppEnvironmentTests: XCTestCase {
   }
 
   @MainActor
+  func testReminderSurvivesStateMachineTicks() async {
+    let source = ControllableSignalSource()
+    let env = AppEnvironment(defaults: defaults, signalSources: [source])
+    env.start()
+    await waitUntil { source.subscriptionCount == 1 }
+
+    env.focusDurationMinutes = 1
+    env.reminderDisplaySeconds = 10
+    env.startFocus()
+    env.advanceStateDurationReminder(by: .seconds(60))
+    XCTAssertEqual(
+      env.snapshot.bubble, .stateDurationReminder("你已连续专注 1 分钟"),
+      "reminder should fire first")
+
+    // 真实运行中每秒 tick 都会让状态机快照覆盖 snapshot.bubble；
+    // 提醒必须被重新挂回，直到配置的显示时长结束。
+    for _ in 0..<5 {
+      source.emit(.tick(.seconds(1)))
+    }
+    await yieldToScheduler()
+    XCTAssertEqual(
+      env.snapshot.bubble, .stateDurationReminder("你已连续专注 1 分钟"),
+      "per-second state machine ticks must not erase the reminder "
+        + "before its configured display duration")
+
+    env.stop()
+    source.finish()
+  }
+
+  @MainActor
   func testDurationSettingsPersistToDefaults() {
     let env = AppEnvironment(defaults: defaults, signalSources: [])
     XCTAssertEqual(env.focusDurationMinutes, 25, "focus default should be 25 minutes")

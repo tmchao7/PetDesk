@@ -114,6 +114,9 @@ final class AppEnvironment: ObservableObject {
   private var stateDuration: Duration = .zero
   private var lastReminderCycle = 0
   private var reminderBubbleRemaining: Duration = .zero
+  /// 当前正在显示的提醒文案；状态机每秒 reduce 会覆盖 snapshot.bubble，
+  /// 需要用它把提醒气泡重新挂回去，直到显示时长结束。
+  private var activeReminderText: String?
   private var currentDayKey = DayStats.todayKey()
   private var dayAccumulator = DayStats(date: DayStats.todayKey())
   private var secondsSinceStatsFlush = 0
@@ -527,6 +530,7 @@ final class AppEnvironment: ObservableObject {
     }
     if quietMode, case .notificationPulse = event { return }
     snapshot = machine.reduce(event, elapsed: eventElapsed(event))
+    reapplyReminderBubbleIfNeeded()
     if case .tick = event {
     } else {
       diagnostics.record(
@@ -563,9 +567,12 @@ final class AppEnvironment: ObservableObject {
       reminderBubbleRemaining -= min(reminderBubbleRemaining, duration)
       if reminderBubbleRemaining <= .zero {
         reminderBubbleRemaining = .zero
+        activeReminderText = nil
         if case .stateDurationReminder? = snapshot.bubble {
           snapshot.bubble = nil
         }
+      } else {
+        reapplyReminderBubbleIfNeeded()
       }
     }
 
@@ -577,14 +584,24 @@ final class AppEnvironment: ObservableObject {
         minutes != lastReminderCycle
       {
         lastReminderCycle = minutes
-        snapshot.bubble = .stateDurationReminder(
-          reminderText(for: pinnedState, minutes: minutes))
+        let text = reminderText(for: pinnedState, minutes: minutes)
+        activeReminderText = text
+        snapshot.bubble = .stateDurationReminder(text)
         reminderBubbleRemaining = .seconds(max(1, reminderDisplaySeconds))
       }
     } else if stateDuration > .zero {
       // 状态离开计时范围（如专注会话结束）时清零，下次点击重新计时。
       stateDuration = .zero
       lastReminderCycle = 0
+    }
+  }
+
+  /// 状态机每次 reduce 都会用它的快照覆盖 bubble；提醒显示期间把它挂回去。
+  /// 不覆盖其他类型的气泡（如专注完成、活动提醒）。
+  private func reapplyReminderBubbleIfNeeded() {
+    guard reminderBubbleRemaining > .zero, let text = activeReminderText else { return }
+    if snapshot.bubble == nil || snapshot.bubble == .stateDurationReminder(text) {
+      snapshot.bubble = .stateDurationReminder(text)
     }
   }
 
@@ -621,6 +638,7 @@ final class AppEnvironment: ObservableObject {
     stateDuration = .zero
     lastReminderCycle = 0
     reminderBubbleRemaining = .zero
+    activeReminderText = nil
     if case .stateDurationReminder? = snapshot.bubble {
       snapshot.bubble = nil
     }
