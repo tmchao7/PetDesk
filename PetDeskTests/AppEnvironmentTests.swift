@@ -694,6 +694,31 @@ final class AppEnvironmentTests: XCTestCase {
   }
 
   @MainActor
+  func testCustomPoseStateRestoresAfterRestart() async throws {
+    let tmp = tempDirectory()
+    defer { try? FileManager.default.removeItem(at: tmp) }
+    let repo = try AvatarRepository(directoryURL: tmp)
+    let env = AppEnvironment(defaults: defaults, signalSources: [], avatarRepository: repo)
+    await env.saveCroppedAvatar(try makeTestCGImage(width: 64, height: 64))
+    let poseURL = try writePoseFile(in: tmp)
+    let message = await env.importPose(row: .working, from: poseURL)
+    XCTAssertNil(message, "pose should import before restart")
+
+    // 模拟重启：新实例从同一目录加载头像与精灵图。
+    let env2 = AppEnvironment(defaults: defaults, signalSources: [], avatarRepository: repo)
+    env2.start()
+    await waitUntil { env2.customPoseRows.contains(.working) }
+
+    XCTAssertTrue(
+      env2.customPoseRows.contains(.working),
+      "custom pose rows should restore from the persisted spritesheet")
+    XCTAssertNotNil(
+      env2.customPoseImages[.working],
+      "custom pose thumbnail should restore from the persisted spritesheet")
+    env2.stop()
+  }
+
+  @MainActor
   private func waitUntil(
     _ condition: () -> Bool,
     file: StaticString = #filePath,

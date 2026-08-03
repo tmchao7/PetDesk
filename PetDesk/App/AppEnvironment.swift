@@ -283,6 +283,7 @@ final class AppEnvironment: ObservableObject {
     do {
       let sheet = try await avatarRepository.importSpritesheet(from: url)
       avatarSpritesheet = sheet
+      syncCustomPoseStateFromSpritesheet()
       avatarError = nil
       diagnostics.record(category: "avatar", message: "spritesheet-imported")
       return nil
@@ -558,6 +559,74 @@ final class AppEnvironment: ObservableObject {
     avatarImage = AvatarImageLoader.load(from: url)
     avatarBaseCGImage = await avatarRepository.loadAvatarCGImage()
     avatarSpritesheet = await avatarRepository.loadSpritesheet()
+    syncCustomPoseStateFromSpritesheet()
+  }
+
+  /// 从已加载的精灵图反解自定义姿势行：把与头像基准单元像素不同的行恢复为
+  /// 自定义行（cells + 缩略图），保证重启后 Settings 仍显示“更换/清除”，
+  /// 且清除某行时不会误伤其余已导入行。
+  private func syncCustomPoseStateFromSpritesheet() {
+    customPoseCells.removeAll()
+    customPoseRows = []
+    customPoseImages = [:]
+    guard
+      let avatarBaseCGImage,
+      let baseCell = SpriteSheetGenerator.baseCell(from: avatarBaseCGImage),
+      let avatarSpritesheet
+    else { return }
+    for row in [AnimationRow.working, .drinking, .sleeping] {
+      let frameRect = CGRect(
+        x: 0,
+        y: CGFloat(row.rawValue) * SpriteSheetSpec.frameHeight,
+        width: SpriteSheetSpec.frameWidth,
+        height: SpriteSheetSpec.frameHeight
+      )
+      guard let frame = avatarSpritesheet.cropping(to: frameRect) else { continue }
+      guard !Self.cgImagesEqual(frame, baseCell) else { continue }
+      customPoseCells[row] = frame
+      customPoseRows.insert(row)
+      customPoseImages[row] = NSImage(cgImage: frame, size: NSSize(width: 48, height: 52))
+    }
+  }
+
+  /// 逐像素比较两张同尺寸图像（容差 4/255，容忍 PNG 往返与色彩管理的舍入误差）。
+  private static func cgImagesEqual(_ lhs: CGImage, _ rhs: CGImage) -> Bool {
+    guard lhs.width == rhs.width, lhs.height == rhs.height else { return false }
+    let width = lhs.width
+    let height = lhs.height
+    let bitmapInfo = CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue)
+
+    func renderedBytes(_ image: CGImage) -> Data? {
+      guard
+        let context = CGContext(
+          data: nil,
+          width: width,
+          height: height,
+          bitsPerComponent: 8,
+          bytesPerRow: 0,
+          space: CGColorSpaceCreateDeviceRGB(),
+          bitmapInfo: bitmapInfo.rawValue
+        ),
+        let data = context.data
+      else { return nil }
+      context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
+      return Data(bytes: data, count: height * context.bytesPerRow)
+    }
+
+    guard let lhsBytes = renderedBytes(lhs), let rhsBytes = renderedBytes(rhs) else {
+      return false
+    }
+    var differences = 0
+    for index in 0..<lhsBytes.count {
+      let delta = abs(Int(lhsBytes[index]) - Int(rhsBytes[index]))
+      if delta > 4 {
+        differences += 1
+        if differences > max(16, width * height / 200) {
+          return false
+        }
+      }
+    }
+    return true
   }
 
   private func feedDemoCPU(_ load: Double) {
