@@ -46,6 +46,10 @@ final class AppEnvironment: ObservableObject {
   @Published var relaxReminderMessage: String {
     didSet { defaults.set(relaxReminderMessage, forKey: Keys.relaxReminderMessage) }
   }
+  /// 单次提醒气泡的显示时长（秒），用户可在设置里调整。
+  @Published var reminderDisplaySeconds: Int {
+    didSet { defaults.set(reminderDisplaySeconds, forKey: Keys.reminderDisplaySeconds) }
+  }
   @Published var petScale: Double {
     didSet { defaults.set(petScale, forKey: Keys.petScale) }
   }
@@ -83,6 +87,7 @@ final class AppEnvironment: ObservableObject {
     static let focusReminderMessage = "focusReminderMessage"
     static let slackReminderMessage = "slackReminderMessage"
     static let relaxReminderMessage = "relaxReminderMessage"
+    static let reminderDisplaySeconds = "reminderDisplaySeconds"
     static let petScale = "petScale"
   }
 
@@ -133,6 +138,8 @@ final class AppEnvironment: ObservableObject {
       defaults.string(forKey: Keys.slackReminderMessage), fallback: Self.defaultSlackReminder)
     self.relaxReminderMessage = Self.reminderMessage(
       defaults.string(forKey: Keys.relaxReminderMessage), fallback: Self.defaultRelaxReminder)
+    self.reminderDisplaySeconds = Self.displaySeconds(
+      defaults.integer(forKey: Keys.reminderDisplaySeconds))
     let storedScale = defaults.double(forKey: Keys.petScale)
     self.petScale = storedScale > 0 ? storedScale : 1.0
     let notificationMonitor = AccessibilityNotificationPulseMonitor()
@@ -172,6 +179,8 @@ final class AppEnvironment: ObservableObject {
       defaults.string(forKey: Keys.slackReminderMessage), fallback: Self.defaultSlackReminder)
     self.relaxReminderMessage = Self.reminderMessage(
       defaults.string(forKey: Keys.relaxReminderMessage), fallback: Self.defaultRelaxReminder)
+    self.reminderDisplaySeconds = Self.displaySeconds(
+      defaults.integer(forKey: Keys.reminderDisplaySeconds))
     let storedScale = defaults.double(forKey: Keys.petScale)
     self.petScale = storedScale > 0 ? storedScale : 1.0
     self.notificationCapability = notificationCapability
@@ -546,7 +555,8 @@ final class AppEnvironment: ObservableObject {
   }
 
   /// 状态连续时长提醒：到达设定时长（如每 25 分钟）弹一次气泡，
-  /// 4 秒后自动消失；仅提醒，不切换状态。点击 专注/摸鱼/放松 时重新计时。
+  /// 按设置的单次显示时长（默认 10 秒）自动消失；仅提醒，不切换状态。
+  /// 点击 专注/摸鱼/放松 时重新计时。
   func advanceStateDurationReminder(by duration: Duration) {
     // 先处理既有提醒的自动消失（避免本次推进刚触发的提醒被立即清掉）。
     if reminderBubbleRemaining > .zero {
@@ -569,7 +579,7 @@ final class AppEnvironment: ObservableObject {
         lastReminderCycle = minutes
         snapshot.bubble = .stateDurationReminder(
           reminderText(for: pinnedState, minutes: minutes))
-        reminderBubbleRemaining = .seconds(4)
+        reminderBubbleRemaining = .seconds(max(1, reminderDisplaySeconds))
       }
     } else if stateDuration > .zero {
       // 状态离开计时范围（如专注会话结束）时清零，下次点击重新计时。
@@ -753,6 +763,11 @@ final class AppEnvironment: ObservableObject {
   /// 读取时长设置：只接受 1...180 分钟，非法值回退默认。
   private static func durationMinutes(_ stored: Int, fallback: Int) -> Int {
     (1...180).contains(stored) ? stored : fallback
+  }
+
+  /// 单次提醒显示时长（秒）：只接受 1...120 秒，非法值回退默认 10 秒。
+  private static func displaySeconds(_ stored: Int) -> Int {
+    (1...120).contains(stored) ? stored : 10
   }
 
   private static let defaultFocusReminder = "你已连续专注 {minutes} 分钟"

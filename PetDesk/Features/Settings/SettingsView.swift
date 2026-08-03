@@ -98,6 +98,11 @@ struct SettingsView: View {
       }
 
       Section("状态时长提醒") {
+        Stepper(
+          "单次提示时长：\(environment.reminderDisplaySeconds) 秒",
+          value: $environment.reminderDisplaySeconds,
+          in: 1...120
+        )
         ReminderSettingRow(
           title: "专注",
           minutes: $environment.focusDurationMinutes,

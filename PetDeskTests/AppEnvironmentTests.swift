@@ -132,6 +132,7 @@ final class AppEnvironmentTests: XCTestCase {
   func testStateDurationReminderFiresAtConfiguredInterval() {
     let env = AppEnvironment(defaults: defaults, signalSources: [])
     env.focusDurationMinutes = 1
+    env.reminderDisplaySeconds = 3
     env.startFocus()
     XCTAssertEqual(env.snapshot.baseState, .focusing)
 
@@ -143,8 +144,14 @@ final class AppEnvironmentTests: XCTestCase {
       env.snapshot.bubble, .stateDurationReminder("你已连续专注 1 分钟"),
       "reminder should fire at the configured interval")
 
-    // 4 秒后自动消失。
-    env.advanceStateDurationReminder(by: .seconds(4))
+    // 未到配置的单次显示时长前应保持显示。
+    env.advanceStateDurationReminder(by: .seconds(2))
+    XCTAssertEqual(
+      env.snapshot.bubble, .stateDurationReminder("你已连续专注 1 分钟"),
+      "reminder should stay until the configured display seconds")
+
+    // 到点自动消失。
+    env.advanceStateDurationReminder(by: .seconds(1))
     XCTAssertNil(env.snapshot.bubble, "reminder bubble should auto-dismiss")
 
     // 再满一个周期 → 2 分钟。
@@ -223,6 +230,17 @@ final class AppEnvironmentTests: XCTestCase {
     let restored = AppEnvironment(defaults: defaults, signalSources: [])
     XCTAssertEqual(restored.focusReminderMessage, "冲啊，已经 {minutes} 分钟了")
     XCTAssertEqual(restored.relaxReminderMessage, "躺平 {m} 分钟了")
+  }
+
+  @MainActor
+  func testReminderDisplaySecondsPersistsToDefaults() {
+    let env = AppEnvironment(defaults: defaults, signalSources: [])
+    XCTAssertEqual(env.reminderDisplaySeconds, 10, "display default should be 10 seconds")
+
+    env.reminderDisplaySeconds = 30
+
+    let restored = AppEnvironment(defaults: defaults, signalSources: [])
+    XCTAssertEqual(restored.reminderDisplaySeconds, 30, "display seconds should persist")
   }
 
   @MainActor
