@@ -52,4 +52,14 @@ public struct PetSnapshot: Sendable, Equatable {
     self.bubble = bubble
     self.averageCPU = averageCPU
   }
+
+  /// 显示相关字段是否相同：baseState/transientState/effects/bubble 决定宠物
+  /// 外观与气泡；averageCPU 只进诊断窗口，不参与判定。AppEnvironment 用它
+  /// 做发布门控——CPU 读数每秒都在变，但宠物外观不变时无需重绘视图。
+  public func displayEquals(_ other: PetSnapshot) -> Bool {
+    baseState == other.baseState
+      && transientState == other.transientState
+      && effects == other.effects
+      && bubble == other.bubble
+  }
 }

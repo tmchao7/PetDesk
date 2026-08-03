@@ -529,7 +529,11 @@ final class AppEnvironment: ObservableObject {
       }
     }
     if quietMode, case .notificationPulse = event { return }
-    snapshot = machine.reduce(event, elapsed: eventElapsed(event))
+    let reduced = machine.reduce(event, elapsed: eventElapsed(event))
+    // 发布门控：CPU 读数每秒都在变，但宠物外观（状态/特效/气泡）不变时
+    // 跳过发布，避免每秒无效化悬浮窗整树重绘。averageCPU 只进诊断窗口，
+    // 允许滞后到下一次外观变化时一并刷新。
+    if !reduced.displayEquals(snapshot) { snapshot = reduced }
     reapplyReminderBubbleIfNeeded()
     if case .tick = event {
     } else {

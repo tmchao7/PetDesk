@@ -379,6 +379,30 @@ private func checkStateMachine() throws {
     "snooze should clear reminder")
 }
 
+/// 快照发布门控：显示相关字段（baseState/transient/effects/bubble）相同、
+/// 仅 averageCPU 变化时，视图无需重绘（CPU 读数只在诊断窗口里展示）。
+private func checkSnapshotDisplayEquality() throws {
+  let base = PetSnapshot()
+  try expect(
+    base.displayEquals(PetSnapshot(averageCPU: 0.42)),
+    "CPU-only change should be display-equal")
+  try expect(
+    !base.displayEquals(PetSnapshot(baseState: .working)),
+    "baseState change should not be display-equal")
+  try expect(
+    !base.displayEquals(PetSnapshot(effects: [.keyboard])),
+    "effects change should not be display-equal")
+  try expect(
+    !base.displayEquals(PetSnapshot(transientState: .startled(.wechat))),
+    "transient change should not be display-equal")
+  try expect(
+    !base.displayEquals(PetSnapshot(bubble: .focusInvite)),
+    "bubble change should not be display-equal")
+  try expect(
+    base.displayEquals(PetSnapshot()),
+    "identical snapshots should be display-equal")
+}
+
 private func checkCoreServices() throws {
   var calculator = CPULoadCalculator()
   try expect(
@@ -844,6 +868,7 @@ private func checkSpritesheetImportPolicy() throws {
 
 private func runAllChecks() async throws {
   try checkStateMachine()
+  try checkSnapshotDisplayEquality()
   try checkCoreServices()
   try checkRowCellGeneration()
   try checkSpriteSheetBaseCell()

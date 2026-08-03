@@ -273,6 +273,9 @@ final class AppEnvironmentTests: XCTestCase {
     XCTAssertEqual(restored.reminderDisplaySeconds, 30, "display seconds should persist")
   }
 
+  /// 快照发布有门控：averageCPU 变化不发布（CPU 只进诊断窗口），
+  /// 显示字段（baseState 等）变化才发布。因此这里用会改变显示状态的
+  /// userIdle 事件验证“信号事件被处理并反映到快照”。
   @MainActor
   func testStartProcessesSignalEvents() async {
     let source = ControllableSignalSource()
@@ -280,10 +283,10 @@ final class AppEnvironmentTests: XCTestCase {
     env.start()
 
     await waitUntil { source.subscriptionCount == 1 }
-    source.emit(.systemMetrics(SystemMetrics(cpuLoad: 0.50, thermalLevel: .nominal)))
-    await waitUntil { env.snapshot.averageCPU > 0 }
+    source.emit(.userIdleChanged(.seconds(301)))
+    await waitUntil { env.snapshot.baseState == .sleeping }
 
-    XCTAssertGreaterThan(env.snapshot.averageCPU, 0, "start should process signal events")
+    XCTAssertEqual(env.snapshot.baseState, .sleeping, "start should process signal events")
     env.stop()
     source.finish()
   }
@@ -295,14 +298,15 @@ final class AppEnvironmentTests: XCTestCase {
 
     env.start()
     await waitUntil { source.subscriptionCount == 1 }
-    source.emit(.systemMetrics(SystemMetrics(cpuLoad: 0.50, thermalLevel: .nominal)))
-    await waitUntil { env.snapshot.averageCPU > 0 }
+    source.emit(.userIdleChanged(.seconds(301)))
+    await waitUntil { env.snapshot.baseState == .sleeping }
 
     env.stop()
     let snapshotAfterStop = env.snapshot
 
-    // Emit another event AFTER stop — should be ignored because tasks are cancelled.
-    source.emit(.systemMetrics(SystemMetrics(cpuLoad: 0.90, thermalLevel: .nominal)))
+    // Emit an event AFTER stop that would change the display state —
+    // it should be ignored because tasks are cancelled.
+    source.emit(.userIdleChanged(.zero))
     await yieldToScheduler()
 
     XCTAssertEqual(
@@ -318,20 +322,19 @@ final class AppEnvironmentTests: XCTestCase {
 
     env.start()
     await waitUntil { source.subscriptionCount == 1 }
-    source.emit(.systemMetrics(SystemMetrics(cpuLoad: 0.50, thermalLevel: .nominal)))
-    await waitUntil { env.snapshot.averageCPU > 0 }
-    XCTAssertGreaterThan(env.snapshot.averageCPU, 0)
+    source.emit(.userIdleChanged(.seconds(301)))
+    await waitUntil { env.snapshot.baseState == .sleeping }
 
     env.stop()
 
     // Restart the SAME instance — it should resume processing events.
     env.start()
     await waitUntil { source.subscriptionCount == 2 }
-    source.emit(.systemMetrics(SystemMetrics(cpuLoad: 0.90, thermalLevel: .nominal)))
-    await waitUntil { env.snapshot.averageCPU > 0.50 }
+    source.emit(.userIdleChanged(.zero))
+    await waitUntil { env.snapshot.baseState == .drinkingTea }
 
-    XCTAssertGreaterThan(
-      env.snapshot.averageCPU, 0.50,
+    XCTAssertEqual(
+      env.snapshot.baseState, .drinkingTea,
       "same-instance restart should resume processing events")
     env.stop()
     source.finish()
