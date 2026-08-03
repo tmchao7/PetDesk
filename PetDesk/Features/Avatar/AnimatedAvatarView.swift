@@ -7,7 +7,8 @@ import SwiftUI
 
 /// 帧动画头像视图：
 /// - 多帧自定义行（multiFrameCount > 1）：按导入帧循环播放，速度随 CPU 变化
-///   （RunCat 风格：0% CPU ≈ 5 FPS，100% CPU ≈ 100 FPS）
+///   （RunCat 风格：0% CPU ≈ 5 FPS，100% CPU ≈ 100 FPS），由 TimelineView
+///   的 display-link 驱动（窗口遮挡时自动暂停）。
 /// - 其余：静态显示当前状态行基准帧
 /// - 无精灵图时回退为静态头像 + 轻微呼吸浮动
 struct AnimatedAvatarView: View {
@@ -25,8 +26,8 @@ struct AnimatedAvatarView: View {
   /// cachedFrameSheet 强引用精灵图，保证缓存命中比较时其地址不被复用。
   @State private var cachedFrameSheet: CGImage?
   @State private var cachedFrame: (sheetID: UInt, row: AnimationRow, index: Int, image: NSImage)?
-  /// 多帧动画驱动器（仅 multiFrameCount > 1 时运行 Timer）。
-  @StateObject private var animator = FrameAnimator(frameCount: 1, cpuProvider: { 0 })
+  /// 动画计时起点（视图生命周期内稳定；帧索引由 elapsed/interval 纯函数推导）。
+  @State private var animationStart = Date()
 
   private var row: AnimationRow { animState.row }
 
@@ -42,7 +43,16 @@ struct AnimatedAvatarView: View {
   var body: some View {
     Group {
       if let spritesheet {
-        spriteView(spritesheet)
+        if multiFrameCount > 1 {
+          // 多帧动画：TimelineView 按 display-link 周期重算 body，
+          // 帧索引 = elapsed / CPU 驱动间隔（纯函数，无 Timer/runloop 依赖）；
+          // 窗口遮挡时 SwiftUI 自动暂停 schedule，零额外唤醒。
+          TimelineView(.periodic(from: .now, by: 0.01)) { context in
+            spriteView(spritesheet, frameIndex: frameIndex(at: context.date))
+          }
+        } else {
+          spriteView(spritesheet, frameIndex: staticFrameIndex)
+        }
       } else if let image {
         card {
           Image(nsImage: image)
@@ -55,25 +65,12 @@ struct AnimatedAvatarView: View {
     }
     .accessibilityLabel("Pet avatar")
     .accessibilityIdentifier("pet.avatar")
-    .onAppear { configureAnimator() }
-    .onChange(of: multiFrameCount) { _ in configureAnimator() }
-    .onDisappear { animator.stop() }
-  }
-
-  /// 多帧行启动动画驱动器（100Hz Timer），其余行停止（零唤醒开销）。
-  private func configureAnimator() {
-    if multiFrameCount > 1 {
-      animator.configure(frameCount: multiFrameCount, cpuProvider: cpuProvider)
-      animator.start()
-    } else {
-      animator.stop()
-    }
   }
 
   /// 精灵图路径：保持 192×208 比例、无边框无卡片，背景完全透明，
   /// 只给角色本体加一点投影，在浅色桌面上仍可辨认。
-  private func spriteView(_ sheet: CGImage) -> some View {
-    Image(nsImage: cachedFrameImage(from: sheet))
+  private func spriteView(_ sheet: CGImage, frameIndex: Int) -> some View {
+    Image(nsImage: cachedFrameImage(from: sheet, index: frameIndex))
       .resizable()
       .interpolation(.high)
       .scaledToFit()
@@ -107,9 +104,8 @@ struct AnimatedAvatarView: View {
   /// 按当前状态行裁剪帧（多帧动画或静态基准帧），结果按
   /// (精灵图地址, 行, 帧索引) 缓存复用。精灵图规范与 CGImage.cropping
   /// 同为“y=0 在视觉顶部”，直接按行/列裁剪，不做 y 翻转。
-  private func cachedFrameImage(from sheet: CGImage) -> NSImage {
+  private func cachedFrameImage(from sheet: CGImage, index: Int) -> NSImage {
     let sheetID = UInt(bitPattern: Unmanaged.passUnretained(sheet).toOpaque())
-    let index = displayFrameIndex
     if let cached = cachedFrame, cached.sheetID == sheetID, cached.row == row,
       cached.index == index
     {
@@ -135,10 +131,20 @@ struct AnimatedAvatarView: View {
     return image
   }
 
-  /// 当前显示的帧索引：多帧行取动画推进的帧，其余行取静态基准帧。
-  private var displayFrameIndex: Int {
-    if multiFrameCount > 1 { return animator.frameIndex }
-    return staticFrameIndex
+  /// 多帧动画当前帧索引：从动画起点起按 CPU 驱动间隔推进（纯函数）。
+  /// - Parameter date: TimelineView 提供的当前时间。
+  func frameIndex(at date: Date) -> Int {
+    let interval = Self.computeInterval(cpu: cpuProvider())
+    let elapsed = max(0, date.timeIntervalSince(animationStart))
+    return Self.frameIndex(elapsed: elapsed, interval: interval, frameCount: multiFrameCount)
+  }
+
+  /// 帧索引推导（纯函数，可测试）：elapsed 每过一个 interval 推进一帧，
+  /// 超过 frameCount 循环回绕。
+  static func frameIndex(elapsed: TimeInterval, interval: TimeInterval, frameCount: Int) -> Int {
+    let frames = max(1, frameCount)
+    guard interval > 0 else { return 0 }
+    return Int(elapsed / interval) % frames
   }
 
   /// 静态模式下每个状态行显示的基准帧（避开眨眼/位移/旋转帧）。
@@ -146,59 +152,6 @@ struct AnimatedAvatarView: View {
     switch row {
     case .happy, .surprised: 1
     default: 0
-    }
-  }
-}
-
-/// 多帧动画驱动器：100Hz Timer 累计时间，按 CPU 映射的帧间隔推进帧索引。
-/// 仅在多帧行显示时运行（start/stop 控制），空闲时零唤醒开销。
-@MainActor
-final class FrameAnimator: ObservableObject {
-  @Published private(set) var frameIndex = 0
-
-  private var frameCount = 1
-  private var cpuProvider: () -> Double = { 0 }
-  private var timer: Timer?
-  private var accumulated: TimeInterval = 0
-  private var lastTick: TimeInterval = 0
-
-  init(frameCount: Int, cpuProvider: @escaping () -> Double) {
-    configure(frameCount: frameCount, cpuProvider: cpuProvider)
-  }
-
-  func configure(frameCount: Int, cpuProvider: @escaping () -> Double) {
-    self.frameCount = max(1, frameCount)
-    self.cpuProvider = cpuProvider
-    frameIndex = 0
-    accumulated = 0
-  }
-
-  func start() {
-    guard timer == nil else { return }
-    lastTick = CACurrentMediaTime()
-    // scheduledTimer 的回调在 main runloop 执行，直接 assumeIsolated
-    // 直调（避免每 tick 创建 Task 的 100Hz 开销）。
-    timer = Timer.scheduledTimer(withTimeInterval: 0.01, repeats: true) { [weak self] _ in
-      MainActor.assumeIsolated {
-        self?.tick()
-      }
-    }
-  }
-
-  func stop() {
-    timer?.invalidate()
-    timer = nil
-  }
-
-  private func tick() {
-    let now = CACurrentMediaTime()
-    let dt = now - lastTick
-    lastTick = now
-    accumulated += dt
-    let interval = Self.computeInterval(cpu: cpuProvider())
-    if accumulated >= interval {
-      accumulated = 0
-      frameIndex = (frameIndex + 1) % frameCount
     }
   }
 

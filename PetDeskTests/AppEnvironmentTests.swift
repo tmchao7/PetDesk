@@ -592,18 +592,30 @@ final class AppEnvironmentTests: XCTestCase {
     XCTAssertEqual(env.multiFrameCount(for: .sleeping), 0)
   }
 
-  /// RunCat 风格 CPU→帧间隔映射：0% CPU ≈ 200ms，50% ≈ 40ms，100% ≈ 10ms。
+  /// 帧索引纯函数：时间推进按间隔换帧、超帧数循环回绕。
+  @MainActor
+  func testFrameIndexAdvancesWithTime() {
+    // 间隔 100ms、8 帧：0.25s → 帧 2；1.05s → 帧 10 % 8 = 2；0s → 帧 0。
+    XCTAssertEqual(AnimatedAvatarView.frameIndex(elapsed: 0, interval: 0.1, frameCount: 8), 0)
+    XCTAssertEqual(AnimatedAvatarView.frameIndex(elapsed: 0.25, interval: 0.1, frameCount: 8), 2)
+    XCTAssertEqual(AnimatedAvatarView.frameIndex(elapsed: 1.05, interval: 0.1, frameCount: 8), 2)
+    XCTAssertEqual(AnimatedAvatarView.frameIndex(elapsed: 0.05, interval: 0.1, frameCount: 8), 0)
+    // 非法间隔防御。
+    XCTAssertEqual(AnimatedAvatarView.frameIndex(elapsed: 1, interval: 0, frameCount: 4), 0)
+  }
+
+  /// RunCat 风格 CPU→帧间隔映射：0% CPU ≈ 200ms，50% ≈ 20ms，100% ≈ 10ms。
   @MainActor
   func testCPUSpeedMapping() {
-    let idle = FrameAnimator.computeInterval(cpu: 0)
+    let idle = AnimatedAvatarView.computeInterval(cpu: 0)
     XCTAssertEqual(idle, 0.20, accuracy: 0.001, "0% CPU should be the slowest (200ms)")
-    let half = FrameAnimator.computeInterval(cpu: 0.5)
+    let half = AnimatedAvatarView.computeInterval(cpu: 0.5)
     XCTAssertEqual(half, 0.02, accuracy: 0.001, "50% CPU should be 20ms")
-    let full = FrameAnimator.computeInterval(cpu: 1.0)
+    let full = AnimatedAvatarView.computeInterval(cpu: 1.0)
     XCTAssertEqual(full, 0.01, accuracy: 0.001, "100% CPU should be the fastest (10ms)")
     // 越界输入应被夹紧。
-    XCTAssertEqual(FrameAnimator.computeInterval(cpu: -1), 0.20, accuracy: 0.001)
-    XCTAssertEqual(FrameAnimator.computeInterval(cpu: 2), 0.01, accuracy: 0.001)
+    XCTAssertEqual(AnimatedAvatarView.computeInterval(cpu: -1), 0.20, accuracy: 0.001)
+    XCTAssertEqual(AnimatedAvatarView.computeInterval(cpu: 2), 0.01, accuracy: 0.001)
   }
 
   /// 活动提醒触发后切换状态（专注/摸鱼/放松/取消）会重置累计，
