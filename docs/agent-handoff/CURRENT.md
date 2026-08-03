@@ -23,7 +23,7 @@ Duration reminders shipped: Settings has per-state minute intervals (专注/摸�
 - `swift run PetDeskCoreChecks`: passed (includes new spritesheet-policy check).
 - `swift build --product PetDeskAppCheck`: BUILD SUCCEEDED.
 - `make test`: TEST SUCCEEDED — 77 XCTest + 6 XCUITest (commit `d034960`).
-- `make verify`: passed (2026-08-03 14:17, commits `a1cf050` + `8980abf`); rerun pending after this handoff record.
+- `make verify`: passed (2026-08-03 14:24, commits `d034960` + `e5b0d8d`).
 
 ## Blockers
 
@@ -31,10 +31,9 @@ Duration reminders shipped: Settings has per-state minute intervals (专注/摸�
 
 ## Next Actions
 
-1. Commit the handoff record (`docs(handoff)`) and rerun `make verify`.
-2. User: `make run-app`, open Settings → 状态时长提醒 to tune intervals (e.g. set 专注 to 1 minute), then confirm the bubble appears after the continuous duration and auto-dismisses.
-3. Optional later: re-enable micro-motion animation; extend pose import to all 8 rows; real-key trial of Plan C; pin 专注 if its timed completion bothers the user.
-4. Push after owner approval: feature branch, then `main` (currently 2 unpushed docs commits).
+1. User: `make run-app`, open Settings → 状态时长提醒 to tune intervals (e.g. set 专注 to 1 minute), then confirm the bubble appears after the continuous duration and auto-dismisses.
+2. Optional later: re-enable micro-motion animation; extend pose import to all 8 rows; real-key trial of Plan C; pin 专注 if its timed completion bothers the user.
+3. Push after owner approval: feature branch, then `main` (currently 2 unpushed docs commits).
 
 ## Working Rules
 
