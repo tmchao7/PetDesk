@@ -38,6 +38,8 @@ final class PetWindowController: NSWindowController, NSWindowDelegate {
         guard let self else { return }
         let isVisible = visible || snapshot.bubble != nil
         hostingView.bubbleVisible = isVisible
+        // 自动时长提醒气泡只在悬浮窗内显示，不激活应用、不抢用户焦点。
+        if case .stateDurationReminder? = snapshot.bubble { return }
         if isVisible {
           // Agent apps never become active on their own; activate explicitly
           // so the panel can become key and SwiftUI controls receive events.

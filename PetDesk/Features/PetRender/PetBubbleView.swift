@@ -73,6 +73,7 @@ struct PetBubbleView: View {
     case .focusComplete: "专注完成，辛苦了！"
     case .stretchReminder: "站起来活动一下吧。"
     case .focusInvite: "开始专注？"
+    case .stateDurationReminder(let text): text
     case nil: showingQuickActions ? "接下来做什么？" : ""
     }
   }

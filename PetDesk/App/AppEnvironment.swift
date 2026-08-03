@@ -26,6 +26,16 @@ final class AppEnvironment: ObservableObject {
   @Published var avatarDisplayMode: AvatarDisplayMode {
     didSet { defaults.set(avatarDisplayMode.rawValue, forKey: Keys.avatarDisplayMode) }
   }
+  /// 状态时长提醒阈值（分钟）：专注/摸鱼/放松各自可调。
+  @Published var focusDurationMinutes: Int {
+    didSet { defaults.set(focusDurationMinutes, forKey: Keys.focusDurationMinutes) }
+  }
+  @Published var slackDurationMinutes: Int {
+    didSet { defaults.set(slackDurationMinutes, forKey: Keys.slackDurationMinutes) }
+  }
+  @Published var relaxDurationMinutes: Int {
+    didSet { defaults.set(relaxDurationMinutes, forKey: Keys.relaxDurationMinutes) }
+  }
   @Published var petScale: Double {
     didSet { defaults.set(petScale, forKey: Keys.petScale) }
   }
@@ -57,6 +67,9 @@ final class AppEnvironment: ObservableObject {
   private enum Keys {
     static let quietMode = "quietMode"
     static let avatarDisplayMode = "avatarDisplayMode"
+    static let focusDurationMinutes = "focusDurationMinutes"
+    static let slackDurationMinutes = "slackDurationMinutes"
+    static let relaxDurationMinutes = "relaxDurationMinutes"
     static let petScale = "petScale"
   }
 
@@ -78,6 +91,11 @@ final class AppEnvironment: ObservableObject {
   /// 用户手动选择的摸鱼/放松状态：锁定期间忽略 CPU/idle 统计事件，
   /// 直到用户再点 专注/摸鱼/放松（点击什么就是什么，不自动切回）。
   private var manualState: BasePetState?
+  /// 用户当前选择的状态（专注/摸鱼/放松），用于“已连续 xx 分钟”气泡提醒。
+  private var pinnedState: BasePetState?
+  private var stateDuration: Duration = .zero
+  private var lastReminderCycle = 0
+  private var reminderBubbleRemaining: Duration = .zero
   private var currentDayKey = DayStats.todayKey()
   private var dayAccumulator = DayStats(date: DayStats.todayKey())
   private var secondsSinceStatsFlush = 0
@@ -90,6 +108,12 @@ final class AppEnvironment: ObservableObject {
     self.avatarDisplayMode =
       defaults.string(forKey: Keys.avatarDisplayMode)
       .flatMap(AvatarDisplayMode.init) ?? .circle
+    self.focusDurationMinutes = Self.durationMinutes(
+      defaults.integer(forKey: Keys.focusDurationMinutes), fallback: 25)
+    self.slackDurationMinutes = Self.durationMinutes(
+      defaults.integer(forKey: Keys.slackDurationMinutes), fallback: 10)
+    self.relaxDurationMinutes = Self.durationMinutes(
+      defaults.integer(forKey: Keys.relaxDurationMinutes), fallback: 10)
     let storedScale = defaults.double(forKey: Keys.petScale)
     self.petScale = storedScale > 0 ? storedScale : 1.0
     let notificationMonitor = AccessibilityNotificationPulseMonitor()
@@ -117,6 +141,12 @@ final class AppEnvironment: ObservableObject {
     self.avatarDisplayMode =
       defaults.string(forKey: Keys.avatarDisplayMode)
       .flatMap(AvatarDisplayMode.init) ?? .circle
+    self.focusDurationMinutes = Self.durationMinutes(
+      defaults.integer(forKey: Keys.focusDurationMinutes), fallback: 25)
+    self.slackDurationMinutes = Self.durationMinutes(
+      defaults.integer(forKey: Keys.slackDurationMinutes), fallback: 10)
+    self.relaxDurationMinutes = Self.durationMinutes(
+      defaults.integer(forKey: Keys.relaxDurationMinutes), fallback: 10)
     let storedScale = defaults.double(forKey: Keys.petScale)
     self.petScale = storedScale > 0 ? storedScale : 1.0
     self.notificationCapability = notificationCapability
@@ -166,6 +196,8 @@ final class AppEnvironment: ObservableObject {
   func startFocus() {
     quickActionsVisible = false
     manualState = nil
+    pinnedState = .focusing
+    resetStateDuration()
     focusSession.start()
     handle(.focusCommand(.start))
     diagnostics.record(category: "focus", message: "session-started")
@@ -398,6 +430,8 @@ final class AppEnvironment: ObservableObject {
   func slackOff() {
     quickActionsVisible = false
     manualState = nil
+    pinnedState = .drinkingTea
+    resetStateDuration()
     if focusSession.phase == .running || focusSession.phase == .pausedForIdle {
       cancelFocus()
     }
@@ -413,6 +447,8 @@ final class AppEnvironment: ObservableObject {
   func relax() {
     quickActionsVisible = false
     manualState = nil
+    pinnedState = .sleeping
+    resetStateDuration()
     if focusSession.phase == .running || focusSession.phase == .pausedForIdle {
       cancelFocus()
     }
@@ -480,7 +516,68 @@ final class AppEnvironment: ObservableObject {
       handle(.focusCommand(.showActivityReminder))
     }
 
+    advanceStateDurationReminder(by: .seconds(1))
     accumulateUsageStats()
+  }
+
+  /// 状态连续时长提醒：到达设定时长（如每 25 分钟）弹一次气泡，
+  /// 4 秒后自动消失；仅提醒，不切换状态。点击 专注/摸鱼/放松 时重新计时。
+  func advanceStateDurationReminder(by duration: Duration) {
+    // 先处理既有提醒的自动消失（避免本次推进刚触发的提醒被立即清掉）。
+    if reminderBubbleRemaining > .zero {
+      reminderBubbleRemaining -= min(reminderBubbleRemaining, duration)
+      if reminderBubbleRemaining <= .zero {
+        reminderBubbleRemaining = .zero
+        if case .stateDurationReminder? = snapshot.bubble {
+          snapshot.bubble = nil
+        }
+      }
+    }
+
+    if let pinnedState, snapshot.baseState == pinnedState {
+      stateDuration += duration
+      let threshold = durationMinutes(for: pinnedState)
+      let minutes = Int(stateDuration / .seconds(60))
+      if threshold > 0, minutes >= threshold, minutes % threshold == 0,
+        minutes != lastReminderCycle
+      {
+        lastReminderCycle = minutes
+        snapshot.bubble = .stateDurationReminder(
+          reminderText(for: pinnedState, minutes: minutes))
+        reminderBubbleRemaining = .seconds(4)
+      }
+    } else if stateDuration > .zero {
+      // 状态离开计时范围（如专注会话结束）时清零，下次点击重新计时。
+      stateDuration = .zero
+      lastReminderCycle = 0
+    }
+  }
+
+  private func durationMinutes(for state: BasePetState) -> Int {
+    switch state {
+    case .focusing: max(1, focusDurationMinutes)
+    case .drinkingTea: max(1, slackDurationMinutes)
+    case .sleeping: max(1, relaxDurationMinutes)
+    default: 0
+    }
+  }
+
+  private func reminderText(for state: BasePetState, minutes: Int) -> String {
+    switch state {
+    case .focusing: "你已连续专注 \(minutes) 分钟"
+    case .drinkingTea: "你已连续摸鱼 \(minutes) 分钟"
+    case .sleeping: "你已连续放松 \(minutes) 分钟"
+    default: "你已连续 \(minutes) 分钟"
+    }
+  }
+
+  private func resetStateDuration() {
+    stateDuration = .zero
+    lastReminderCycle = 0
+    reminderBubbleRemaining = .zero
+    if case .stateDurationReminder? = snapshot.bubble {
+      snapshot.bubble = nil
+    }
   }
 
   /// 按宠物当前状态累计 专注/摸鱼/休息 时长，每 30 秒批量写盘。
@@ -615,6 +712,11 @@ final class AppEnvironment: ObservableObject {
       }
     }
     return true
+  }
+
+  /// 读取时长设置：只接受 1...180 分钟，非法值回退默认。
+  private static func durationMinutes(_ stored: Int, fallback: Int) -> Int {
+    (1...180).contains(stored) ? stored : fallback
   }
 
   private func feedDemoCPU(_ load: Double) {

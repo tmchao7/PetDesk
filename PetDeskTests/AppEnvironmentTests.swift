@@ -129,6 +129,66 @@ final class AppEnvironmentTests: XCTestCase {
   }
 
   @MainActor
+  func testStateDurationReminderFiresAtConfiguredInterval() {
+    let env = AppEnvironment(defaults: defaults, signalSources: [])
+    env.focusDurationMinutes = 1
+    env.startFocus()
+    XCTAssertEqual(env.snapshot.baseState, .focusing)
+
+    env.advanceStateDurationReminder(by: .seconds(59))
+    XCTAssertNil(env.snapshot.bubble, "no reminder before the configured minute")
+
+    env.advanceStateDurationReminder(by: .seconds(1))
+    XCTAssertEqual(
+      env.snapshot.bubble, .stateDurationReminder("你已连续专注 1 分钟"),
+      "reminder should fire at the configured interval")
+
+    // 4 秒后自动消失。
+    env.advanceStateDurationReminder(by: .seconds(4))
+    XCTAssertNil(env.snapshot.bubble, "reminder bubble should auto-dismiss")
+
+    // 再满一个周期 → 2 分钟。
+    env.advanceStateDurationReminder(by: .seconds(60))
+    XCTAssertEqual(
+      env.snapshot.bubble, .stateDurationReminder("你已连续专注 2 分钟"),
+      "reminder should repeat each configured cycle")
+
+    // 切换摸鱼：计时重置并清掉旧提醒。
+    env.slackOff()
+    env.slackDurationMinutes = 1
+    XCTAssertNil(env.snapshot.bubble, "switching state should clear the reminder")
+    env.advanceStateDurationReminder(by: .seconds(60))
+    XCTAssertEqual(
+      env.snapshot.bubble, .stateDurationReminder("你已连续摸鱼 1 分钟"),
+      "slack-off should have its own reminder text")
+
+    // 放松同理。
+    env.relax()
+    env.relaxDurationMinutes = 1
+    env.advanceStateDurationReminder(by: .seconds(60))
+    XCTAssertEqual(
+      env.snapshot.bubble, .stateDurationReminder("你已连续放松 1 分钟"),
+      "relax should have its own reminder text")
+  }
+
+  @MainActor
+  func testDurationSettingsPersistToDefaults() {
+    let env = AppEnvironment(defaults: defaults, signalSources: [])
+    XCTAssertEqual(env.focusDurationMinutes, 25, "focus default should be 25 minutes")
+    XCTAssertEqual(env.slackDurationMinutes, 10, "slack default should be 10 minutes")
+    XCTAssertEqual(env.relaxDurationMinutes, 10, "relax default should be 10 minutes")
+
+    env.focusDurationMinutes = 40
+    env.slackDurationMinutes = 15
+    env.relaxDurationMinutes = 20
+
+    let restored = AppEnvironment(defaults: defaults, signalSources: [])
+    XCTAssertEqual(restored.focusDurationMinutes, 40)
+    XCTAssertEqual(restored.slackDurationMinutes, 15)
+    XCTAssertEqual(restored.relaxDurationMinutes, 20)
+  }
+
+  @MainActor
   func testStartProcessesSignalEvents() async {
     let source = ControllableSignalSource()
     let env = AppEnvironment(defaults: defaults, signalSources: [source])

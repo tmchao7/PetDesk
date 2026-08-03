@@ -97,6 +97,27 @@ struct SettingsView: View {
         }
       }
 
+      Section("状态时长提醒") {
+        Stepper(
+          "专注提醒：\(environment.focusDurationMinutes) 分钟",
+          value: $environment.focusDurationMinutes,
+          in: 1...180
+        )
+        Stepper(
+          "摸鱼提醒：\(environment.slackDurationMinutes) 分钟",
+          value: $environment.slackDurationMinutes,
+          in: 1...180
+        )
+        Stepper(
+          "放松提醒：\(environment.relaxDurationMinutes) 分钟",
+          value: $environment.relaxDurationMinutes,
+          in: 1...180
+        )
+        Text("状态持续达到设定时长后，桌宠会以气泡提醒（仅提醒，不自动切换状态）。")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+      }
+
       Section("集成") {
         LabeledContent("微信 / QQ 通知") {
           Text(notificationStatus)
@@ -114,7 +135,7 @@ struct SettingsView: View {
       }
     }
     .formStyle(.grouped)
-    .frame(width: 480, height: 620)
+    .frame(width: 480, height: 700)
     .onAppear {
       NSApp.setActivationPolicy(.regular)
       NSApp.activate(ignoringOtherApps: true)

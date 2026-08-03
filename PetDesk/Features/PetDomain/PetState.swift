@@ -24,10 +24,12 @@ public enum PetEffect: String, Sendable, Hashable, Codable {
   case zzz
 }
 
-public enum PetBubble: String, Sendable, Equatable, Codable {
+public enum PetBubble: Sendable, Equatable {
   case focusInvite
   case focusComplete
   case stretchReminder
+  /// 状态持续时长提醒（如“你已连续专注 25 分钟”）。
+  case stateDurationReminder(String)
 }
 
 public struct PetSnapshot: Sendable, Equatable {
