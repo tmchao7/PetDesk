@@ -33,7 +33,7 @@ struct PetBubbleView: View {
           if !incompleteItems.isEmpty {
             // 待办多时列表区可双指/滚轮上下滚动翻看（上限 160pt，约 7 行）。
             ScrollView {
-              VStack(alignment: .leading, spacing: 4) {
+              LazyVStack(alignment: .leading, spacing: 4) {
                 ForEach(incompleteItems) { item in
                   HStack(spacing: 6) {
                     Button {

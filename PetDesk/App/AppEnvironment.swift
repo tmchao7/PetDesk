@@ -259,6 +259,10 @@ final class AppEnvironment: ObservableObject {
     manualState = .focusing
     pinnedState = .focusing
     resetStateDuration()
+    // 状态切换 = 新会话：重置活动提醒累计，避免已触发未确认的提醒
+    // （reminderWasDue/isDue 无自清）在本次进程内永久卡死不再触发。
+    reminderWasDue = false
+    activityReminder.acknowledgeBreak()
     focusSession.start()
     handle(.focusCommand(.start))
     diagnostics.record(category: "focus", message: "session-started")
@@ -312,9 +316,10 @@ final class AppEnvironment: ObservableObject {
     }
   }
 
-  /// 取消头像编辑：释放源图内存（不落盘、不改头像）。
+  /// 取消头像编辑：释放源图内存并清掉上次导入的错误提示（不落盘、不改头像）。
   func cancelAvatarEdit() {
     avatarSourceImage = nil
+    avatarError = nil
   }
 
   func loadSourceForEdit(from url: URL) async {
@@ -477,6 +482,8 @@ final class AppEnvironment: ObservableObject {
     manualState = nil
     pinnedState = .drinkingTea
     resetStateDuration()
+    reminderWasDue = false
+    activityReminder.acknowledgeBreak()
     if focusSession.phase == .running || focusSession.phase == .pausedForIdle {
       cancelFocus()
     }
@@ -494,6 +501,8 @@ final class AppEnvironment: ObservableObject {
     manualState = nil
     pinnedState = .sleeping
     resetStateDuration()
+    reminderWasDue = false
+    activityReminder.acknowledgeBreak()
     if focusSession.phase == .running || focusSession.phase == .pausedForIdle {
       cancelFocus()
     }
