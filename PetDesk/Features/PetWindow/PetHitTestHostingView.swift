@@ -22,11 +22,14 @@ final class PetHitTestHostingView<Content: View>: NSHostingView<Content> {
   /// 鼠标按下时的窗口内位置与窗口原点：拖动宠物时手动移动窗口。
   /// SwiftUI 手势会吞掉 mouseDown，isMovableByWindowBackground 无法从宠物
   /// 本体上触发拖动，因此在 NSView 层拦截 mouseDragged 完成移动。
-  private var dragStartLocation: NSPoint?
+  /// 拖动起点使用全局屏幕坐标（NSEvent.mouseLocation）而不是事件内的
+  /// locationInWindow：窗口移动后，事件队列里的 locationInWindow 仍是相对
+  /// 旧 frame 计算的位置，用它算位移会让窗口来回抖动/出现残影。
+  private var dragStartScreenLocation: NSPoint?
   private var dragWindowOrigin: NSPoint?
 
   override func mouseDown(with event: NSEvent) {
-    dragStartLocation = event.locationInWindow
+    dragStartScreenLocation = NSEvent.mouseLocation
     dragWindowOrigin = window?.frame.origin
     super.mouseDown(with: event)
   }
@@ -34,12 +37,11 @@ final class PetHitTestHostingView<Content: View>: NSHostingView<Content> {
   override func mouseDragged(with event: NSEvent) {
     super.mouseDragged(with: event)
     guard
-      let start = dragStartLocation,
+      let start = dragStartScreenLocation,
       let origin = dragWindowOrigin,
       let window
     else { return }
-    let current = event.locationInWindow
-    // 窗口坐标 y 向上：向上拖动 → locationInWindow.y 增大 → 窗口 y 增大。
+    let current = NSEvent.mouseLocation
     window.setFrameOrigin(
       NSPoint(
         x: origin.x + (current.x - start.x),
@@ -49,7 +51,7 @@ final class PetHitTestHostingView<Content: View>: NSHostingView<Content> {
   }
 
   override func mouseUp(with event: NSEvent) {
-    dragStartLocation = nil
+    dragStartScreenLocation = nil
     dragWindowOrigin = nil
     super.mouseUp(with: event)
   }
