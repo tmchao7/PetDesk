@@ -609,6 +609,9 @@ final class AppEnvironmentTests: XCTestCase {
 
     XCTAssertNil(message, "valid pose should import without an error")
     XCTAssertTrue(env.customPoseRows.contains(.working), "working row should be marked custom")
+    XCTAssertNotNil(
+      env.customPoseImages[.working],
+      "imported pose should expose a preview thumbnail")
     XCTAssertNotNil(env.avatarSpritesheet, "sheet should be reassembled")
     XCTAssertTrue(
       FileManager.default.fileExists(
@@ -645,6 +648,7 @@ final class AppEnvironmentTests: XCTestCase {
 
     XCTAssertNil(message)
     XCTAssertTrue(env.customPoseRows.isEmpty, "cleared pose should fall back to avatar")
+    XCTAssertNil(env.customPoseImages[.working], "cleared pose should drop its thumbnail")
     XCTAssertNotNil(env.avatarSpritesheet, "avatar-only sheet should remain")
   }
 

@@ -144,8 +144,11 @@ struct SettingsView: View {
       }
       poseImportTarget = nil
       Task {
-        if let message = await environment.importPose(row: row, from: url) {
+        let message = await environment.importPose(row: row, from: url)
+        if let message {
           poseImportMessage = message
+        } else {
+          poseImportMessage = "已导入「\(poseName(for: row))」。"
         }
       }
     }
@@ -196,11 +199,24 @@ struct SettingsView: View {
   @ViewBuilder
   private func poseRow(_ label: String, row: AnimationRow, systemImage: String) -> some View {
     HStack {
+      if let thumbnail = environment.customPoseImages[row] {
+        Image(nsImage: thumbnail)
+          .resizable()
+          .frame(width: 36, height: 39)
+          .clipShape(RoundedRectangle(cornerRadius: 6))
+      }
       Label(label, systemImage: systemImage)
       Spacer()
       if environment.customPoseRows.contains(row) {
         Button("清除") {
-          Task { _ = await environment.clearPose(row: row) }
+          Task {
+            let message = await environment.clearPose(row: row)
+            if let message {
+              poseImportMessage = message
+            } else {
+              poseImportMessage = "已清除「\(poseName(for: row))」。"
+            }
+          }
         }
         .font(.caption)
       }
@@ -211,6 +227,15 @@ struct SettingsView: View {
         poseImportTarget = row
       }
       .font(.caption)
+    }
+  }
+
+  private func poseName(for row: AnimationRow) -> String {
+    switch row {
+    case .working: "专注姿势"
+    case .drinking: "摸鱼姿势"
+    case .sleeping: "休息姿势"
+    default: "姿势"
     }
   }
 }

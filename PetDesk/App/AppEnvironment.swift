@@ -21,6 +21,8 @@ final class AppEnvironment: ObservableObject {
   @Published private(set) var avatarSourceImage: CGImage?
   /// 已设置的逐行自定义姿势（专注/摸鱼/休息等），用于 UI 显示状态。
   @Published private(set) var customPoseRows: Set<AnimationRow> = []
+  /// 自定义姿势的缩略图（供设置界面即时预览）。
+  @Published private(set) var customPoseImages: [AnimationRow: NSImage] = [:]
   @Published var avatarDisplayMode: AvatarDisplayMode {
     didSet { defaults.set(avatarDisplayMode.rawValue, forKey: Keys.avatarDisplayMode) }
   }
@@ -236,6 +238,7 @@ final class AppEnvironment: ObservableObject {
       avatarBaseCGImage = image
       customPoseCells.removeAll()
       customPoseRows = []
+      customPoseImages = [:]
       avatarSpritesheet = await generateSpritesheet(from: image)
       avatarSourceImage = nil
       avatarError = nil
@@ -257,6 +260,7 @@ final class AppEnvironment: ObservableObject {
       avatarBaseCGImage = nil
       customPoseCells.removeAll()
       customPoseRows = []
+      customPoseImages = [:]
       avatarError = nil
       diagnostics.record(category: "avatar", message: "avatar-reset")
     } catch {
@@ -304,6 +308,10 @@ final class AppEnvironment: ObservableObject {
       let cell = try PoseCellProcessor.loadCell(from: url)
       customPoseCells[row] = cell
       customPoseRows = Set(customPoseCells.keys)
+      customPoseImages[row] = NSImage(
+        cgImage: cell,
+        size: NSSize(width: 48, height: 52)
+      )
       if let message = await reassembleSpritesheet() {
         return message
       }
@@ -321,6 +329,7 @@ final class AppEnvironment: ObservableObject {
   func clearPose(row: AnimationRow) async -> String? {
     customPoseCells.removeValue(forKey: row)
     customPoseRows = Set(customPoseCells.keys)
+    customPoseImages.removeValue(forKey: row)
     guard avatarBaseCGImage != nil else { return nil }
     if let message = await reassembleSpritesheet() {
       return message
@@ -602,7 +611,7 @@ final class AppEnvironment: ObservableObject {
     case .invalidDimensions:
       "尺寸不符合：需要 1536×1664，或宽高都能被 8 整除的 8×8 网格（如 1024×1024、1728×2304）。"
     case .invalidGrid:
-      "无法识别为整齐的 8×8 动作网格（格子边界有内容或角色跨格）。请生成 1:1 方形、每格独立姿势、纯色背景的图集，或改用单张头像自动生成动画。"
+      "无法识别为整齐的 8×8 动作网格（格子边界有内容或角色跨格）。请生成 1:1 方形、每格独立姿势、纯色背景的图集；或在设置里按状态（专注/摸鱼/休息）导入单张姿势图。"
     case .missingAlpha:
       "图片没有透明背景且四角颜色不一致，无法自动抠底。请用透明 PNG，或保证背景为纯色（四角同色）。"
     case .sparseCell(let row, let column):
