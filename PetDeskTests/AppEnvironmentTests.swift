@@ -62,6 +62,22 @@ final class AppEnvironmentTests: XCTestCase {
   // MARK: - Lifecycle
 
   @MainActor
+  func testSlackOffWakesFromForcedSleepImmediately() {
+    let env = AppEnvironment(defaults: defaults, signalSources: [])
+
+    env.relax()
+    XCTAssertEqual(
+      env.snapshot.baseState, .sleeping,
+      "relax should put the pet to sleep immediately")
+
+    env.slackOff()
+    XCTAssertEqual(
+      env.snapshot.baseState, .drinkingTea,
+      "slackOff should wake the pet from forced sleep immediately, "
+        + "not stay sleeping until the 15s forced-sleep window expires")
+  }
+
+  @MainActor
   func testStartProcessesSignalEvents() async {
     let source = ControllableSignalSource()
     let env = AppEnvironment(defaults: defaults, signalSources: [source])

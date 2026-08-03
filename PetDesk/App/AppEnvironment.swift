@@ -393,9 +393,13 @@ final class AppEnvironment: ObservableObject {
   /// 喝茶 (drinkingTea).
   func slackOff() {
     quickActionsVisible = false
+    // 用户手动切回摸鱼时立即解除强制睡眠并唤醒：否则 15 秒强制睡眠窗口内
+    // 点击摸鱼会被“真实 idle 拦截”吞掉，表现为切换无响应/延迟。
+    forcedSleepRemaining = .zero
     if focusSession.phase == .running || focusSession.phase == .pausedForIdle {
       cancelFocus()
     }
+    handle(.userIdleChanged(.zero))
     for _ in 0..<10 {
       handle(.systemMetrics(SystemMetrics(cpuLoad: 0.12, thermalLevel: .nominal)))
     }
@@ -409,10 +413,13 @@ final class AppEnvironment: ObservableObject {
     if focusSession.phase == .running || focusSession.phase == .pausedForIdle {
       cancelFocus()
     }
-    // Send the sleep trigger BEFORE arming the interception, otherwise
-    // handle() drops it as a "real idle" event while forcedSleepRemaining
-    // is already non-zero and the pet never enters sleeping.
-    handle(.userIdleChanged(.seconds(301)))
+    if forcedSleepRemaining <= .zero {
+      // Send the sleep trigger BEFORE arming the interception, otherwise
+      // handle() drops it as a "real idle" event while forcedSleepRemaining
+      // is already non-zero and the pet never enters sleeping.
+      handle(.userIdleChanged(.seconds(301)))
+    }
+    // 已睡眠时重复点击放松：保持睡眠并顺延计时，而不是静默无效。
     forcedSleepRemaining = .seconds(15)
   }
 
