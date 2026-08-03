@@ -1,6 +1,6 @@
 SHELL := /bin/zsh
 
-.PHONY: bootstrap setup-git handoff-new handoff-check handoff-test generate build test lint format verify run run-app clean
+.PHONY: bootstrap setup-git handoff-new handoff-check handoff-test generate build release test lint format verify run run-app clean
 
 bootstrap:
 	./scripts/bootstrap.sh
@@ -39,6 +39,14 @@ test:
 	else \
 		echo "Full Xcode unavailable; running dependency-free core checks."; \
 		swift run PetDeskCoreChecks; \
+	fi
+
+release:
+	@if xcodebuild -version >/dev/null 2>&1; then \
+		$(MAKE) generate && \
+		xcodebuild -project PetDesk.xcodeproj -scheme PetDesk -configuration Release build CODE_SIGNING_ALLOWED=NO; \
+	else \
+		echo "Full Xcode unavailable; skipping Release build."; \
 	fi
 
 lint:

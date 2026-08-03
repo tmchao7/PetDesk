@@ -28,6 +28,13 @@ if xcodebuild -version >/dev/null 2>&1; then
     -configuration Debug \
     build \
     CODE_SIGNING_ALLOWED=NO
+  # Release 构建检查：抓整模块优化下才会暴露的编译错误（发布打包前必须绿）。
+  xcodebuild \
+    -project PetDesk.xcodeproj \
+    -scheme PetDesk \
+    -configuration Release \
+    build \
+    CODE_SIGNING_ALLOWED=NO
   xcodebuild \
     -project PetDesk.xcodeproj \
     -scheme PetDesk \

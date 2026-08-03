@@ -18,6 +18,10 @@ xcuserdata/
 .superpowers/
 .idea/
 .vscode/
+.claude/
+
+# Release artifacts
+*.dmg
 
 # Local configuration and signing material
 .env

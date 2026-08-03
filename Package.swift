@@ -15,10 +15,8 @@ let package = Package(
             name: "PetDeskCore",
             path: "PetDesk",
             exclude: [
-                "App",
-                "Features/PetRender",
-                "Features/PetWindow",
-                "Features/Settings",
+                // 仅文件级 exclude 生效（sources 明确列出目录）；目录级条目
+                // 是 no-op，已移除。
                 "Features/Todo/TodoView.swift",
                 "Features/UsageStats/StatsView.swift",
                 "Features/Avatar/AnimatedAvatarView.swift",
@@ -46,7 +44,7 @@ let package = Package(
             path: "PetDesk",
             exclude: [
                 "Features/Avatar/AvatarCropper.swift",
-                "Features/Avatar/AvatarCropState.swift",
+                "Features/Avatar/AvatarDisplayMode.swift",
                 "Features/Avatar/AvatarImageLoader.swift",
                 "Features/Avatar/AvatarImportPolicy.swift",
                 "Features/Avatar/AvatarRepository.swift",
@@ -54,7 +52,6 @@ let package = Package(
                 "Features/Avatar/EyeBandLocator.swift",
                 "Features/Avatar/GPTImage2Provider.swift",
                 "Features/Avatar/PoseCellProcessor.swift",
-                "Features/Avatar/SpritesheetImportPolicy.swift",
                 "Features/Avatar/SpriteSheetGenerator.swift",
                 "Features/Avatar/SpriteSheetSpec.swift",
                 "Features/Focus",
