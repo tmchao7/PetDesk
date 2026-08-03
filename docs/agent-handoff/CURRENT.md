@@ -23,7 +23,7 @@ Fixed pose framing (subject bbox now uses the central 96% strong-alpha mass wind
 - `swift run PetDeskCoreChecks`: passed (includes new spritesheet-policy check).
 - `swift build --product PetDeskAppCheck`: BUILD SUCCEEDED.
 - `make test`: TEST SUCCEEDED — 72 XCTest + 6 XCUITest (commits `143a25a` + `cc0b71e`).
-- `make verify`: passed (2026-08-03 11:23, commits `b24d717` + `372f755`); rerun pending after this handoff record.
+- `make verify`: passed (2026-08-03 11:42, commits `143a25a` + `cc0b71e` + `bb2daf0`).
 
 ## Blockers
 
@@ -31,10 +31,9 @@ Fixed pose framing (subject bbox now uses the central 96% strong-alpha mass wind
 
 ## Next Actions
 
-1. Commit the handoff record (`docs(handoff)`) and rerun `make verify`.
-2. User: `make run-app` for a fresh build, re-import 专注/摸鱼/休息 in Settings, then confirm the character is larger/centered in the pet window and that 专注/摸鱼/放松 switch instantly in both directions.
-3. Optional later: re-enable micro-motion animation; extend pose import to all 8 rows; real-key trial of Plan C; widen framing window to 98% if a subject edge gets trimmed.
-4. Push after owner approval: feature branch, then `main` (currently 2 unpushed docs commits).
+1. User: `make run-app` for a fresh build, re-import 专注/摸鱼/休息 in Settings, then confirm the character is larger/centered in the pet window and that 专注/摸鱼/放松 switch instantly in both directions.
+2. Optional later: re-enable micro-motion animation; extend pose import to all 8 rows; real-key trial of Plan C; widen framing window to 98% if a subject edge gets trimmed.
+3. Push after owner approval: feature branch, then `main` (currently 2 unpushed docs commits).
 
 ## Working Rules
 
