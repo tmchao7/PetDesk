@@ -40,20 +40,9 @@ struct SettingsView: View {
         if let avatarError = environment.avatarError {
           Text(avatarError).foregroundStyle(.red)
         }
-        Button("导入精灵图…", systemImage: "square.grid.3x3") {
-          pendingFileImport = .spritesheet
-          showingFileImporter = true
-        }
         Text("支持 PNG、JPEG 或 HEIC，最大 20 MB。")
           .font(.caption)
           .foregroundStyle(.secondary)
-        Text(
-          "支持 1536×1664 标准图，或任意 1:1 方形 8×8 网格（如 1024×1024，自动规整重排）；"
-            + "纯色背景会自动抠底。行序为 idle / walking / running / working / drinking / "
-            + "sleeping / happy / surprised（PNG/WebP）。"
-        )
-        .font(.caption)
-        .foregroundStyle(.secondary)
         Divider()
         VStack(alignment: .leading, spacing: 6) {
           poseRow("专注姿势", row: .working, systemImage: "timer")
@@ -174,10 +163,6 @@ struct SettingsView: View {
               showingEditor = true
             }
           }
-        case .spritesheet:
-          Task {
-            await environment.importSpritesheet(from: url)
-          }
         case .pose(let row):
           Task {
             let message = await environment.importPose(row: row, from: url)
@@ -288,13 +273,12 @@ struct SettingsView: View {
 /// 避免 macOS 上同视图多个 fileImporter 只生效第一个的已知缺陷。
 private enum FileImportMode {
   case avatarSource
-  case spritesheet
   case pose(AnimationRow)
 
   var allowedContentTypes: [UTType] {
     switch self {
     case .avatarSource: [.png, .jpeg, .heic]
-    case .spritesheet, .pose: [.png, .webP]
+    case .pose: [.png, .webP]
     }
   }
 }

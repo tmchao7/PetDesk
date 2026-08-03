@@ -6,8 +6,6 @@ import SwiftUI
 
 struct PetView: View {
   @ObservedObject var environment: AppEnvironment
-  @State private var showingSpritesheetImporter = false
-  @State private var importMessage: String?
 
   private var avatarSize: CGFloat { environment.petAvatarSize }
   /// 精灵帧为 192×208 竖构图，显示区保持同比例，避免方形裁剪。
@@ -68,12 +66,6 @@ struct PetView: View {
       Button("待办事项", systemImage: "checklist") {
         environment.openTodoWindow?()
       }
-      Button("导入精灵图…", systemImage: "square.grid.3x3") {
-        // 悬浮窗是非激活面板，先切到 regular 让打开面板能正常弹出。
-        NSApp.setActivationPolicy(.regular)
-        NSApp.activate(ignoringOtherApps: true)
-        showingSpritesheetImporter = true
-      }
       Button("使用统计", systemImage: "chart.bar.fill") {
         environment.openStatsWindow?()
       }
@@ -84,28 +76,6 @@ struct PetView: View {
       Button("隐藏桌宠", systemImage: "eye.slash") {
         environment.hidePet?()
       }
-    }
-    .fileImporter(
-      isPresented: $showingSpritesheetImporter,
-      allowedContentTypes: [.png, .webP],
-      allowsMultipleSelection: false
-    ) { result in
-      NSApp.setActivationPolicy(.accessory)
-      guard case .success(let urls) = result, let url = urls.first else { return }
-      Task {
-        importMessage = await environment.importSpritesheet(from: url)
-      }
-    }
-    .alert(
-      "导入精灵图",
-      isPresented: Binding(
-        get: { importMessage != nil },
-        set: { if !$0 { importMessage = nil } }
-      )
-    ) {
-      Button("好") { importMessage = nil }
-    } message: {
-      Text(importMessage ?? "")
     }
   }
 

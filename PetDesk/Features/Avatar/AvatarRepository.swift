@@ -5,18 +5,15 @@ import UniformTypeIdentifiers
 public actor AvatarRepository {
   private let fileManager: FileManager
   private let policy: AvatarImportPolicy
-  private let spritesheetPolicy: SpritesheetImportPolicy
   private let directoryURL: URL
 
   public init(
     fileManager: FileManager = .default,
     policy: AvatarImportPolicy = AvatarImportPolicy(),
-    spritesheetPolicy: SpritesheetImportPolicy = SpritesheetImportPolicy(),
     directoryURL: URL? = nil
   ) throws {
     self.fileManager = fileManager
     self.policy = policy
-    self.spritesheetPolicy = spritesheetPolicy
     if let directoryURL {
       self.directoryURL = directoryURL
     } else {
@@ -172,12 +169,5 @@ public actor AvatarRepository {
   public func deleteSpritesheet() throws {
     guard fileManager.fileExists(atPath: spritesheetURL.path) else { return }
     try fileManager.removeItem(at: spritesheetURL)
-  }
-
-  /// 校验并导入用户自备的精灵图（PNG/WebP，1536×1664，透明背景）。
-  public func importSpritesheet(from sourceURL: URL) throws -> CGImage {
-    let image = try spritesheetPolicy.validate(url: sourceURL)
-    try saveSpritesheet(image)
-    return image
   }
 }
