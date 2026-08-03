@@ -565,6 +565,89 @@ final class AppEnvironmentTests: XCTestCase {
     return url
   }
 
+  private func writePoseFile(in directory: URL) throws -> URL {
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    let url = directory.appendingPathComponent("pose.png")
+    let size = 256
+    let bitmapInfo = CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue)
+    guard
+      let context = CGContext(
+        data: nil,
+        width: size,
+        height: size,
+        bitsPerComponent: 8,
+        bytesPerRow: 0,
+        space: CGColorSpaceCreateDeviceRGB(),
+        bitmapInfo: bitmapInfo.rawValue
+      )
+    else { throw NSError(domain: "test", code: 40) }
+    context.setFillColor(CGColor(red: 1, green: 0, blue: 1, alpha: 1))
+    context.fill(CGRect(x: 0, y: 0, width: size, height: size))
+    context.setFillColor(CGColor(red: 0, green: 1, blue: 0, alpha: 1))
+    context.fill(CGRect(x: 64, y: 64, width: 128, height: 128))
+    guard let image = context.makeImage(),
+      let destination = CGImageDestinationCreateWithURL(
+        url as CFURL, UTType.png.identifier as CFString, 1, nil)
+    else { throw NSError(domain: "test", code: 41) }
+    CGImageDestinationAddImage(destination, image, nil)
+    guard CGImageDestinationFinalize(destination) else {
+      throw NSError(domain: "test", code: 42)
+    }
+    return url
+  }
+
+  @MainActor
+  func testImportPoseUpdatesSheetAndPersists() async throws {
+    let tmp = tempDirectory()
+    defer { try? FileManager.default.removeItem(at: tmp) }
+    let repo = try AvatarRepository(directoryURL: tmp)
+    let env = AppEnvironment(defaults: defaults, signalSources: [], avatarRepository: repo)
+    await env.saveCroppedAvatar(try makeTestCGImage(width: 64, height: 64))
+    let poseURL = try writePoseFile(in: tmp)
+
+    let message = await env.importPose(row: .working, from: poseURL)
+
+    XCTAssertNil(message, "valid pose should import without an error")
+    XCTAssertTrue(env.customPoseRows.contains(.working), "working row should be marked custom")
+    XCTAssertNotNil(env.avatarSpritesheet, "sheet should be reassembled")
+    XCTAssertTrue(
+      FileManager.default.fileExists(
+        atPath: tmp.appendingPathComponent("spritesheet.png").path),
+      "reassembled sheet should persist")
+  }
+
+  @MainActor
+  func testImportPoseWithoutAvatarSetsError() async throws {
+    let tmp = tempDirectory()
+    defer { try? FileManager.default.removeItem(at: tmp) }
+    let repo = try AvatarRepository(directoryURL: tmp)
+    let env = AppEnvironment(defaults: defaults, signalSources: [], avatarRepository: repo)
+    let poseURL = try writePoseFile(in: tmp)
+
+    let message = await env.importPose(row: .working, from: poseURL)
+
+    XCTAssertNotNil(message, "pose import without avatar should fail with guidance")
+    XCTAssertTrue(env.customPoseRows.isEmpty)
+  }
+
+  @MainActor
+  func testClearPoseRestoresAvatarSheet() async throws {
+    let tmp = tempDirectory()
+    defer { try? FileManager.default.removeItem(at: tmp) }
+    let repo = try AvatarRepository(directoryURL: tmp)
+    let env = AppEnvironment(defaults: defaults, signalSources: [], avatarRepository: repo)
+    await env.saveCroppedAvatar(try makeTestCGImage(width: 64, height: 64))
+    let poseURL = try writePoseFile(in: tmp)
+    _ = await env.importPose(row: .working, from: poseURL)
+    XCTAssertTrue(env.customPoseRows.contains(.working))
+
+    let message = await env.clearPose(row: .working)
+
+    XCTAssertNil(message)
+    XCTAssertTrue(env.customPoseRows.isEmpty, "cleared pose should fall back to avatar")
+    XCTAssertNotNil(env.avatarSpritesheet, "avatar-only sheet should remain")
+  }
+
   @MainActor
   private func waitUntil(
     _ condition: () -> Bool,

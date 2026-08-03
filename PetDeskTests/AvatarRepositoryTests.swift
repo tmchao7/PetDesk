@@ -45,6 +45,16 @@ final class AvatarRepositoryTests: XCTestCase {
     XCTAssertTrue(FileManager.default.fileExists(atPath: avatarURL.path))
   }
 
+  func testLoadAvatarCGImageAfterImport() async throws {
+    let sourceURL = try writeTestPNG(size: 64)
+    let repo = try AvatarRepository(directoryURL: tempDirectory)
+
+    _ = try await repo.importAvatar(from: sourceURL)
+
+    let loaded = await repo.loadAvatarCGImage()
+    XCTAssertNotNil(loaded, "imported avatar should load back as CGImage")
+  }
+
   func testImportRejectsUnreadableFile() async throws {
     let garbageURL = tempDirectory.appendingPathComponent("fake.png")
     try FileManager.default.createDirectory(

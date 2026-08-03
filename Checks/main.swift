@@ -558,6 +558,20 @@ private func checkRowCellGeneration() throws {
   }
 }
 
+private func checkSpriteSheetBaseCell() throws {
+  guard
+    let base = makeSolidImage(width: 192, height: 192, color: (0.4, 0.6, 0.8)),
+    let cell = SpriteSheetGenerator.baseCell(from: base)
+  else {
+    throw CheckFailure(description: "could not create base cell")
+  }
+  try expect(cell.width == 192 && cell.height == 208, "base cell should be 192x208")
+  let bottom = pixel(cell, x: 96, y: 100)
+  try expect(bottom.a == 255, "base cell content should be opaque at the bottom")
+  let top = pixel(cell, x: 96, y: 10)
+  try expect(top.a == 0, "base cell top padding should be transparent")
+}
+
 private func checkPoseCellProcessor() throws {
   let magenta = (r: CGFloat(1.0), g: CGFloat(0.0), b: CGFloat(1.0))
   guard
@@ -751,6 +765,7 @@ private func runAllChecks() async throws {
   try checkStateMachine()
   try checkCoreServices()
   try checkRowCellGeneration()
+  try checkSpriteSheetBaseCell()
   try checkSpriteSheetEyeBand()
   try checkPoseCellProcessor()
   try await checkGPTImage2Provider()

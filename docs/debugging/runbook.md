@@ -60,6 +60,18 @@ Row order is fixed: idle, walking, running, working, drinking, sleeping, happy, 
 
 Import feedback: the pet context-menu flow shows an alert with the exact failure reason (dimensions, grid layout, background, sparse cells); Settings shows the same message inline. If a generated sheet is rejected as `invalidGrid`, regenerate a cleaner 1:1 grid or use the single-avatar path instead.
 
+## Per-Pose Import (专注/摸鱼/休息)
+
+Settings → 头像 shows three per-state pose entries:
+
+- 专注姿势 → working row (focus sessions);
+- 摸鱼姿势 → drinking row (slack/tea);
+- 休息姿势 → sleeping row (relax).
+
+Each accepts one PNG/WebP pose image (any size; solid or transparent background). `PoseCellProcessor.loadCell` chroma-keys a uniform background from the four corners, trims to the subject, and contain-fits into a 192×208 cell. `AppEnvironment.importPose(row:from:)` stores the cell and reassembles the full 8×8 sheet, using the avatar base cell for rows without a custom pose. The assembled sheet is saved to `spritesheet.png`, so custom poses survive restart; importing a new avatar clears custom poses. Importing a pose before any avatar exists returns “请先设置头像”.
+
+For generation guidance and copy-paste prompts, see `docs/design/spritesheet-authoring.md`.
+
 ## Xcode Target Identity Conflicts
 
 If Xcode reports that multiple targets produce the same `.swiftmodule` or `.xctest` output, run:

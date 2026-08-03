@@ -19,6 +19,8 @@ final class AppEnvironment: ObservableObject {
   }
   @Published private(set) var avatarError: String?
   @Published private(set) var avatarSourceImage: CGImage?
+  /// 已设置的逐行自定义姿势（专注/摸鱼/休息等），用于 UI 显示状态。
+  @Published private(set) var customPoseRows: Set<AnimationRow> = []
   @Published var avatarDisplayMode: AvatarDisplayMode {
     didSet { defaults.set(avatarDisplayMode.rawValue, forKey: Keys.avatarDisplayMode) }
   }
@@ -63,6 +65,10 @@ final class AppEnvironment: ObservableObject {
   /// AI 姿态生成器（可选；未配置时使用本地程序化方案）。
   private var poseProvider: (any AIPoseProvider)?
   private let eyeLocator: (any EyeBandLocating)?
+  /// 头像的 CGImage 基准（逐行姿势混合组装用；重启后从存储重新加载）。
+  private var avatarBaseCGImage: CGImage?
+  /// 每行动画行的自定义姿势单元；未设置的行动画用头像基准单元。
+  private var customPoseCells: [AnimationRow: CGImage] = [:]
   private let signalSources: [any PetSignalSource]
   private var machine = PetStateMachine()
   private var activityReminder = ActivityReminderAccumulator()
@@ -227,6 +233,9 @@ final class AppEnvironment: ObservableObject {
     do {
       let storedURL = try await avatarRepository.saveAvatar(image)
       avatarImage = AvatarImageLoader.load(from: storedURL)
+      avatarBaseCGImage = image
+      customPoseCells.removeAll()
+      customPoseRows = []
       avatarSpritesheet = await generateSpritesheet(from: image)
       avatarSourceImage = nil
       avatarError = nil
@@ -245,6 +254,9 @@ final class AppEnvironment: ObservableObject {
       try await avatarRepository.deleteSpritesheet()
       avatarImage = nil
       avatarSpritesheet = nil
+      avatarBaseCGImage = nil
+      customPoseCells.removeAll()
+      customPoseRows = []
       avatarError = nil
       diagnostics.record(category: "avatar", message: "avatar-reset")
     } catch {
@@ -277,6 +289,68 @@ final class AppEnvironment: ObservableObject {
       avatarError = message
       diagnostics.record(category: "avatar", message: "spritesheet-import-failed")
       return message
+    }
+  }
+
+  /// 导入单个动画行的姿势图（如专注/摸鱼/休息），随后重新组装精灵图。
+  /// - Returns: 失败时的用户可见错误信息；成功返回 nil。
+  @discardableResult
+  func importPose(row: AnimationRow, from url: URL) async -> String? {
+    guard avatarBaseCGImage != nil else {
+      let message = "请先设置头像，再导入姿势图。"
+      return message
+    }
+    do {
+      let cell = try PoseCellProcessor.loadCell(from: url)
+      customPoseCells[row] = cell
+      customPoseRows = Set(customPoseCells.keys)
+      if let message = await reassembleSpritesheet() {
+        return message
+      }
+      diagnostics.record(category: "avatar", message: "pose-imported")
+      return nil
+    } catch let error as PoseImageImportError {
+      return Self.poseMessage(for: error)
+    } catch {
+      return "姿势图导入失败。"
+    }
+  }
+
+  /// 清除某行的自定义姿势，回退到头像基准形象。
+  @discardableResult
+  func clearPose(row: AnimationRow) async -> String? {
+    customPoseCells.removeValue(forKey: row)
+    customPoseRows = Set(customPoseCells.keys)
+    guard avatarBaseCGImage != nil else { return nil }
+    if let message = await reassembleSpritesheet() {
+      return message
+    }
+    diagnostics.record(category: "avatar", message: "pose-cleared")
+    return nil
+  }
+
+  /// 用头像基准单元 + 自定义姿势单元重拼 8×8 精灵图并保存。
+  private func reassembleSpritesheet() async -> String? {
+    guard
+      let avatarRepository,
+      let avatarBaseCGImage,
+      let avatarCell = SpriteSheetGenerator.baseCell(from: avatarBaseCGImage)
+    else {
+      return "请先设置头像，再导入姿势图。"
+    }
+    var rowCells: [AnimationRow: CGImage] = [:]
+    for row in AnimationRow.allCases {
+      rowCells[row] = customPoseCells[row] ?? avatarCell
+    }
+    guard let sheet = SpriteSheetGenerator.generate(fromRowCells: rowCells) else {
+      return "精灵图组装失败。"
+    }
+    do {
+      try await avatarRepository.saveSpritesheet(sheet)
+      avatarSpritesheet = sheet
+      return nil
+    } catch {
+      return "精灵图保存失败。"
     }
   }
 
@@ -456,6 +530,7 @@ final class AppEnvironment: ObservableObject {
     let url = await avatarRepository.avatarURL
     guard FileManager.default.fileExists(atPath: url.path) else { return }
     avatarImage = AvatarImageLoader.load(from: url)
+    avatarBaseCGImage = await avatarRepository.loadAvatarCGImage()
     avatarSpritesheet = await avatarRepository.loadSpritesheet()
   }
 
@@ -532,6 +607,14 @@ final class AppEnvironment: ObservableObject {
       "图片没有透明背景且四角颜色不一致，无法自动抠底。请用透明 PNG，或保证背景为纯色（四角同色）。"
     case .sparseCell(let row, let column):
       "精灵图第 \(row + 1) 行第 \(column + 1) 列几乎没有内容。"
+    }
+  }
+
+  private static func poseMessage(for error: PoseImageImportError) -> String {
+    switch error {
+    case .unreadableImage: "无法读取所选姿势图。"
+    case .unsupportedType: "请选择 PNG 或 WebP 格式的姿势图。"
+    case .emptySubject: "姿势图中没有识别到主体（请确认人物清晰、背景为纯色或透明）。"
     }
   }
 }

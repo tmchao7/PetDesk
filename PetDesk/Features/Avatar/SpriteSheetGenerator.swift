@@ -42,6 +42,12 @@ public enum SpriteSheetGenerator {
     assemble(rowCells: rowCells, eyeBandInCell: eyeBandInCell ?? defaultEyeBand)
   }
 
+  /// 从方形头像生成底部对齐的 192×208 基准单元（供逐行姿势混合组装使用）。
+  public static func baseCell(from source: CGImage) -> CGImage? {
+    guard let base = fittedBase(from: source) else { return nil }
+    return containingCell(base)
+  }
+
   private static func assemble(
     rowCells: [AnimationRow: CGImage],
     eyeBandInCell: CGRect

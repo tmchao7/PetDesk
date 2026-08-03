@@ -1,12 +1,18 @@
 import SwiftUI
 import UniformTypeIdentifiers
 
+#if SWIFT_PACKAGE
+  import PetDeskCore
+#endif
+
 struct SettingsView: View {
   @ObservedObject var environment: AppEnvironment
   @StateObject private var loginItem = LoginItemController()
   @State private var showingImporter = false
   @State private var showingSpritesheetImporter = false
   @State private var showingEditor = false
+  @State private var poseImportTarget: AnimationRow?
+  @State private var poseImportMessage: String?
 
   var body: some View {
     Form {
@@ -37,6 +43,17 @@ struct SettingsView: View {
           "支持 1536×1664 标准图，或任意 1:1 方形 8×8 网格（如 1024×1024，自动规整重排）；"
             + "纯色背景会自动抠底。行序为 idle / walking / running / working / drinking / "
             + "sleeping / happy / surprised（PNG/WebP）。"
+        )
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        Divider()
+        poseRow("专注姿势", row: .working, systemImage: "timer")
+        poseRow("摸鱼姿势", row: .drinking, systemImage: "cup.and.saucer.fill")
+        poseRow("休息姿势", row: .sleeping, systemImage: "moon.zzz.fill")
+        Text(
+          "每个状态一张姿势图（PNG/WebP，纯色或透明背景，自动抠底）："
+            + "导入后该状态的动画使用这张姿势图，其余状态仍用默认形象；"
+            + "一行动画帧由应用自动生成，无需提供多帧。"
         )
         .font(.caption)
         .foregroundStyle(.secondary)
@@ -81,7 +98,7 @@ struct SettingsView: View {
       }
     }
     .formStyle(.grouped)
-    .frame(width: 480, height: 500)
+    .frame(width: 480, height: 580)
     .onAppear {
       NSApp.setActivationPolicy(.regular)
       NSApp.activate(ignoringOtherApps: true)
@@ -111,6 +128,37 @@ struct SettingsView: View {
       Task {
         await environment.importSpritesheet(from: url)
       }
+    }
+    .fileImporter(
+      isPresented: Binding(
+        get: { poseImportTarget != nil },
+        set: { if !$0 { poseImportTarget = nil } }
+      ),
+      allowedContentTypes: [.png, .webP],
+      allowsMultipleSelection: false
+    ) { result in
+      guard case .success(let urls) = result, let url = urls.first, let row = poseImportTarget
+      else {
+        poseImportTarget = nil
+        return
+      }
+      poseImportTarget = nil
+      Task {
+        if let message = await environment.importPose(row: row, from: url) {
+          poseImportMessage = message
+        }
+      }
+    }
+    .alert(
+      "导入姿势图",
+      isPresented: Binding(
+        get: { poseImportMessage != nil },
+        set: { if !$0 { poseImportMessage = nil } }
+      )
+    ) {
+      Button("好") { poseImportMessage = nil }
+    } message: {
+      Text(poseImportMessage ?? "")
     }
     .sheet(isPresented: $showingEditor) {
       editorSheet
@@ -142,6 +190,27 @@ struct SettingsView: View {
     switch environment.notificationCapability {
     case .available: "可用"
     case .unsupported: "当前系统不支持"
+    }
+  }
+
+  @ViewBuilder
+  private func poseRow(_ label: String, row: AnimationRow, systemImage: String) -> some View {
+    HStack {
+      Label(label, systemImage: systemImage)
+      Spacer()
+      if environment.customPoseRows.contains(row) {
+        Button("清除") {
+          Task { _ = await environment.clearPose(row: row) }
+        }
+        .font(.caption)
+      }
+      Button(
+        environment.customPoseRows.contains(row) ? "更换…" : "导入…",
+        systemImage: "square.and.arrow.down"
+      ) {
+        poseImportTarget = row
+      }
+      .font(.caption)
     }
   }
 }

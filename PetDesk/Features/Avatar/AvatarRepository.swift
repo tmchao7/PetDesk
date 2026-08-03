@@ -34,6 +34,13 @@ public actor AvatarRepository {
     directoryURL.appendingPathComponent("avatar.png")
   }
 
+  /// 加载已保存的头像为 CGImage（供逐行姿势组装使用）。
+  public func loadAvatarCGImage() -> CGImage? {
+    guard fileManager.fileExists(atPath: avatarURL.path) else { return nil }
+    guard let source = CGImageSourceCreateWithURL(avatarURL as CFURL, nil) else { return nil }
+    return CGImageSourceCreateImageAtIndex(source, 0, nil)
+  }
+
   public var spritesheetURL: URL {
     directoryURL.appendingPathComponent("spritesheet.png")
   }

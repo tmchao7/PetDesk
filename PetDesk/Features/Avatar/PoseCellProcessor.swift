@@ -1,13 +1,44 @@
 import CoreGraphics
 import Foundation
+import ImageIO
+import UniformTypeIdentifiers
+
+/// 单张姿势图导入错误。
+public enum PoseImageImportError: Error, Sendable, Equatable {
+  case unreadableImage
+  case unsupportedType
+  case emptySubject
+}
 
 /// 把 AI 生成的单帧姿势图处理成 192×208 透明动画单元：
-/// 抠出品红（#FF00FF）背景、裁剪到主体包围盒、contain-fit 居中。
+/// 纯色背景自动抠底（四角采样）、裁剪到主体包围盒、contain-fit 居中。
 public enum PoseCellProcessor {
   private static let maxRGBDistance = sqrt(3.0)
 
+  /// 从 PNG/WebP 文件读取姿势图并处理成动画单元。
+  public static func loadCell(from url: URL) throws -> CGImage {
+    guard
+      let source = CGImageSourceCreateWithURL(url as CFURL, nil),
+      let image = CGImageSourceCreateImageAtIndex(source, 0, nil)
+    else {
+      throw PoseImageImportError.unreadableImage
+    }
+    if let type = CGImageSourceGetType(source) {
+      let identifier = type as String
+      guard
+        identifier == UTType.png.identifier || identifier == UTType.webP.identifier
+      else {
+        throw PoseImageImportError.unsupportedType
+      }
+    }
+    guard let cell = makeCell(from: image) else {
+      throw PoseImageImportError.emptySubject
+    }
+    return cell
+  }
+
   /// - Parameter chromaTolerance: 归一化品红距离阈值（0-1），0.18 对应 ImageMagick
-  ///   `-fuzz 18%`；阈值内做软抠图避免抗锯齿紫边。
+  ///   `-fuzz 18%`；阈值内做软抠图避免抗锯齿边缘。
   public static func makeCell(from image: CGImage, chromaTolerance: CGFloat = 0.18) -> CGImage? {
     let width = image.width
     let height = image.height
