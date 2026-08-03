@@ -14,9 +14,6 @@ final class AppEnvironment: ObservableObject {
   @Published private(set) var focusSession = FocusSession()
   @Published var quickActionsVisible = false
   @Published private(set) var petWindowFrame: CGRect?
-  @Published var quietMode: Bool {
-    didSet { defaults.set(quietMode, forKey: Keys.quietMode) }
-  }
   @Published private(set) var avatarError: String?
   @Published private(set) var avatarSourceImage: CGImage?
   /// 已设置的逐行自定义姿势（专注/摸鱼/休息等），用于 UI 显示状态。
@@ -79,7 +76,6 @@ final class AppEnvironment: ObservableObject {
   @Published var usageStatsByDay: [String: DayStats] = [:]
 
   private enum Keys {
-    static let quietMode = "quietMode"
     static let avatarDisplayMode = "avatarDisplayMode"
     static let focusDurationMinutes = "focusDurationMinutes"
     static let slackDurationMinutes = "slackDurationMinutes"
@@ -125,7 +121,6 @@ final class AppEnvironment: ObservableObject {
 
   init(defaults: UserDefaults = .standard) {
     self.defaults = defaults
-    self.quietMode = defaults.bool(forKey: Keys.quietMode)
     self.avatarDisplayMode =
       defaults.string(forKey: Keys.avatarDisplayMode)
       .flatMap(AvatarDisplayMode.init) ?? .circle
@@ -166,7 +161,6 @@ final class AppEnvironment: ObservableObject {
     eyeLocator: (any EyeBandLocating)? = nil
   ) {
     self.defaults = defaults
-    self.quietMode = defaults.bool(forKey: Keys.quietMode)
     self.avatarDisplayMode =
       defaults.string(forKey: Keys.avatarDisplayMode)
       .flatMap(AvatarDisplayMode.init) ?? .circle
@@ -340,35 +334,6 @@ final class AppEnvironment: ObservableObject {
     }
   }
 
-  /// 导入用户自备的整张精灵图（在线 AI 生成后上传）。
-  /// - Returns: 失败时的用户可见错误信息；成功返回 nil。
-  @discardableResult
-  func importSpritesheet(from url: URL) async -> String? {
-    guard let avatarRepository else {
-      let message = "头像存储不可用。"
-      avatarError = message
-      return message
-    }
-    do {
-      let sheet = try await avatarRepository.importSpritesheet(from: url)
-      avatarSpritesheet = sheet
-      syncCustomPoseStateFromSpritesheet()
-      avatarError = nil
-      diagnostics.record(category: "avatar", message: "spritesheet-imported")
-      return nil
-    } catch let error as SpritesheetImportError {
-      let message = Self.spritesheetMessage(for: error)
-      avatarError = message
-      diagnostics.record(category: "avatar", message: "spritesheet-import-failed")
-      return message
-    } catch {
-      let message = "精灵图导入失败。"
-      avatarError = message
-      diagnostics.record(category: "avatar", message: "spritesheet-import-failed")
-      return message
-    }
-  }
-
   /// 导入单个动画行的姿势图（如专注/摸鱼/休息），随后重新组装精灵图。
   /// - Returns: 失败时的用户可见错误信息；成功返回 nil。
   @discardableResult
@@ -528,7 +493,6 @@ final class AppEnvironment: ObservableObject {
         break
       }
     }
-    if quietMode, case .notificationPulse = event { return }
     let reduced = machine.reduce(event, elapsed: eventElapsed(event))
     // 发布门控：CPU 读数每秒都在变，但宠物外观（状态/特效/气泡）不变时
     // 跳过发布，避免每秒无效化悬浮窗整树重绘。averageCPU 只进诊断窗口，
@@ -553,7 +517,7 @@ final class AppEnvironment: ObservableObject {
     }
 
     activityReminder.advance(by: .seconds(1), userIdle: latestIdle)
-    if activityReminder.isDue, !reminderWasDue, !quietMode {
+    if activityReminder.isDue, !reminderWasDue {
       reminderWasDue = true
       handle(.focusCommand(.showActivityReminder))
     }
@@ -862,21 +826,6 @@ final class AppEnvironment: ObservableObject {
     case .unsupportedType: "请选择 PNG、JPEG 或 HEIC 格式的图片。"
     case .unreadableImage: "无法读取所选文件。"
     case .encodingFailed: "图片保存失败。"
-    }
-  }
-
-  private static func spritesheetMessage(for error: SpritesheetImportError) -> String {
-    switch error {
-    case .unreadableImage: "无法读取所选文件。"
-    case .unsupportedType: "请选择 PNG 或 WebP 格式的精灵图。"
-    case .invalidDimensions:
-      "尺寸不符合：需要 1536×1664，或宽高都能被 8 整除的 8×8 网格（如 1024×1024、1728×2304）。"
-    case .invalidGrid:
-      "无法识别为整齐的 8×8 动作网格（格子边界有内容或角色跨格）。请生成 1:1 方形、每格独立姿势、纯色背景的图集；或在设置里按状态（专注/摸鱼/休息）导入单张姿势图。"
-    case .missingAlpha:
-      "图片没有透明背景且四角颜色不一致，无法自动抠底。请用透明 PNG，或保证背景为纯色（四角同色）。"
-    case .sparseCell(let row, let column):
-      "精灵图第 \(row + 1) 行第 \(column + 1) 列几乎没有内容。"
     }
   }
 

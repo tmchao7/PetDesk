@@ -11,8 +11,6 @@ struct MenuBarView: View {
       dismissThen { togglePet() }
     }
 
-    Toggle("静音模式", systemImage: "speaker.slash", isOn: $environment.quietMode)
-
     Divider()
 
     Button("待办事项", systemImage: "checklist") {

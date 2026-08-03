@@ -535,29 +535,6 @@ final class AppEnvironmentTests: XCTestCase {
     XCTAssertNil(env.avatarError)
   }
 
-  // MARK: - Quiet mode
-
-  @MainActor
-  func testQuietModeBlocksNotifications() {
-    let env = AppEnvironment(defaults: defaults, signalSources: [])
-    env.start()
-
-    env.injectNotification(.wechat)
-    XCTAssertNotNil(env.snapshot.transientState, "non-quiet notification should produce transient")
-
-    env.stop()
-
-    defaults.set(true, forKey: "quietMode")
-    let envQuiet = AppEnvironment(defaults: defaults, signalSources: [])
-    envQuiet.start()
-
-    envQuiet.injectNotification(.wechat)
-    XCTAssertNil(
-      envQuiet.snapshot.transientState, "quiet mode should block notification pulses")
-
-    envQuiet.stop()
-  }
-
   // MARK: - AI pose provider and animation pause
 
   @MainActor
@@ -678,106 +655,6 @@ final class AppEnvironmentTests: XCTestCase {
 
     XCTAssertEqual(locator.callCount, 1, "eye locator should run on avatar save")
     XCTAssertNotNil(env.avatarSpritesheet)
-  }
-
-  @MainActor
-  func testImportSpritesheetUpdatesSheet() async throws {
-    let tmp = tempDirectory()
-    defer { try? FileManager.default.removeItem(at: tmp) }
-    let repo = try AvatarRepository(directoryURL: tmp)
-    let env = AppEnvironment(defaults: defaults, signalSources: [], avatarRepository: repo)
-    let sheetURL = try writeSpritesheetFile(in: tmp)
-
-    await env.importSpritesheet(from: sheetURL)
-
-    XCTAssertNotNil(env.avatarSpritesheet, "valid sheet import should update playback")
-    XCTAssertNil(env.avatarError)
-  }
-
-  @MainActor
-  func testImportSpritesheetInvalidSetsError() async throws {
-    let tmp = tempDirectory()
-    defer { try? FileManager.default.removeItem(at: tmp) }
-    let repo = try AvatarRepository(directoryURL: tmp)
-    let env = AppEnvironment(defaults: defaults, signalSources: [], avatarRepository: repo)
-    let smallURL = tmp.appendingPathComponent("small.png")
-    try FileManager.default.createDirectory(at: tmp, withIntermediateDirectories: true)
-    let bitmapInfo = CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue)
-    guard
-      let context = CGContext(
-        data: nil, width: 64, height: 64, bitsPerComponent: 8, bytesPerRow: 0,
-        space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: bitmapInfo.rawValue),
-      let image = context.makeImage()
-    else {
-      XCTFail("could not build small PNG")
-      return
-    }
-    let data = NSMutableData()
-    guard
-      let destination = CGImageDestinationCreateWithData(
-        data, UTType.png.identifier as CFString, 1, nil)
-    else {
-      XCTFail("could not build small PNG destination")
-      return
-    }
-    CGImageDestinationAddImage(destination, image, nil)
-    guard CGImageDestinationFinalize(destination) else {
-      XCTFail("could not finalize small PNG")
-      return
-    }
-    try (data as Data).write(to: smallURL)
-
-    await env.importSpritesheet(from: smallURL)
-
-    XCTAssertNil(env.avatarSpritesheet, "invalid sheet should not replace playback")
-    XCTAssertNotNil(env.avatarError, "invalid sheet should surface an error")
-  }
-
-  private func writeSpritesheetFile(in directory: URL) throws -> URL {
-    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-    let url = directory.appendingPathComponent("sheet.png")
-    let bitmapInfo = CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue)
-    let width = SpritesheetImportPolicy.expectedWidth
-    let height = SpritesheetImportPolicy.expectedHeight
-    guard
-      let context = CGContext(
-        data: nil,
-        width: width,
-        height: height,
-        bitsPerComponent: 8,
-        bytesPerRow: 0,
-        space: CGColorSpaceCreateDeviceRGB(),
-        bitmapInfo: bitmapInfo.rawValue
-      )
-    else { throw NSError(domain: "test", code: 10) }
-    context.clear(CGRect(x: 0, y: 0, width: width, height: height))
-    let frameW = Int(SpriteSheetSpec.frameWidth)
-    let frameH = Int(SpriteSheetSpec.frameHeight)
-    let blockSize = 64
-    for row in AnimationRow.allCases {
-      for column in 0..<row.frameCount {
-        context.setFillColor(CGColor(red: 0.2, green: 0.5, blue: 0.8, alpha: 1))
-        let visualX = column * frameW + 64
-        let visualY = row.rawValue * frameH + 64
-        context.fill(
-          CGRect(
-            x: visualX,
-            y: height - visualY - blockSize,
-            width: blockSize,
-            height: blockSize
-          )
-        )
-      }
-    }
-    guard let image = context.makeImage(),
-      let destination = CGImageDestinationCreateWithURL(
-        url as CFURL, UTType.png.identifier as CFString, 1, nil)
-    else { throw NSError(domain: "test", code: 11) }
-    CGImageDestinationAddImage(destination, image, nil)
-    guard CGImageDestinationFinalize(destination) else {
-      throw NSError(domain: "test", code: 12)
-    }
-    return url
   }
 
   private func writePoseFile(in directory: URL) throws -> URL {
