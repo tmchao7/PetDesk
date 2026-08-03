@@ -74,6 +74,23 @@ Feedback: each pose row shows an imported thumbnail, the button changes to 更�
 
 State representation: the keyboard / tea-cup / Zzz emoji overlays are removed. States are shown by the pet image itself — the imported pose when set, otherwise the avatar default. If a state still shows an emoji instead of the pet changing, the running app is an old build (check that Settings shows the 专注姿势/摸鱼姿势/休息姿势 rows).
 
+## Verifying You Are Running the New Build
+
+Every launch writes a marker file:
+
+```bash
+cat ~/Library/Application\ Support/PetDesk/app-build.txt
+# expect: pose-import-v2 <today's date>
+```
+
+Settings → 关于 also shows `构建：pose-import-v2`. To build and launch the freshly built app without Xcode:
+
+```bash
+make run-app
+```
+
+This kills any running PetDesk instance, rebuilds the Debug app, and opens it. After importing a pose, `~/Library/Application Support/PetDesk/spritesheet.png` must change its timestamp to today — otherwise the running app did not include the pose-import code.
+
 For generation guidance and copy-paste prompts, see `docs/design/spritesheet-authoring.md`.
 
 ## Xcode Target Identity Conflicts

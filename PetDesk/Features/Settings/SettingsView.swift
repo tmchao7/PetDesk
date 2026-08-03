@@ -96,9 +96,15 @@ struct SettingsView: View {
           .font(.caption)
           .foregroundStyle(.secondary)
       }
+
+      Section("关于") {
+        Text("构建：\(AppBuildMarker.tag)（含逐行姿势导入）")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+      }
     }
     .formStyle(.grouped)
-    .frame(width: 480, height: 580)
+    .frame(width: 480, height: 620)
     .onAppear {
       NSApp.setActivationPolicy(.regular)
       NSApp.activate(ignoringOtherApps: true)

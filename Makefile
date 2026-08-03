@@ -1,6 +1,6 @@
 SHELL := /bin/zsh
 
-.PHONY: bootstrap setup-git handoff-new handoff-check handoff-test generate build test lint format verify run clean
+.PHONY: bootstrap setup-git handoff-new handoff-check handoff-test generate build test lint format verify run run-app clean
 
 bootstrap:
 	./scripts/bootstrap.sh
@@ -53,6 +53,13 @@ verify:
 run: generate
 	@xcodebuild -version >/dev/null 2>&1 || (echo "PetDesk.app requires full Xcode 26." && exit 1)
 	open PetDesk.xcodeproj
+
+run-app: generate
+	@xcodebuild -version >/dev/null 2>&1 || (echo "PetDesk.app requires full Xcode 26." && exit 1)
+	@pkill -x PetDesk 2>/dev/null || true
+	@BUILT=$$(xcodebuild -project PetDesk.xcodeproj -scheme PetDesk -configuration Debug -showBuildSettings 2>/dev/null | awk '/ BUILT_PRODUCTS_DIR =/{print $$3; exit}'); \
+	xcodebuild -project PetDesk.xcodeproj -scheme PetDesk -configuration Debug build && \
+	open "$$BUILT/PetDesk.app"
 
 clean:
 	rm -rf .build DerivedData PetDesk.xcodeproj
