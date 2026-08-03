@@ -98,24 +98,33 @@ struct SettingsView: View {
       }
 
       Section("状态时长提醒") {
-        Stepper(
-          "专注提醒：\(environment.focusDurationMinutes) 分钟",
-          value: $environment.focusDurationMinutes,
-          in: 1...180
+        ReminderSettingRow(
+          title: "专注",
+          minutes: $environment.focusDurationMinutes,
+          message: $environment.focusReminderMessage,
+          previewText: environment.reminderText(
+            for: .focusing, minutes: environment.focusDurationMinutes)
         )
-        Stepper(
-          "摸鱼提醒：\(environment.slackDurationMinutes) 分钟",
-          value: $environment.slackDurationMinutes,
-          in: 1...180
+        ReminderSettingRow(
+          title: "摸鱼",
+          minutes: $environment.slackDurationMinutes,
+          message: $environment.slackReminderMessage,
+          previewText: environment.reminderText(
+            for: .drinkingTea, minutes: environment.slackDurationMinutes)
         )
-        Stepper(
-          "放松提醒：\(environment.relaxDurationMinutes) 分钟",
-          value: $environment.relaxDurationMinutes,
-          in: 1...180
+        ReminderSettingRow(
+          title: "放松",
+          minutes: $environment.relaxDurationMinutes,
+          message: $environment.relaxReminderMessage,
+          previewText: environment.reminderText(
+            for: .sleeping, minutes: environment.relaxDurationMinutes)
         )
-        Text("状态持续达到设定时长后，桌宠会以气泡提醒（仅提醒，不自动切换状态）。")
-          .font(.caption)
-          .foregroundStyle(.secondary)
+        Text(
+          "状态持续达到设定时长后，桌宠会以气泡提醒（仅提醒，不自动切换状态）。"
+            + "消息支持 {minutes} 占位符，显示实际连续分钟数。"
+        )
+        .font(.caption)
+        .foregroundStyle(.secondary)
       }
 
       Section("集成") {
@@ -135,7 +144,7 @@ struct SettingsView: View {
       }
     }
     .formStyle(.grouped)
-    .frame(width: 480, height: 700)
+    .frame(width: 480, height: 880)
     .onAppear {
       NSApp.setActivationPolicy(.regular)
       NSApp.activate(ignoringOtherApps: true)
@@ -282,5 +291,29 @@ private enum FileImportMode {
     case .avatarSource: [.png, .jpeg, .heic]
     case .spritesheet, .pose: [.png, .webP]
     }
+  }
+}
+
+/// 单个状态的时长提醒设置行：时长调节 + 消息 DIY + 实时样式预览。
+private struct ReminderSettingRow: View {
+  let title: String
+  @Binding var minutes: Int
+  @Binding var message: String
+  let previewText: String
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      Stepper("\(title)提醒：\(minutes) 分钟", value: $minutes, in: 1...180)
+      TextField("\(title)提醒消息", text: $message)
+        .textFieldStyle(.roundedBorder)
+      HStack(alignment: .center, spacing: 10) {
+        Text("预览")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+        ReminderPreviewView(text: previewText)
+        Spacer(minLength: 0)
+      }
+    }
+    .padding(.vertical, 6)
   }
 }

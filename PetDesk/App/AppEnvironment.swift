@@ -36,6 +36,16 @@ final class AppEnvironment: ObservableObject {
   @Published var relaxDurationMinutes: Int {
     didSet { defaults.set(relaxDurationMinutes, forKey: Keys.relaxDurationMinutes) }
   }
+  /// 状态时长提醒文案模板（支持 {minutes} 占位符），三种状态各自可自定义。
+  @Published var focusReminderMessage: String {
+    didSet { defaults.set(focusReminderMessage, forKey: Keys.focusReminderMessage) }
+  }
+  @Published var slackReminderMessage: String {
+    didSet { defaults.set(slackReminderMessage, forKey: Keys.slackReminderMessage) }
+  }
+  @Published var relaxReminderMessage: String {
+    didSet { defaults.set(relaxReminderMessage, forKey: Keys.relaxReminderMessage) }
+  }
   @Published var petScale: Double {
     didSet { defaults.set(petScale, forKey: Keys.petScale) }
   }
@@ -70,6 +80,9 @@ final class AppEnvironment: ObservableObject {
     static let focusDurationMinutes = "focusDurationMinutes"
     static let slackDurationMinutes = "slackDurationMinutes"
     static let relaxDurationMinutes = "relaxDurationMinutes"
+    static let focusReminderMessage = "focusReminderMessage"
+    static let slackReminderMessage = "slackReminderMessage"
+    static let relaxReminderMessage = "relaxReminderMessage"
     static let petScale = "petScale"
   }
 
@@ -114,6 +127,12 @@ final class AppEnvironment: ObservableObject {
       defaults.integer(forKey: Keys.slackDurationMinutes), fallback: 10)
     self.relaxDurationMinutes = Self.durationMinutes(
       defaults.integer(forKey: Keys.relaxDurationMinutes), fallback: 10)
+    self.focusReminderMessage = Self.reminderMessage(
+      defaults.string(forKey: Keys.focusReminderMessage), fallback: Self.defaultFocusReminder)
+    self.slackReminderMessage = Self.reminderMessage(
+      defaults.string(forKey: Keys.slackReminderMessage), fallback: Self.defaultSlackReminder)
+    self.relaxReminderMessage = Self.reminderMessage(
+      defaults.string(forKey: Keys.relaxReminderMessage), fallback: Self.defaultRelaxReminder)
     let storedScale = defaults.double(forKey: Keys.petScale)
     self.petScale = storedScale > 0 ? storedScale : 1.0
     let notificationMonitor = AccessibilityNotificationPulseMonitor()
@@ -147,6 +166,12 @@ final class AppEnvironment: ObservableObject {
       defaults.integer(forKey: Keys.slackDurationMinutes), fallback: 10)
     self.relaxDurationMinutes = Self.durationMinutes(
       defaults.integer(forKey: Keys.relaxDurationMinutes), fallback: 10)
+    self.focusReminderMessage = Self.reminderMessage(
+      defaults.string(forKey: Keys.focusReminderMessage), fallback: Self.defaultFocusReminder)
+    self.slackReminderMessage = Self.reminderMessage(
+      defaults.string(forKey: Keys.slackReminderMessage), fallback: Self.defaultSlackReminder)
+    self.relaxReminderMessage = Self.reminderMessage(
+      defaults.string(forKey: Keys.relaxReminderMessage), fallback: Self.defaultRelaxReminder)
     let storedScale = defaults.double(forKey: Keys.petScale)
     self.petScale = storedScale > 0 ? storedScale : 1.0
     self.notificationCapability = notificationCapability
@@ -562,13 +587,24 @@ final class AppEnvironment: ObservableObject {
     }
   }
 
-  private func reminderText(for state: BasePetState, minutes: Int) -> String {
+  /// 渲染提醒文案：把模板中的 {minutes} / {m} 替换为实际分钟数。
+  /// 设置界面也用同一方法做实时预览。
+  func reminderText(for state: BasePetState, minutes: Int) -> String {
+    let template: String
     switch state {
-    case .focusing: "你已连续专注 \(minutes) 分钟"
-    case .drinkingTea: "你已连续摸鱼 \(minutes) 分钟"
-    case .sleeping: "你已连续放松 \(minutes) 分钟"
-    default: "你已连续 \(minutes) 分钟"
+    case .focusing:
+      template = Self.reminderMessage(focusReminderMessage, fallback: Self.defaultFocusReminder)
+    case .drinkingTea:
+      template = Self.reminderMessage(slackReminderMessage, fallback: Self.defaultSlackReminder)
+    case .sleeping:
+      template = Self.reminderMessage(relaxReminderMessage, fallback: Self.defaultRelaxReminder)
+    default:
+      template = "你已连续 {minutes} 分钟"
     }
+    return
+      template
+      .replacingOccurrences(of: "{minutes}", with: "\(minutes)")
+      .replacingOccurrences(of: "{m}", with: "\(minutes)")
   }
 
   private func resetStateDuration() {
@@ -717,6 +753,18 @@ final class AppEnvironment: ObservableObject {
   /// 读取时长设置：只接受 1...180 分钟，非法值回退默认。
   private static func durationMinutes(_ stored: Int, fallback: Int) -> Int {
     (1...180).contains(stored) ? stored : fallback
+  }
+
+  private static let defaultFocusReminder = "你已连续专注 {minutes} 分钟"
+  private static let defaultSlackReminder = "你已连续摸鱼 {minutes} 分钟"
+  private static let defaultRelaxReminder = "你已连续放松 {minutes} 分钟"
+
+  /// 读取提醒文案模板：空白时回退默认模板。
+  private static func reminderMessage(_ stored: String?, fallback: String) -> String {
+    guard let stored, !stored.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+      return fallback
+    }
+    return stored
   }
 
   private func feedDemoCPU(_ load: Double) {

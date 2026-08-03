@@ -189,6 +189,43 @@ final class AppEnvironmentTests: XCTestCase {
   }
 
   @MainActor
+  func testCustomReminderMessagesRenderWithMinutes() {
+    let env = AppEnvironment(defaults: defaults, signalSources: [])
+    env.focusDurationMinutes = 1
+    env.focusReminderMessage = "专注了 {minutes} 分钟啦"
+    env.startFocus()
+
+    env.advanceStateDurationReminder(by: .seconds(60))
+    XCTAssertEqual(
+      env.snapshot.bubble, .stateDurationReminder("专注了 1 分钟啦"),
+      "custom template should replace the {minutes} placeholder")
+
+    // 空白模板回退默认。
+    env.slackOff()
+    env.slackDurationMinutes = 1
+    env.slackReminderMessage = "   "
+    env.advanceStateDurationReminder(by: .seconds(60))
+    XCTAssertEqual(
+      env.snapshot.bubble, .stateDurationReminder("你已连续摸鱼 1 分钟"),
+      "blank custom message should fall back to the default template")
+  }
+
+  @MainActor
+  func testReminderMessagesPersistToDefaults() {
+    let env = AppEnvironment(defaults: defaults, signalSources: [])
+    XCTAssertEqual(env.focusReminderMessage, "你已连续专注 {minutes} 分钟")
+    XCTAssertEqual(env.slackReminderMessage, "你已连续摸鱼 {minutes} 分钟")
+    XCTAssertEqual(env.relaxReminderMessage, "你已连续放松 {minutes} 分钟")
+
+    env.focusReminderMessage = "冲啊，已经 {minutes} 分钟了"
+    env.relaxReminderMessage = "躺平 {m} 分钟了"
+
+    let restored = AppEnvironment(defaults: defaults, signalSources: [])
+    XCTAssertEqual(restored.focusReminderMessage, "冲啊，已经 {minutes} 分钟了")
+    XCTAssertEqual(restored.relaxReminderMessage, "躺平 {m} 分钟了")
+  }
+
+  @MainActor
   func testStartProcessesSignalEvents() async {
     let source = ControllableSignalSource()
     let env = AppEnvironment(defaults: defaults, signalSources: [source])
