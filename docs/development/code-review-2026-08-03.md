@@ -160,3 +160,46 @@
 - `swift run PetDeskCoreChecks`：passed。
 - `make test`：TEST SUCCEEDED — 78 XCTest + 7 XCUITest，0 失败。
 - `make lint`：passed。
+
+---
+
+# 第五轮 Review（同日追加）
+
+焦点：测试套件质量深审、新增代码（rounds 3-4）与数据流边界穷举。
+
+## 修复
+
+| 修复 | 问题 |
+|---|---|
+| `cancelFocus()` 重置活动提醒 | 公开 API 直接调用（未来菜单/快捷键入口）会让 reminderWasDue/isDue 残留 → 活动提醒进程内永久卡死；现与 startFocus/slackOff/relax 一致重置（幂等，不影响内部调用顺序） |
+| XCUITest 假阳性断言 | testQuickActionsAppearOnTap 的 OR 链断言（任一元素出现即过）+ coordinate.click 静默 no-op 风险；改逐个断言 + 点击前确认存在 |
+| 误导性测试名 | testSleepingStateHasZzzEffects → testSleepingStateHasNoEffects（zzz 效果已移除，断言空集） |
+| `make-dmg.sh` 版本覆盖 | VERSION 参数此前只用于 dmg 文件名，Info.plist 版本不变（v0.1.1 的 dmg 内仍显示 0.1.0）；现构建时传 MARKETING_VERSION 覆盖 |
+| 补测试 5 个 | 活动提醒重置、cancelAvatarEdit、deleteTodoItem、displayEquals 门控集成（CPU-only 不重新发布）、辅助窗口计数 |
+
+## 覆盖缺口记录（接受/后续）
+
+G1/G2（snooze/acknowledge 转发）、G5/G6（injectNotification/applyDemoState）、
+G8（updatePetWindowFrame）、G11（loadStoredAvatar 竞态）、G14/G15
+（deleteSpritesheet/saveSpritesheet）、G16（午夜跨天）、G17（写失败路径）、
+G18（jogging→walking 映射）——低价值或难测，记录不补。
+F3（smoke 测试不验证具体状态，只验证 pet.avatar 存在）——XCUITest 无法
+读取 baseState，记录为已知限制。
+A1/A3/A5（测试 helper 重复、Checks 重复 state-machine 断言）——接受
+（Checks 是 SPM 无 Xcode 环境的验证路径）。
+
+## 数据流边界确认（全部 OK）
+
+LazyVStack 身份正确；显式 Info.plist 与生成版键齐全（LSUIElement/分类/版本）；
+make-dmg.sh 与 release.yml 健壮；27 种 bubble×状态组合渲染无缺口
+（stretchReminder 气泡持久为设计：动画 2.5s 消失、气泡等用户确认）；
+三种钉住机制下时长提醒条件均匹配；FocusSession 负时长防御；统计 Int 无溢出。
+
+## 验证（第五轮）
+
+- unit：83 XCTest 全过（含 5 个新测试）。
+- lint：passed。
+- **XCUITest：本地环境 runner 启动即 SIGKILL（"signal kill before
+  establishing connection"，无崩溃报告，clean 后依然）——环境/会话级问题，
+  非代码问题（本轮断言改动不可能导致 runner 启动被杀）；此前 4 轮 XCUITest
+  均通过。已如实记录，未虚报通过。**
