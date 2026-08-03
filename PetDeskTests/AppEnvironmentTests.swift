@@ -343,6 +343,128 @@ final class AppEnvironmentTests: XCTestCase {
     envQuiet.stop()
   }
 
+  // MARK: - AI pose provider and animation pause
+
+  @MainActor
+  func testPetAnimationPausedDefaultsTrueAndUpdates() {
+    let env = AppEnvironment(defaults: defaults, signalSources: [])
+    XCTAssertTrue(env.isPetAnimationPaused, "animation should start paused until the window shows")
+
+    env.updatePetAnimationPaused(false)
+    XCTAssertFalse(env.isPetAnimationPaused, "showing the window should unpause animation")
+
+    env.updatePetAnimationPaused(true)
+    XCTAssertTrue(env.isPetAnimationPaused, "hiding the window should pause animation")
+  }
+
+  private actor ProbeCounter {
+    private var count = 0
+
+    func record() {
+      count += 1
+    }
+
+    var current: Int { count }
+  }
+
+  private struct RecordingPoseProvider: AIPoseProvider {
+    let probe = ProbeCounter()
+
+    var supportsReferenceImage: Bool { true }
+
+    func generateSpritesheet(from referenceImage: CGImage) async throws -> CGImage? {
+      await probe.record()
+      return SpriteSheetGenerator.generate(from: referenceImage)
+    }
+  }
+
+  private struct ThrowingPoseProvider: AIPoseProvider {
+    var supportsReferenceImage: Bool { true }
+
+    func generateSpritesheet(from referenceImage: CGImage) async throws -> CGImage? {
+      throw AIPoseError.invalidResponse
+    }
+  }
+
+  private final class RecordingEyeLocator: EyeBandLocating {
+    private let lock = NSLock()
+    private var calls = 0
+
+    func eyeBand(in image: CGImage) -> CGRect? {
+      lock.lock()
+      calls += 1
+      lock.unlock()
+      return nil
+    }
+
+    var callCount: Int {
+      lock.lock()
+      defer { lock.unlock() }
+      return calls
+    }
+  }
+
+  @MainActor
+  func testSaveCroppedAvatarUsesPoseProviderFirst() async throws {
+    let tmp = tempDirectory()
+    defer { try? FileManager.default.removeItem(at: tmp) }
+    let repo = try AvatarRepository(directoryURL: tmp)
+    let provider = RecordingPoseProvider()
+    let env = AppEnvironment(
+      defaults: defaults,
+      signalSources: [],
+      avatarRepository: repo,
+      poseProvider: provider
+    )
+
+    await env.saveCroppedAvatar(try makeTestCGImage(width: 64, height: 64))
+
+    let calls = await provider.probe.current
+    XCTAssertEqual(calls, 1, "AI provider should run before fallback")
+    XCTAssertNotNil(env.avatarSpritesheet, "AI sheet should be saved")
+    XCTAssertNil(env.avatarError)
+  }
+
+  @MainActor
+  func testSaveCroppedAvatarFallsBackWhenPoseProviderFails() async throws {
+    let tmp = tempDirectory()
+    defer { try? FileManager.default.removeItem(at: tmp) }
+    let repo = try AvatarRepository(directoryURL: tmp)
+    let env = AppEnvironment(
+      defaults: defaults,
+      signalSources: [],
+      avatarRepository: repo,
+      poseProvider: ThrowingPoseProvider()
+    )
+
+    await env.saveCroppedAvatar(try makeTestCGImage(width: 64, height: 64))
+
+    XCTAssertNotNil(
+      env.avatarSpritesheet,
+      "failing AI provider should fall back to the programmatic sheet")
+    XCTAssertNil(env.avatarError)
+  }
+
+  @MainActor
+  func testSaveCroppedAvatarConsultsEyeLocator() async throws {
+    let tmp = tempDirectory()
+    defer { try? FileManager.default.removeItem(at: tmp) }
+    let repo = try AvatarRepository(directoryURL: tmp)
+    let locator = RecordingEyeLocator()
+    let env = AppEnvironment(
+      defaults: defaults,
+      signalSources: [],
+      avatarRepository: repo,
+      poseProvider: nil,
+      eyeLocator: locator
+    )
+
+    await env.saveCroppedAvatar(try makeTestCGImage(width: 64, height: 64))
+
+    XCTAssertEqual(locator.callCount, 1, "eye locator should run on avatar save")
+    XCTAssertNotNil(env.avatarSpritesheet)
+  }
+
   @MainActor
   private func waitUntil(
     _ condition: () -> Bool,

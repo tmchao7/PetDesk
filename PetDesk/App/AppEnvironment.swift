@@ -25,6 +25,8 @@ final class AppEnvironment: ObservableObject {
   @Published var petScale: Double {
     didSet { defaults.set(petScale, forKey: Keys.petScale) }
   }
+  /// 宠物窗口不可见或被遮挡时为 true，视图据此暂停帧动画与 Timeline 驱动。
+  @Published private(set) var isPetAnimationPaused = true
 
   /// Base avatar size (148 pt at 1.0× scale).
   var petAvatarSize: CGFloat { 148 * petScale }
@@ -60,6 +62,7 @@ final class AppEnvironment: ObservableObject {
   private let usageStore: UsageStatsStore?
   /// AI 姿态生成器（可选；未配置时使用本地程序化方案）。
   private var poseProvider: (any AIPoseProvider)?
+  private let eyeLocator: (any EyeBandLocating)?
   private let signalSources: [any PetSignalSource]
   private var machine = PetStateMachine()
   private var activityReminder = ActivityReminderAccumulator()
@@ -85,6 +88,8 @@ final class AppEnvironment: ObservableObject {
     self.avatarRepository = try? AvatarRepository()
     self.todoStore = try? TodoStore()
     self.usageStore = try? UsageStatsStore()
+    self.eyeLocator = VisionEyeBandLocator()
+    self.poseProvider = GPTImage2Provider.fromEnvironment()
   }
 
   init(
@@ -94,7 +99,8 @@ final class AppEnvironment: ObservableObject {
     avatarRepository: AvatarRepository? = nil,
     todoStore: TodoStore? = nil,
     usageStore: UsageStatsStore? = nil,
-    poseProvider: (any AIPoseProvider)? = nil
+    poseProvider: (any AIPoseProvider)? = nil,
+    eyeLocator: (any EyeBandLocating)? = nil
   ) {
     self.defaults = defaults
     self.quietMode = defaults.bool(forKey: Keys.quietMode)
@@ -109,6 +115,7 @@ final class AppEnvironment: ObservableObject {
     self.todoStore = todoStore
     self.usageStore = usageStore
     self.poseProvider = poseProvider
+    self.eyeLocator = eyeLocator
   }
 
   func start() {
@@ -299,6 +306,11 @@ final class AppEnvironment: ObservableObject {
     petWindowFrame = frame
   }
 
+  /// 窗口控制器在显示/隐藏/遮挡变化时更新动画暂停状态。
+  func updatePetAnimationPaused(_ paused: Bool) {
+    isPetAnimationPaused = paused
+  }
+
   func applyDemoState(_ name: String) {
     switch name {
     case "sleeping": handle(.userIdleChanged(.seconds(301)))
@@ -444,16 +456,19 @@ final class AppEnvironment: ObservableObject {
   }
 
   /// 用裁切后的头像生成精灵图并保存；失败时保留旧精灵图（静默降级）。
-  /// 默认使用本地程序化生成器；后续可接入 AI provider（AIPoseProvider）。
+  /// 优先尝试 AI provider（未配置或失败时回退本地程序化生成器）。
   private func generateSpritesheet(from image: CGImage) async -> CGImage? {
-    guard let avatarRepository else { return nil }
-    // 优先尝试 AI provider（当前未配置），失败回退程序化方案。
+    guard avatarRepository != nil else { return nil }
     if let provider = poseProvider {
       if let aiSheet = try? await provider.generateSpritesheet(from: image) {
         return await saveSpritesheet(aiSheet)
       }
+      diagnostics.record(category: "avatar", message: "ai-pose-fallback")
     }
-    guard let sheet = SpriteSheetGenerator.generate(from: image) else { return nil }
+    let eyeBand = eyeLocator?.eyeBand(in: image)
+    guard let sheet = SpriteSheetGenerator.generate(from: image, eyeBandInSource: eyeBand) else {
+      return nil
+    }
     return await saveSpritesheet(sheet)
   }
 

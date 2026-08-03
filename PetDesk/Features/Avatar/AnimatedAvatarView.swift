@@ -13,6 +13,7 @@ struct AnimatedAvatarView: View {
   let spritesheet: CGImage?
   let animState: PetAnimState
   let displayMode: AvatarDisplayMode
+  var animationPaused = false
 
   @State private var frameIndex = 0
   @State private var pingPongForward = true
@@ -56,7 +57,10 @@ struct AnimatedAvatarView: View {
     .onReceive(
       Timer.publish(every: 1.0 / Double(row.framesPerSecond), on: .main, in: .common)
         .autoconnect()
-    ) { _ in advanceFrame() }
+    ) { _ in
+      guard !animationPaused else { return }
+      advanceFrame()
+    }
   }
 
   private var breathingPhase: Double {
@@ -74,11 +78,11 @@ struct AnimatedAvatarView: View {
 
   private func frameImage(from sheet: CGImage) -> CGImage {
     let rect = animState.frameRect(index: frameIndex)
-    // 精灵图坐标系以左上角为原点；CGImage.cropping 使用左下角坐标系，需翻转 y。
-    let flippedY = CGFloat(sheet.height) - rect.maxY
+    // 精灵图规范与 CGImage.cropping 同为“y=0 在视觉顶部”，直接按行/列裁剪。
+    // （实测：本 SDK 上 cropping 的 y=0 对应图像顶部；曾误做 y 翻转导致行映射上下颠倒。）
     let cropRect = CGRect(
       x: rect.minX,
-      y: flippedY,
+      y: rect.minY,
       width: SpriteSheetSpec.frameWidth,
       height: SpriteSheetSpec.frameHeight
     )

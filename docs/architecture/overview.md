@@ -28,9 +28,11 @@ Feature adapters own system calls. `AppEnvironment` owns cancellable tasks and o
 
 - `AvatarRepository` (actor): avatar PNG + **spritesheet PNG** storage in Application Support.
 - `AvatarCropper` / `AvatarEditorView`: crop/zoom/display-mode editor; saving a cropped image auto-generates a spritesheet.
-- `SpriteSheetSpec` + `SpriteSheetGenerator`: 8×8 grid (192×208 frames) with Codex-Pet-style micro-transforms (blink, 1-2px shifts, subtle rotation) per animation row.
+- `SpriteSheetSpec` + `SpriteSheetGenerator`: 8×8 grid (192×208 frames) with Codex-Pet-style micro-transforms (blink, 1-2px shifts, subtle rotation) per animation row. It accepts either the avatar image or per-row 192×208 base cells (`generate(fromRowCells:)`), so AI poses flow through the same deterministic assembly.
 - `AIPoseProvider` (protocol): optional AI backend for richer poses; falls back to the programmatic generator.
-- `AnimatedAvatarView`: frame-by-frame playback per pet state (restart/pingpong), falls back to the static avatar when no spritesheet exists.
+- `GPTImage2Provider` (env-configured, **off by default**): calls an OpenAI-compatible `POST /images/edits` endpoint (`PETDESK_AI_POSE_API_KEY`, `PETDESK_AI_POSE_BASE_URL`, `PETDESK_AI_POSE_MODEL`, `PETDESK_AI_POSE_SIZE`, `PETDESK_AI_POSE_TIMEOUT`). One call generates a canonical chibi pose on a magenta background; `PoseCellProcessor` chroma-keys it into a transparent 192×208 cell. Default single-pose mode derives every animation row from the idle cell; `PETDESK_AI_POSE_EXTRA_POSES=1` adds running/lying-flat/reaching pose calls. Any failure or missing configuration falls back to the programmatic generator. The RunComfy CLI transport is not implemented yet; pointing the base URL at a compatible endpoint is supported.
+- `VisionEyeBandLocator`: locates the blink overlay band with Vision face landmarks; `SpriteSheetGenerator` scales the band into the 192×192 base and falls back to the fixed y 60-70 band when no face is found.
+- `AnimatedAvatarView`: frame-by-frame playback per pet state (restart/pingpong), falls back to the static avatar when no spritesheet exists. Frame cropping uses the spritesheet's top-left origin directly — `CGImage.cropping` treats y=0 as the visual top in the current SDK (verified; do not re-add a y flip).
 
 ### Todo
 
@@ -50,6 +52,7 @@ Feature adapters own system calls. `AppEnvironment` owns cancellable tasks and o
 - `PetHitTestHostingView`: constrains clicks to the pet region when the bubble is hidden (click-through elsewhere); `bubbleVisible` is derived from **one combineLatest pipeline** of `quickActionsVisible` + `snapshot` — two separate sinks would race (snapshot publishes every second and clobbers the flag, breaking bubble hit-testing).
 - Pet clicks use SwiftUI `onTapGesture` (reliable once hit-testing is correct); the bubble's action labels use `onTapGesture` too.
 - Right-click context menu: 待办事项 / 使用统计 / 设置 / 隐藏桌宠.
+- Animation pause: `PetWindowController` pushes visibility/occlusion into `AppEnvironment.isPetAnimationPaused` (hidden or covered windows pause). `PetView` then renders static content instead of a 30 fps `TimelineView`, `AnimatedAvatarView` gates its frame timer, and the sleeping moon float stops repeating — saving CPU while the pet is not visible.
 
 ### Windows & Scenes
 

@@ -7,6 +7,7 @@ PetDesk is a quiet desktop companion for one user on an Apple silicon Mac runnin
 - Transparent floating pet across Spaces, with position restoration and limited click-through.
 - PNG, JPEG, and HEIC avatar import up to 20 MB; saved as a downsampled 1024 px PNG.
 - **Animated pet**: saving an avatar auto-generates a Codex-style 8×8 spritesheet (idle/walking/running/working/drinking/sleeping/happy/surprised with blinking and subtle micro-transforms); the pet plays frames per state. Falls back to the static avatar if generation fails.
+- **Optional AI pose generation** (off by default): when configured with `PETDESK_AI_POSE_API_KEY` (and optional base URL/model), GPT Image 2 generates a canonical chibi pose from the avatar — and optionally lying-flat/running/reaching poses — which is chroma-keyed into the same 8×8 spritesheet. Any AI failure falls back to the local generator; the avatar image is transmitted only when this opt-in provider is configured.
 - CPU-driven tea, work, jog, and run states plus coarse thermal smoke.
 - Sleep after five minutes of input inactivity.
 - A 25-minute focus session that pauses after 60 seconds of user inactivity.
