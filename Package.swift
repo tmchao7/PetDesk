@@ -50,6 +50,7 @@ let package = Package(
                 "Features/Avatar/AvatarImageLoader.swift",
                 "Features/Avatar/AvatarImportPolicy.swift",
                 "Features/Avatar/AvatarRepository.swift",
+                "Features/Avatar/AIPoseProvider.swift",
                 "Features/Avatar/SpriteSheetGenerator.swift",
                 "Features/Avatar/SpriteSheetSpec.swift",
                 "Features/Focus",

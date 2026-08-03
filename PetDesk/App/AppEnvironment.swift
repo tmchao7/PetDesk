@@ -58,6 +58,8 @@ final class AppEnvironment: ObservableObject {
   private let avatarRepository: AvatarRepository?
   private let todoStore: TodoStore?
   private let usageStore: UsageStatsStore?
+  /// AI 姿态生成器（可选；未配置时使用本地程序化方案）。
+  private var poseProvider: (any AIPoseProvider)?
   private let signalSources: [any PetSignalSource]
   private var machine = PetStateMachine()
   private var activityReminder = ActivityReminderAccumulator()
@@ -91,7 +93,8 @@ final class AppEnvironment: ObservableObject {
     notificationCapability: NotificationCapability = .unsupported(.sourceApplicationUnavailable),
     avatarRepository: AvatarRepository? = nil,
     todoStore: TodoStore? = nil,
-    usageStore: UsageStatsStore? = nil
+    usageStore: UsageStatsStore? = nil,
+    poseProvider: (any AIPoseProvider)? = nil
   ) {
     self.defaults = defaults
     self.quietMode = defaults.bool(forKey: Keys.quietMode)
@@ -105,6 +108,7 @@ final class AppEnvironment: ObservableObject {
     self.avatarRepository = avatarRepository
     self.todoStore = todoStore
     self.usageStore = usageStore
+    self.poseProvider = poseProvider
   }
 
   func start() {
@@ -440,15 +444,26 @@ final class AppEnvironment: ObservableObject {
   }
 
   /// 用裁切后的头像生成精灵图并保存；失败时保留旧精灵图（静默降级）。
+  /// 默认使用本地程序化生成器；后续可接入 AI provider（AIPoseProvider）。
   private func generateSpritesheet(from image: CGImage) async -> CGImage? {
-    guard let avatarRepository, let sheet = SpriteSheetGenerator.generate(from: image) else {
-      return nil
+    guard let avatarRepository else { return nil }
+    // 优先尝试 AI provider（当前未配置），失败回退程序化方案。
+    if let provider = poseProvider {
+      if let aiSheet = try? await provider.generateSpritesheet(from: image) {
+        return await saveSpritesheet(aiSheet)
+      }
     }
+    guard let sheet = SpriteSheetGenerator.generate(from: image) else { return nil }
+    return await saveSpritesheet(sheet)
+  }
+
+  private func saveSpritesheet(_ sheet: CGImage) async -> CGImage? {
+    guard let avatarRepository else { return nil }
     do {
       try await avatarRepository.saveSpritesheet(sheet)
       return sheet
     } catch {
-      AppLog.avatar.error("Spritesheet generation failed")
+      AppLog.avatar.error("Spritesheet save failed")
       return nil
     }
   }
