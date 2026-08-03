@@ -10,6 +10,10 @@ struct PetView: View {
   @State private var importMessage: String?
 
   private var avatarSize: CGFloat { environment.petAvatarSize }
+  /// 精灵帧为 192×208 竖构图，显示区保持同比例，避免方形裁剪。
+  private var avatarHeight: CGFloat {
+    avatarSize * SpriteSheetSpec.frameHeight / SpriteSheetSpec.frameWidth
+  }
   private var cornerRadius: CGFloat { 20 * environment.petScale }
 
   var body: some View {
@@ -17,13 +21,13 @@ struct PetView: View {
       // 固定宠物区域尺寸：没有显式 frame 时会撑满窗口居中。
       // 静态模式：直接渲染当前状态行，不做浮动/缩放/旋转微动作。
       petContent(phase: 0)
-        .frame(width: avatarSize, height: avatarSize)
+        .frame(width: avatarSize, height: avatarHeight)
 
       if environment.quickActionsVisible || environment.snapshot.bubble != nil {
         PetBubbleView(
           environment: environment, showingQuickActions: environment.quickActionsVisible
         )
-        .offset(x: -20, y: -(avatarSize + 20))
+        .offset(x: -20, y: -(avatarHeight + 20))
         .transition(.scale(scale: 0.92).combined(with: .opacity))
       }
     }
@@ -40,9 +44,10 @@ struct PetView: View {
           baseState: environment.snapshot.baseState,
           transient: environment.snapshot.transientState
         ),
-        displayMode: environment.avatarDisplayMode
+        displayMode: environment.avatarDisplayMode,
+        avatarSize: avatarSize
       )
-      .frame(width: avatarSize, height: avatarSize)
+      .frame(width: avatarSize, height: avatarHeight)
       OverlayEffectView(
         effects: environment.snapshot.effects,
         transient: environment.snapshot.transientState,

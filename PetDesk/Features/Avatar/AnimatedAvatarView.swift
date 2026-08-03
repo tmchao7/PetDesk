@@ -13,41 +13,67 @@ struct AnimatedAvatarView: View {
   let spritesheet: CGImage?
   let animState: PetAnimState
   let displayMode: AvatarDisplayMode
+  let avatarSize: CGFloat
 
   private var row: AnimationRow { animState.row }
 
+  /// 精灵帧是 192×208 竖构图，按同比例放大显示，避免方形框 scaledToFill
+  /// 把上下边缘裁掉（角色会显得小、头脚被切）。
+  private var spriteSize: CGSize {
+    CGSize(
+      width: avatarSize,
+      height: avatarSize * SpriteSheetSpec.frameHeight / SpriteSheetSpec.frameWidth
+    )
+  }
+
   var body: some View {
-    ZStack {
+    Group {
       if let spritesheet {
-        let nsImage = NSImage(
-          cgImage: frameImage(from: spritesheet),
-          size: NSSize(
-            width: SpriteSheetSpec.frameWidth,
-            height: SpriteSheetSpec.frameHeight
-          )
-        )
-        Image(nsImage: nsImage)
-          .resizable()
-          .scaledToFill()
+        spriteView(spritesheet)
       } else if let image {
-        Image(nsImage: image)
-          .resizable()
-          .scaledToFill()
+        card {
+          Image(nsImage: image)
+            .resizable()
+            .scaledToFill()
+        }
       } else {
-        placeholder
+        card { placeholder }
       }
     }
-    .clipShape(
-      displayMode == .circle ? AnyShape(Circle()) : AnyShape(RoundedRectangle(cornerRadius: 20))
-    )
-    .overlay(
-      (displayMode == .circle
-        ? AnyShape(Circle())
-        : AnyShape(RoundedRectangle(cornerRadius: 20))).stroke(.white, lineWidth: 5)
-    )
-    .shadow(color: .black.opacity(0.18), radius: 9, y: 5)
     .accessibilityLabel("Pet avatar")
     .accessibilityIdentifier("pet.avatar")
+  }
+
+  /// 精灵图路径：保持 192×208 比例、无边框无卡片，背景完全透明，
+  /// 只给角色本体加一点投影，在浅色桌面上仍可辨认。
+  private func spriteView(_ sheet: CGImage) -> some View {
+    let nsImage = NSImage(
+      cgImage: frameImage(from: sheet),
+      size: NSSize(
+        width: SpriteSheetSpec.frameWidth,
+        height: SpriteSheetSpec.frameHeight
+      )
+    )
+    return Image(nsImage: nsImage)
+      .resizable()
+      .interpolation(.high)
+      .scaledToFit()
+      .frame(width: spriteSize.width, height: spriteSize.height)
+      .shadow(color: .black.opacity(0.22), radius: 4, y: 2)
+  }
+
+  /// 无精灵图时的卡片样式（保持原有圆形/圆角外观）。
+  private func card<Content: View>(@ViewBuilder content: () -> Content) -> some View {
+    content()
+      .clipShape(
+        displayMode == .circle ? AnyShape(Circle()) : AnyShape(RoundedRectangle(cornerRadius: 20))
+      )
+      .overlay(
+        (displayMode == .circle
+          ? AnyShape(Circle())
+          : AnyShape(RoundedRectangle(cornerRadius: 20))).stroke(.white, lineWidth: 5)
+      )
+      .shadow(color: .black.opacity(0.18), radius: 9, y: 5)
   }
 
   private var placeholder: some View {
