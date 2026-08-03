@@ -535,6 +535,56 @@ final class AppEnvironmentTests: XCTestCase {
     XCTAssertNil(env.avatarError)
   }
 
+  /// 气泡待办列表不再截断前 5 条：全部未完成项都应暴露，供气泡内滚动查看。
+  @MainActor
+  func testIncompleteTodoItemsExposesAllPendingForBubbleScroll() {
+    let env = AppEnvironment(defaults: defaults, signalSources: [])
+    for index in 0..<7 {
+      env.addTodoItem("事项 \(index)")
+    }
+    env.toggleTodoItem(id: env.todoItems[0].id)
+    XCTAssertEqual(env.incompleteTodoItems.count, 6, "bubble should expose every incomplete item")
+    XCTAssertTrue(
+      env.incompleteTodoItems.allSatisfy { !$0.isCompleted },
+      "exposed items should be the incomplete ones")
+  }
+
+  /// 专注也要钉住：会话完成后视觉保持专注，不自动切回 CPU/空闲驱动的
+  /// 摸鱼/放松（点击什么状态就是什么状态，直到用户手动切换）。
+  @MainActor
+  func testFocusStaysPinnedAfterSessionCompletes() async throws {
+    let source = ControllableSignalSource()
+    let session = FocusSession(duration: .seconds(2), idlePauseAfter: .seconds(3_600))
+    let env = AppEnvironment(
+      defaults: defaults, signalSources: [source], focusSession: session)
+    env.start()
+
+    env.startFocus()
+    XCTAssertEqual(env.snapshot.baseState, .focusing)
+
+    // 会话 2 秒完成 → 状态机触发 complete 事件。tick 由真实时钟驱动，
+    // 需要实际等待（waitUntil 只 yield，不等待真实时间）。
+    var completed = false
+    for _ in 0..<100 where !completed {
+      try await Task.sleep(for: .milliseconds(100))
+      completed = env.focusSession.phase == .completed
+    }
+    XCTAssertTrue(completed, "short session should complete within 10s")
+    var showedComplete = false
+    for _ in 0..<50 where !showedComplete {
+      try await Task.sleep(for: .milliseconds(100))
+      showedComplete = env.snapshot.bubble == .focusComplete
+    }
+    XCTAssertTrue(showedComplete, "session completion should show the bubble")
+
+    // 完成后不应自动切走（旧行为：回到 CPU 驱动的 drinkingTea）。
+    XCTAssertEqual(
+      env.snapshot.baseState, .focusing,
+      "focus should stay pinned after the session completes")
+    env.stop()
+    source.finish()
+  }
+
   // MARK: - AI pose provider and animation pause
 
   @MainActor

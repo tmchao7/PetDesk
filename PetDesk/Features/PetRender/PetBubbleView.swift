@@ -8,9 +8,9 @@ struct PetBubbleView: View {
   @ObservedObject var environment: AppEnvironment
   let showingQuickActions: Bool
 
-  /// Incomplete todo items (max 5 shown in bubble).
+  /// 气泡待办：全部未完成项（列表区可双指/滚轮上下滚动翻看）。
   private var incompleteItems: [TodoItem] {
-    Array(environment.todoItems.filter { !$0.isCompleted }.prefix(5))
+    environment.incompleteTodoItems
   }
 
   var body: some View {
@@ -31,25 +31,32 @@ struct PetBubbleView: View {
       } else {
         if showingQuickActions || environment.snapshot.bubble == .focusInvite {
           if !incompleteItems.isEmpty {
-            VStack(alignment: .leading, spacing: 4) {
-              ForEach(incompleteItems) { item in
-                HStack(spacing: 6) {
-                  Button {
-                    environment.toggleTodoItem(id: item.id)
-                  } label: {
-                    Image(systemName: "circle")
+            // 待办多时列表区可双指/滚轮上下滚动翻看（上限 160pt，约 7 行）。
+            ScrollView {
+              VStack(alignment: .leading, spacing: 4) {
+                ForEach(incompleteItems) { item in
+                  HStack(spacing: 6) {
+                    Button {
+                      environment.toggleTodoItem(id: item.id)
+                    } label: {
+                      Image(systemName: "circle")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+
+                    Text(item.title)
                       .font(.system(size: 11))
                       .foregroundStyle(.secondary)
+                      .lineLimit(1)
                   }
-                  .buttonStyle(.plain)
-
-                  Text(item.title)
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
                 }
               }
+              // 右侧留白：滚动条 overlay 悬停在此区域，不遮挡待办文字。
+              .padding(.trailing, 14)
             }
+            .frame(maxHeight: 160)
+            .scrollBounceBehavior(.basedOnSize)
           }
 
           HStack(spacing: 8) {

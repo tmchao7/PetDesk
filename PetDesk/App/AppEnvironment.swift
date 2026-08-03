@@ -11,7 +11,7 @@ final class AppEnvironment: ObservableObject {
   @Published private(set) var snapshot = PetSnapshot()
   @Published private(set) var avatarImage: NSImage?
   @Published private(set) var avatarSpritesheet: CGImage?
-  @Published private(set) var focusSession = FocusSession()
+  @Published private(set) var focusSession: FocusSession
   @Published var quickActionsVisible = false
   @Published private(set) var petWindowFrame: CGRect?
   @Published private(set) var avatarError: String?
@@ -74,6 +74,11 @@ final class AppEnvironment: ObservableObject {
   var openStatsWindow: (() -> Void)?
   @Published var todoItems: [TodoItem] = []
   @Published var usageStatsByDay: [String: DayStats] = [:]
+
+  /// 气泡待办列表：全部未完成项（气泡内滚动查看，不再截断前 5 条）。
+  var incompleteTodoItems: [TodoItem] {
+    todoItems.filter { !$0.isCompleted }
+  }
 
   private enum Keys {
     static let avatarDisplayMode = "avatarDisplayMode"
@@ -148,6 +153,7 @@ final class AppEnvironment: ObservableObject {
     self.usageStore = try? UsageStatsStore()
     self.eyeLocator = VisionEyeBandLocator()
     self.poseProvider = GPTImage2Provider.fromEnvironment()
+    self.focusSession = FocusSession()
   }
 
   init(
@@ -158,7 +164,8 @@ final class AppEnvironment: ObservableObject {
     todoStore: TodoStore? = nil,
     usageStore: UsageStatsStore? = nil,
     poseProvider: (any AIPoseProvider)? = nil,
-    eyeLocator: (any EyeBandLocating)? = nil
+    eyeLocator: (any EyeBandLocating)? = nil,
+    focusSession: FocusSession = FocusSession()
   ) {
     self.defaults = defaults
     self.avatarDisplayMode =
@@ -187,6 +194,7 @@ final class AppEnvironment: ObservableObject {
     self.usageStore = usageStore
     self.poseProvider = poseProvider
     self.eyeLocator = eyeLocator
+    self.focusSession = focusSession
   }
 
   func start() {
@@ -226,7 +234,7 @@ final class AppEnvironment: ObservableObject {
 
   func startFocus() {
     quickActionsVisible = false
-    manualState = nil
+    manualState = .focusing
     pinnedState = .focusing
     resetStateDuration()
     focusSession.start()
@@ -236,7 +244,12 @@ final class AppEnvironment: ObservableObject {
   }
 
   func cancelFocus() {
+    // 显式取消专注 = 解除钉住，恢复真实 CPU/空闲驱动。钉住期间
+    // userIdleChanged 被拦截、状态机内的 idle 停留旧值，这里把最近一次
+    // 真实 idle 同步回去，避免取消后按旧 idle 直接睡回放松。
+    manualState = nil
     focusSession.cancel()
+    handle(.userIdleChanged(latestIdle))
     handle(.focusCommand(.cancel))
     diagnostics.record(category: "focus", message: "session-cancelled")
   }
@@ -493,7 +506,14 @@ final class AppEnvironment: ObservableObject {
         break
       }
     }
-    let reduced = machine.reduce(event, elapsed: eventElapsed(event))
+    var reduced = machine.reduce(event, elapsed: eventElapsed(event))
+    // 专注钉住：会话完成/取消后状态机 focusActive 解除会回到 CPU/空闲驱动
+    // （摸鱼/放松），这里在显示层强制保持专注，直到用户手动切换——与
+    // 摸鱼/放松的 manualState 拦截对称（点的是什么状态就是什么状态）。
+    if manualState == .focusing {
+      reduced.baseState = .focusing
+      reduced.effects = [.keyboard]
+    }
     // 发布门控：CPU 读数每秒都在变，但宠物外观（状态/特效/气泡）不变时
     // 跳过发布，避免每秒无效化悬浮窗整树重绘。averageCPU 只进诊断窗口，
     // 允许滞后到下一次外观变化时一并刷新。
