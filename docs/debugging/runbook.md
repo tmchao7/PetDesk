@@ -91,6 +91,8 @@ make run-app
 
 This kills any running PetDesk instance, rebuilds the Debug app, and opens it. After importing a pose, `~/Library/Application Support/PetDesk/spritesheet.png` must change its timestamp to today — otherwise the running app did not include the pose-import code.
 
+Every pose-import outcome is logged to the `avatar` category (`AppLog.avatar`) and recorded in the Diagnostics window (`pose-imported`, or the failure message), so a failed Settings import can be identified from the Diagnostics window after an attempt.
+
 For generation guidance and copy-paste prompts, see `docs/design/spritesheet-authoring.md`.
 
 ## Xcode Target Identity Conflicts

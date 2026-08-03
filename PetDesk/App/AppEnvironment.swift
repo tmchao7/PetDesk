@@ -302,6 +302,7 @@ final class AppEnvironment: ObservableObject {
   func importPose(row: AnimationRow, from url: URL) async -> String? {
     guard avatarBaseCGImage != nil else {
       let message = "请先设置头像，再导入姿势图。"
+      AppLog.avatar.error("Pose import skipped: no avatar base")
       return message
     }
     do {
@@ -313,14 +314,20 @@ final class AppEnvironment: ObservableObject {
         size: NSSize(width: 48, height: 52)
       )
       if let message = await reassembleSpritesheet() {
+        AppLog.avatar.error("Pose import reassembly failed: \(message, privacy: .public)")
         return message
       }
       diagnostics.record(category: "avatar", message: "pose-imported")
+      AppLog.avatar.info("Pose imported for row \(row.rawValue, privacy: .public)")
       return nil
     } catch let error as PoseImageImportError {
-      return Self.poseMessage(for: error)
+      let message = Self.poseMessage(for: error)
+      AppLog.avatar.error("Pose image rejected: \(message, privacy: .public)")
+      return message
     } catch {
-      return "姿势图导入失败。"
+      let message = "姿势图导入失败。"
+      AppLog.avatar.error("Pose import failed: \(String(describing: error), privacy: .public)")
+      return message
     }
   }
 
