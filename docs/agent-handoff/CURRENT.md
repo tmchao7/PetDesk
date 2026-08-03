@@ -23,7 +23,7 @@ Fixed the remaining clipping: the pose framing window was widened from 96% to 99
 - `swift run PetDeskCoreChecks`: passed (includes new spritesheet-policy check).
 - `swift build --product PetDeskAppCheck`: BUILD SUCCEEDED.
 - `make test`: TEST SUCCEEDED — 74 XCTest + 6 XCUITest (commit `1fcb052`).
-- `make verify`: passed (2026-08-03 12:47, commits `3b1a48d` + `6935544`); rerun pending after this handoff record.
+- `make verify`: passed (2026-08-03 14:12, commits `1fcb052` + `cd07f60`).
 
 ## Blockers
 
@@ -31,10 +31,9 @@ Fixed the remaining clipping: the pose framing window was widened from 96% to 99
 
 ## Next Actions
 
-1. Commit the handoff record (`docs(handoff)`) and rerun `make verify`.
-2. User: `make run-app`, then confirm the three poses no longer look clipped (head/feet intact) while remaining centered and transparent.
-3. Optional later: re-enable micro-motion animation; extend pose import to all 8 rows; real-key trial of Plan C.
-4. Push after owner approval: feature branch, then `main` (currently 2 unpushed docs commits).
+1. User: `make run-app`, then confirm the three poses no longer look clipped (head/feet intact) while remaining centered and transparent.
+2. Optional later: re-enable micro-motion animation; extend pose import to all 8 rows; real-key trial of Plan C.
+3. Push after owner approval: feature branch, then `main` (currently 2 unpushed docs commits).
 
 ## Working Rules
 
