@@ -66,6 +66,11 @@ final class PetWindowController: NSWindowController, NSWindowDelegate {
 
   required init?(coder: NSCoder) { nil }
 
+  deinit {
+    // selector 式观察者不会随 dealloc 自动移除，显式清理避免悬垂通知。
+    NotificationCenter.default.removeObserver(self)
+  }
+
   func showPet() {
     guard let window else { return }
     window.orderFrontRegardless()
