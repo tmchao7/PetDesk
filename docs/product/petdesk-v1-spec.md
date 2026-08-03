@@ -6,16 +6,21 @@ PetDesk is a quiet desktop companion for one user on an Apple silicon Mac runnin
 
 - Transparent floating pet across Spaces, with position restoration and limited click-through.
 - PNG, JPEG, and HEIC avatar import up to 20 MB; saved as a downsampled 1024 px PNG.
+- **Animated pet**: saving an avatar auto-generates a Codex-style 8×8 spritesheet (idle/walking/running/working/drinking/sleeping/happy/surprised with blinking and subtle micro-transforms); the pet plays frames per state. Falls back to the static avatar if generation fails.
 - CPU-driven tea, work, jog, and run states plus coarse thermal smoke.
 - Sleep after five minutes of input inactivity.
 - A 25-minute focus session that pauses after 60 seconds of user inactivity.
 - A movement reminder after 60 active minutes, with Done and 10-minute snooze actions.
+- **Bubble quick actions** (left-click the pet): today's todo (top 5, inline check-off) + 专注 / 摸鱼 / 放松 buttons — focus starts a session, slack-off nudges toward tea, relax forces a 15-second sleep (Zzz with animated moon).
+- **Todo list**: add / check / delete items persisted to JSON; accessible from the pet context menu, status bar, and Settings.
+- **Usage stats**: daily 专注 / 摸鱼 / 休息 durations accumulated from pet state, viewable per day (last 7 days with bars) from the context menu, status bar, and Settings.
+- Pet size setting (小 / 中 / 大) that scales the pet, effects, and window.
 - Manual quiet mode, menu-bar control, login-item setting, diagnostics, and launch arguments.
 - A source-app-only notification extension point that is allowed to report unsupported.
 
 ## Excluded
 
-PetDesk v1 does not provide Todo, notes, file storage, exact temperature or wattage, application blocking, message contents, contact identity, OCR, or private database access.
+PetDesk v1 does not provide notes, file storage, exact temperature or wattage, application blocking, message contents, contact identity, OCR, or private database access.
 
 ## Success Criteria
 
