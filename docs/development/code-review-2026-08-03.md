@@ -130,3 +130,33 @@
 - `swift run PetDeskCoreChecks`：passed。
 - `make test`：TEST SUCCEEDED — 78 XCTest + 7 XCUITest，0 失败。
 - `make lint`：passed。
+
+---
+
+# 第四轮 Review（同日追加）
+
+焦点：文档-代码一致性、边界状态/首次启动流、测试补缺。
+
+## 修复
+
+| 修复 | 问题 |
+|---|---|
+| 活动提醒永久卡死（BUG） | `reminderWasDue`/`ActivityReminderAccumulator.isDue` 无自清：活动提醒触发后若被专注完成气泡覆盖（未确认），本次进程内永不再次触发；startFocus/slackOff/relax 现在重置（状态切换 = 新会话重新计时） |
+| `cancelAvatarEdit` 清 avatarError | 取消编辑后上次导入失败的红字错误残留 |
+| 气泡待办 LazyVStack | 大量待办时列表全部急切渲染；改懒加载 |
+| 文档 2 STALE | spec 的 todo "accessible from... Settings"（Settings 无 todo 入口）；overview 专注钉住 "(or is cancelled)"（取消路径 cancelFocus 先清 pin，仅完成路径钉住） |
+| 文档 2 MISSING | overview 补录辅助窗口激活计数机制与 pendingWrite 写链 |
+
+## 复核结论（第四轮）
+
+- **误判**：通知监控"未实现"——spec 明确定义该扩展点"allowed to report
+  unsupported"，stub 是设计行为。
+- **确认正确**：首次启动占位/空数据/无头像导姿势报错/重置清理/姿势覆盖/重启
+  恢复/专注全流程/窗口隐藏恢复/多屏 clamp/退出位置/空白标题拦截/午夜跨天
+  flush 均正常；importAvatar 是测试覆盖的有效 API（UI 路径不经它）。
+
+## 验证（第四轮）
+
+- `swift run PetDeskCoreChecks`：passed。
+- `make test`：TEST SUCCEEDED — 78 XCTest + 7 XCUITest，0 失败。
+- `make lint`：passed。
