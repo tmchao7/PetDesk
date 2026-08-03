@@ -2,28 +2,28 @@
 
 - Status: ready
 - Active owner: unassigned
-- Updated: 2026-08-03T11:17:00+0800
+- Updated: 2026-08-03T11:23:00+0800
 - Branch: `feat/ai-pose-vision-animation`
-- Latest implementation commit: `9fc3a7f`
-- Latest session: [codex direct-import-unblock](sessions/2026-08-03-1116-codex-direct-import-unblock.md)
+- Latest implementation commit: `b24d717`
+- Latest session: [codex pose-import-fileimporter-race](sessions/2026-08-03-1122-codex-pose-import-fileimporter-race.md)
 
 ## Active Objective
 
-Codex relay complete: the three poses were written directly into the user's real `spritesheet.png` (verified Aug 3 11:15) and the new build is running again; Settings imports are now instrumented with outcome logs. Next: user confirms state switching in the running app.
+Fixed the Settings pose-import bug: `fileImporter` clears `isPresented` before its completion callback, so the old derived binding wiped `poseImportTarget` and every import silently no-op'd. Settings now uses one consolidated `fileImporter` with a `FileImportMode` captured at button press. Next: user re-imports the three poses in a fresh `make run-app` build and confirms switching.
 
 ## Repository Snapshot
 
-- Feature branch `feat/ai-pose-vision-animation` (feature commits … `534ee85`, `9fc3a7f`); local `main` unchanged but still 2 commits ahead of `origin/main` with no upstream configured.
-- Shipped: pose import outcome logging; build marker (`app-build.txt` + Settings footer) and `make run-app`; emoji overlays removed; static per-state display; per-state pose import (专注/摸鱼/休息) with thumbnails + confirmations; grid auto-normalization + error feedback; status-bar focus removed.
+- Feature branch `feat/ai-pose-vision-animation` (feature commits … `9fc3a7f`, `b24d717`); local `main` unchanged but still 2 commits ahead of `origin/main` with no upstream configured.
+- Shipped: single-channel file import (avatar / spritesheet / pose) fixing the pose-import race; pose import outcome logging; build marker (`app-build.txt` + Settings footer) and `make run-app`; emoji overlays removed; static per-state display; per-state pose import (专注/摸鱼/休息) with thumbnails + confirmations; grid auto-normalization + error feedback; status-bar focus removed.
 - Docs updated: architecture overview, product spec, debugging runbook, v1 plan, `docs/design/spritesheet-authoring.md` (copy-paste prompts).
 
 ## Latest Verification
 
-- `make test`: TEST SUCCEEDED — PetDeskTests 71 + 6 XCUITests (commit `9fc3a7f`).
 - `make lint`: passed.
 - `swift run PetDeskCoreChecks`: passed (includes new spritesheet-policy check).
 - `swift build --product PetDeskAppCheck`: BUILD SUCCEEDED.
-- `make verify`: pending (handoff record first).
+- `make test`: TEST SUCCEEDED — 71 XCTest + 6 XCUITest (commit `b24d717`).
+- `make verify`: pending (after this handoff record).
 
 ## Blockers
 
@@ -31,8 +31,8 @@ Codex relay complete: the three poses were written directly into the user's real
 
 ## Next Actions
 
-1. Run `make verify` and commit the handoff record (`docs(handoff)`).
-2. User: in the running app, click 专注/摸鱼/放松 to confirm the poses now show (sheet already contains them); optionally re-import via Settings to validate the UI path (Diagnostics window records the outcome).
+1. Commit the handoff record (`docs(handoff)`) and run `make verify`.
+2. User: `make run-app` for a fresh build, re-import 专注/摸鱼/休息 in Settings (thumbnails + “已导入” alert now appear), then click 专注/摸鱼/放松 in the floating pet to confirm static switching.
 3. Optional later: re-enable micro-motion animation; extend pose import to all 8 rows; real-key trial of Plan C.
 4. Push after owner approval: feature branch, then `main` (currently 2 unpushed docs commits).
 
