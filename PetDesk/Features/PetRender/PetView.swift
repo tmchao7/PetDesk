@@ -20,7 +20,7 @@ struct PetView: View {
     ZStack(alignment: .bottomTrailing) {
       // 固定宠物区域尺寸：没有显式 frame 时会撑满窗口居中。
       // 静态模式：直接渲染当前状态行，不做浮动/缩放/旋转微动作。
-      petContent(phase: 0)
+      petContent()
         .frame(width: avatarSize, height: avatarHeight)
 
       if environment.quickActionsVisible || environment.snapshot.bubble != nil {
@@ -35,7 +35,7 @@ struct PetView: View {
   }
 
   @ViewBuilder
-  private func petContent(phase: Double) -> some View {
+  private func petContent() -> some View {
     ZStack {
       AnimatedAvatarView(
         image: environment.avatarImage,
@@ -54,9 +54,8 @@ struct PetView: View {
         scale: environment.petScale
       )
     }
-    .scaleEffect(scale(for: phase))
-    .rotationEffect(.degrees(rotation(for: phase)))
-    .offset(y: verticalOffset(for: phase))
+    // 静态模式无相位动画：sin 类浮动/旋转全部恒等，只保留受惊的放大反馈。
+    .scaleEffect(startledScale)
     .contentShape(
       environment.avatarDisplayMode == .circle
         ? AnyShape(Circle())
@@ -110,41 +109,9 @@ struct PetView: View {
     }
   }
 
-  private func verticalOffset(for phase: Double) -> CGFloat {
-    let amplitude: Double
-    switch environment.snapshot.baseState {
-    case .sleeping: amplitude = 2
-    case .drinkingTea, .working, .focusing: amplitude = 3
-    case .jogging: amplitude = 7
-    case .running: amplitude = 10
-    }
-    if environment.snapshot.transientState == .celebrating { return CGFloat(-abs(sin(phase)) * 18) }
-    return CGFloat(sin(phase) * amplitude)
-  }
-
-  private func rotation(for phase: Double) -> Double {
-    if case .startled = environment.snapshot.transientState { return sin(phase * 3) * 5 }
-    return switch environment.snapshot.baseState {
-    case .jogging: sin(phase) * 2.5
-    case .running: sin(phase) * 4
-    default: 0
-    }
-  }
-
-  private func scale(for phase: Double) -> CGFloat {
+  /// 受惊反馈：仅放大，不做动画（静态模式的唯一非恒等变换）。
+  private var startledScale: CGFloat {
     if case .startled = environment.snapshot.transientState { return 1.08 }
-    return CGFloat(1 + sin(phase) * 0.012)
-  }
-}
-
-private struct AnyShape: Shape {
-  private let pathBuilder: @Sendable (CGRect) -> Path
-
-  init<S: Shape>(_ shape: S) {
-    pathBuilder = { rect in shape.path(in: rect) }
-  }
-
-  func path(in rect: CGRect) -> Path {
-    pathBuilder(rect)
+    return 1.0
   }
 }
