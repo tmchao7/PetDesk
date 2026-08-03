@@ -23,7 +23,7 @@ Drag jitter/ghosting fixed: drag deltas now use NSEvent.mouseLocation (global sc
 - `swift run PetDeskCoreChecks`: passed (includes new spritesheet-policy check).
 - `swift build --product PetDeskAppCheck`: BUILD SUCCEEDED.
 - `make test`: TEST SUCCEEDED — 81 XCTest + 7 XCUITest (commit `55fc41a`).
-- `make verify`: passed (2026-08-03 15:04, commits `10bb580` + `652d4ee`); rerun pending after this handoff record.
+- `make verify`: passed (2026-08-03 15:09, commits `55fc41a` + `d01796d`).
 
 ## Blockers
 
@@ -31,10 +31,9 @@ Drag jitter/ghosting fixed: drag deltas now use NSEvent.mouseLocation (global sc
 
 ## Next Actions
 
-1. Commit the handoff record (`docs(handoff)`) and rerun `make verify`.
-2. User: `make run-app`, drag the pet around and confirm no jitter/ghosting.
-3. Optional later: re-enable micro-motion animation; extend pose import to all 8 rows; real-key trial of Plan C; add a “重置位置” menu item.
-4. Push after owner approval: feature branch, then `main` (currently 2 unpushed docs commits).
+1. User: `make run-app`, drag the pet around and confirm no jitter/ghosting.
+2. Optional later: re-enable micro-motion animation; extend pose import to all 8 rows; real-key trial of Plan C; add a “重置位置” menu item.
+3. Push after owner approval: feature branch, then `main` (currently 2 unpushed docs commits).
 
 ## Working Rules
 
