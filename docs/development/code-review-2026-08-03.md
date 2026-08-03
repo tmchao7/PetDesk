@@ -94,3 +94,39 @@
 - `make test`：TEST SUCCEEDED — 75 XCTest + 7 XCUITest，0 失败
   （XCUITest 删除 3 个假阳性断言后仍全过）。
 - `make lint`：passed。
+
+---
+
+# 第三轮 Review（同日追加）
+
+焦点：并发/生命周期模型、构建/发布面（dmg 打包前置）、测试缺口补测。
+
+## 修复
+
+| 修复 | 问题 |
+|---|---|
+| `loadStoredAvatar` 竞态防护 | 启动瞬间用户导入头像时，磁盘旧图加载可能覆盖内存新图（窄窗口）；加 `avatarImage == nil` 守卫 |
+| project.yml 版本号 | `CFBundleShortVersionString`/`CFBundleVersion` 从未设置 → Info.plist 无版本号，dmg 的 Get Info 空白、未来 appcast 无法工作；设 MARKETING_VERSION 0.1.0 / CURRENT_PROJECT_VERSION 1 |
+| `make release` target | 此前无 Release 构建入口（dmg 打包必需）；verify.sh 同步加 Release 构建检查（抓整模块优化下才暴露的编译错误） |
+| .gitignore | 补 `.claude/`（本地状态泄漏风险）与 `*.dmg`（发布产物） |
+| Package.swift exclude 清理 | `SpritesheetImportPolicy.swift`（已删）/`AvatarCropState.swift`（已改名）幻影条目产生 SPM 警告；目录级 no-op exclude 移除 |
+| 测试缺口补测 | `testRapidTodoMutationsPersistFinalState`（写链串行）、`testStartupStatsMergeWithDiskValue`（启动统计合并）、`testCropClampsToSquareOnWideSourceEdgePan`（裁切方形 clamp 回归） |
+
+## 复核结论（第三轮）
+
+- **确认误判**：`MachCPUSampler` "Int32→UInt64 转换 trap 崩溃"——`cpu_ticks` 字段
+  实际类型是 `natural_t`（UInt32），无符号提升永不 trap，溢出时无符号环绕 +
+  `CPULoadCalculator` 的 wrap 检测正常工作；原代码正确，仅加注释。
+- **确认正确**：AsyncStream 生命周期自解环、三路 1s 循环事件序无关
+  （refreshBaseState 每事件用最新值）、actor 无死锁（调用图无环）、
+  UserDefaults 全 MainActor、DiagnosticRecorder 隔离正确、
+  pendingWrite 跨 stop/start 保序、无 @unchecked Sendable（生产代码）。
+- **接受（注释）**：stop() 不等写链（最多丢 30s 统计）、loadUsageStats 与
+  首次 flush 竞态的最多 30s 双计窗口（窄）、信号源取消后多一次 sleep。
+
+## 验证（第三轮）
+
+- `make release`：BUILD SUCCEEDED（Release 配置首次验证）。
+- `swift run PetDeskCoreChecks`：passed。
+- `make test`：TEST SUCCEEDED — 78 XCTest + 7 XCUITest，0 失败。
+- `make lint`：passed。

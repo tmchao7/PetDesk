@@ -2,40 +2,40 @@
 
 - Status: ready
 - Active owner: unassigned
-- Updated: 2026-08-03T17:56:00+0800
-- Branch: `feat/code-review-cleanup`（两轮 review 清理，第二轮未提交）
-- Latest implementation commit: `d752dc5`（第一轮）+ 第二轮待提交
-- Latest session: [claude-code code-review-round2](sessions/2026-08-03-1754-claude-code-code-review-round2.md)
+- Updated: 2026-08-03T18:22:00+0800
+- Branch: `feat/code-review-round3`（第三轮 review，未提交）
+- Latest implementation commit: `d8d9e09`（基点）
+- Latest session: [claude-code code-review-round3](sessions/2026-08-03-1820-claude-code-code-review-round3.md)
 
 ## Active Objective
 
-两轮全库 review 完成。第二轮修复 7 项：激活策略引用计数（多窗口）、头像
-残留/取消释放、编辑器手势跨手势累计、裁切方形 clamp、todayKey formatter
-只读化、AI 响应尺寸校验、XCUITest 假阳性断言删除。确认 2 项 agent 误判
-（精灵图行坐标、eyeBand Y 轴）。报告见
+第三轮 review：并发/生命周期 + 构建/发布面 + 测试补缺。修复 6 项（头像竞态
+防护、版本号、make release、verify Release 检查、.gitignore、Package.swift
+exclude 清理）+ 3 个新测试。MachCPUSampler"trap"为第 3 个被否决的审计误判
+（字段是 natural_t/UInt32）。报告见
 `docs/development/code-review-2026-08-03.md`。
 
 ## Repository Snapshot
 
-- `feat/code-review-cleanup`：第一轮 3 提交（d752dc5）+ 第二轮 13 文件未提交。
-- `feat/bubble-todo-scroll` @ `acbe815` 未合并、未推送。
-- main @ `f132187`（trim 已合并，本地领先 origin 4 提交未推送）。
+- `feat/code-review-round3`：基点 d8d9e09（= 已推送的 main），11 文件未提交。
+- main @ d8d9e09 与 origin 同步（前两轮 review 已合并推送）。
 
 ## Latest Verification
 
-- `swift run PetDeskCoreChecks`：passed。
-- `make test`：TEST SUCCEEDED — 75 XCTest + 7 XCUITest，0 失败。
+- `make release`：BUILD SUCCEEDED（Release 首次验证）。
+- `make test`：TEST SUCCEEDED — 78 XCTest + 7 XCUITest，0 失败。
 - `make lint`：passed。
 
 ## Blockers
 
-- 无。三个分支均未推送/未合并——推送/合并前询问 owner。
+- 无。分支未推送——推送/合并前询问 owner。
 
 ## Next Actions
 
-1. 提交 docs(handoff) + 第二轮改动分组提交。
-2. 询问 owner 推送合并全部待推分支。
-3. 待办：dmg 打包脚本 + GitHub Actions + README；"重置位置"右键菜单。
+1. 提交 docs(handoff) + 第三轮分组提交。
+2. 询问 owner 推送合并。
+3. dmg 打包阶段：make dmg 脚本 + GitHub Actions workflow + README 使用说明；
+   签名/公证（需 Developer ID 时切 CODE_SIGN_STYLE Manual）。
 
 ## Working Rules
 
