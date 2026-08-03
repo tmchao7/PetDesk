@@ -115,4 +115,28 @@ final class PetDeskSmokeTests: XCTestCase {
       app.images["moon.zzz.fill"].exists,
       "sleeping state should not show the Zzz emoji after 放松")
   }
+
+  @MainActor
+  func testPetCanBeDraggedToUpperScreen() {
+    let app = XCUIApplication()
+    app.launchArguments = ["--reset-window-position", "--demo-state", "working"]
+    app.launch()
+
+    let avatar = app.descendants(matching: .any)["pet.avatar"]
+    XCTAssertTrue(avatar.waitForExistence(timeout: 5), "pet avatar should appear")
+    // borderless NSPanel 不在 XCUITest 的 windows 查询里，用 avatar 的
+    // 屏幕坐标判断窗口是否被拖向屏幕上方（macOS 屏幕坐标 y 向上，
+    // 窗口上移时 minY 增大）。
+    let before = avatar.frame
+
+    // 把宠物向上拖动约 300pt（更靠近屏幕顶部）。
+    let start = avatar.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+    let end = start.withOffset(CGVector(dx: 0, dy: -300))
+    start.press(forDuration: 0.1, thenDragTo: end)
+
+    let after = avatar.frame
+    XCTAssertLessThan(
+      after.minY, before.minY - 100,
+      "dragging the pet upward should move it toward the upper screen")
+  }
 }

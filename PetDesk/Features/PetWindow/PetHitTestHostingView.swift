@@ -19,6 +19,41 @@ final class PetHitTestHostingView<Content: View>: NSHostingView<Content> {
   /// is swallowed (single-click interactions never fire).
   override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 
+  /// 鼠标按下时的窗口内位置与窗口原点：拖动宠物时手动移动窗口。
+  /// SwiftUI 手势会吞掉 mouseDown，isMovableByWindowBackground 无法从宠物
+  /// 本体上触发拖动，因此在 NSView 层拦截 mouseDragged 完成移动。
+  private var dragStartLocation: NSPoint?
+  private var dragWindowOrigin: NSPoint?
+
+  override func mouseDown(with event: NSEvent) {
+    dragStartLocation = event.locationInWindow
+    dragWindowOrigin = window?.frame.origin
+    super.mouseDown(with: event)
+  }
+
+  override func mouseDragged(with event: NSEvent) {
+    super.mouseDragged(with: event)
+    guard
+      let start = dragStartLocation,
+      let origin = dragWindowOrigin,
+      let window
+    else { return }
+    let current = event.locationInWindow
+    // 窗口坐标 y 向上：向上拖动 → locationInWindow.y 增大 → 窗口 y 增大。
+    window.setFrameOrigin(
+      NSPoint(
+        x: origin.x + (current.x - start.x),
+        y: origin.y + (current.y - start.y)
+      )
+    )
+  }
+
+  override func mouseUp(with event: NSEvent) {
+    dragStartLocation = nil
+    dragWindowOrigin = nil
+    super.mouseUp(with: event)
+  }
+
   override func viewDidMoveToWindow() {
     super.viewDidMoveToWindow()
     wantsLayer = true

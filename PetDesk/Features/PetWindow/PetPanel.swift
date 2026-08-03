@@ -15,7 +15,9 @@ final class PetPanel: NSPanel {
     level = .floating
     collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
     hidesOnDeactivate = false
-    isMovableByWindowBackground = true
+    // 窗口移动由 PetHitTestHostingView.mouseDragged 手动完成；
+    // 关闭 AppKit 背景拖动，避免与宠物本体上的拖动路径冲突。
+    isMovableByWindowBackground = false
     animationBehavior = .utilityWindow
     acceptsMouseMovedEvents = true
     becomesKeyOnlyIfNeeded = false
