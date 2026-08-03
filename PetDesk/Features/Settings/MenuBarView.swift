@@ -11,14 +11,6 @@ struct MenuBarView: View {
       dismissThen { togglePet() }
     }
 
-    if environment.focusSession.phase == .running
-      || environment.focusSession.phase == .pausedForIdle
-    {
-      Button("取消专注", systemImage: "xmark.circle") { environment.cancelFocus() }
-    } else {
-      Button("开始 25 分钟专注", systemImage: "timer") { environment.startFocus() }
-    }
-
     Toggle("静音模式", systemImage: "speaker.slash", isOn: $environment.quietMode)
 
     Divider()
