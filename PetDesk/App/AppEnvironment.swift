@@ -18,8 +18,8 @@ final class AppEnvironment: ObservableObject {
   @Published private(set) var avatarSourceImage: CGImage?
   /// 已设置的逐行自定义姿势（专注/摸鱼/休息等），用于 UI 显示状态。
   @Published private(set) var customPoseRows: Set<AnimationRow> = []
-  /// 自定义姿势的缩略图（供设置界面即时预览）。
-  @Published private(set) var customPoseImages: [AnimationRow: NSImage] = [:]
+  /// 自定义姿势的缩略图（每帧一张，供设置界面即时预览；第一帧为主预览）。
+  @Published private(set) var customPoseImages: [AnimationRow: [NSImage]] = [:]
   @Published var avatarDisplayMode: AvatarDisplayMode {
     didSet { defaults.set(avatarDisplayMode.rawValue, forKey: Keys.avatarDisplayMode) }
   }
@@ -52,6 +52,9 @@ final class AppEnvironment: ObservableObject {
   }
   /// 宠物窗口不可见或被遮挡时为 true，视图据此暂停帧动画与 Timeline 驱动。
   @Published private(set) var isPetAnimationPaused = true
+  /// 最新 CPU 读数（0~1）。故意不做 @Published：动画速度读取用，
+  /// 不触发视图重算（与 snapshot 发布门控保持一致的性能约束）。
+  private(set) var latestCPU: Double = 0
   /// 辅助窗口（设置/统计/待办/诊断）可见计数：任一可见时保持 .regular
   /// （Dock 图标 + Cmd-Tab），全部关闭才回 .accessory——避免多窗口同时
   /// 打开时关掉一个就把应用降级导致其余窗口失焦/Dock 图标消失。
@@ -99,6 +102,11 @@ final class AppEnvironment: ObservableObject {
     todoItems.filter { !$0.isCompleted }
   }
 
+  /// 某行动画行的自定义帧数（0 = 未设置；1 = 静态单帧；>1 = 多帧动画）。
+  func multiFrameCount(for row: AnimationRow) -> Int {
+    customPoseCells[row]?.count ?? 0
+  }
+
   private enum Keys {
     static let avatarDisplayMode = "avatarDisplayMode"
     static let focusDurationMinutes = "focusDurationMinutes"
@@ -120,8 +128,9 @@ final class AppEnvironment: ObservableObject {
   private let eyeLocator: (any EyeBandLocating)?
   /// 头像的 CGImage 基准（逐行姿势混合组装用；重启后从存储重新加载）。
   private var avatarBaseCGImage: CGImage?
-  /// 每行动画行的自定义姿势单元；未设置的行动画用头像基准单元。
-  private var customPoseCells: [AnimationRow: CGImage] = [:]
+  /// 每行动画行的自定义姿势帧（多帧动画：一行为多张动作帧）。
+  /// 单帧行存 [cell]；未设置的行用头像基准单元。
+  private var customPoseCells: [AnimationRow: [CGImage]] = [:]
   private let signalSources: [any PetSignalSource]
   private var machine = PetStateMachine()
   private var activityReminder = ActivityReminderAccumulator()
@@ -386,29 +395,40 @@ final class AppEnvironment: ObservableObject {
     }
   }
 
-  /// 导入单个动画行的姿势图（如专注/摸鱼/休息），随后重新组装精灵图。
+  /// 导入一个动画行的姿势帧（专注可多帧：1~8 张动作帧；摸鱼/休息单帧）。
+  /// 多帧行的帧将按导入顺序循环播放，速度随 CPU 占用率变化。
   /// - Returns: 失败时的用户可见错误信息；成功返回 nil。
   @discardableResult
-  func importPose(row: AnimationRow, from url: URL) async -> String? {
+  func importPose(row: AnimationRow, from urls: [URL]) async -> String? {
     guard avatarBaseCGImage != nil else {
       let message = "请先设置头像，再导入姿势图。"
       AppLog.avatar.error("Pose import skipped: no avatar base")
       return message
     }
+    guard !urls.isEmpty else {
+      return "未选择图片。"
+    }
+    guard urls.count <= SpriteSheetSpec.columns else {
+      return "一次最多导入 \(SpriteSheetSpec.columns) 帧。"
+    }
     do {
-      let cell = try PoseCellProcessor.loadCell(from: url)
-      customPoseCells[row] = cell
+      var cells: [CGImage] = []
+      for url in urls {
+        cells.append(try PoseCellProcessor.loadCell(from: url))
+      }
+      customPoseCells[row] = cells
       customPoseRows = Set(customPoseCells.keys)
-      customPoseImages[row] = NSImage(
-        cgImage: cell,
-        size: NSSize(width: 48, height: 52)
-      )
+      customPoseImages[row] = cells.map {
+        NSImage(cgImage: $0, size: NSSize(width: 48, height: 52))
+      }
       if let message = await reassembleSpritesheet() {
         AppLog.avatar.error("Pose import reassembly failed: \(message, privacy: .public)")
         return message
       }
       diagnostics.record(category: "avatar", message: "pose-imported")
-      AppLog.avatar.info("Pose imported for row \(row.rawValue, privacy: .public)")
+      AppLog.avatar.info(
+        "Pose imported \(cells.count, privacy: .public) frame(s) for row \(row.rawValue, privacy: .public)"
+      )
       return nil
     } catch let error as PoseImageImportError {
       let message = Self.poseMessage(for: error)
@@ -435,7 +455,8 @@ final class AppEnvironment: ObservableObject {
     return nil
   }
 
-  /// 用头像基准单元 + 自定义姿势单元重拼 8×8 精灵图并保存。
+  /// 用头像基准单元 + 自定义姿势帧重拼 8×8 精灵图并保存。
+  /// 多帧行按帧序填入列 0..<N，剩余列用基准单元补位；单帧行走程序化微变换。
   private func reassembleSpritesheet() async -> String? {
     guard
       let avatarRepository,
@@ -444,11 +465,15 @@ final class AppEnvironment: ObservableObject {
     else {
       return "请先设置头像，再导入姿势图。"
     }
-    var rowCells: [AnimationRow: CGImage] = [:]
+    var rowFrames: [AnimationRow: [CGImage]] = [:]
     for row in AnimationRow.allCases {
-      rowCells[row] = customPoseCells[row] ?? avatarCell
+      rowFrames[row] = customPoseCells[row] ?? [avatarCell]
     }
-    guard let sheet = SpriteSheetGenerator.generate(fromRowCells: rowCells) else {
+    guard
+      let sheet = SpriteSheetGenerator.generate(
+        fromRowFrames: rowFrames, fallbackCell: avatarCell
+      )
+    else {
       return "精灵图组装失败。"
     }
     do {
@@ -550,6 +575,7 @@ final class AppEnvironment: ObservableObject {
       }
     }
     var reduced = machine.reduce(event, elapsed: eventElapsed(event))
+    latestCPU = reduced.averageCPU
     // 专注钉住：会话完成/取消后状态机 focusActive 解除会回到 CPU/空闲驱动
     // （摸鱼/放松），这里在显示层强制保持专注，直到用户手动切换——与
     // 摸鱼/放松的 manualState 拦截对称（点的是什么状态就是什么状态）。
@@ -783,17 +809,26 @@ final class AppEnvironment: ObservableObject {
       let avatarSpritesheet
     else { return }
     for row in [AnimationRow.working, .drinking, .sleeping] {
-      let frameRect = CGRect(
-        x: 0,
-        y: CGFloat(row.rawValue) * SpriteSheetSpec.frameHeight,
-        width: SpriteSheetSpec.frameWidth,
-        height: SpriteSheetSpec.frameHeight
-      )
-      guard let frame = avatarSpritesheet.cropping(to: frameRect) else { continue }
-      guard !Self.cgImagesEqual(frame, baseCell) else { continue }
-      customPoseCells[row] = frame
+      // 从列 0 起逐列收集自定义帧：遇到基准单元填充（多帧行补位或单帧
+      // 行第 1 列起）即停止。多帧行恢复全部 N 帧，单帧行恢复 1 帧。
+      var frames: [CGImage] = []
+      for column in 0..<SpriteSheetSpec.columns {
+        let frameRect = CGRect(
+          x: CGFloat(column) * SpriteSheetSpec.frameWidth,
+          y: CGFloat(row.rawValue) * SpriteSheetSpec.frameHeight,
+          width: SpriteSheetSpec.frameWidth,
+          height: SpriteSheetSpec.frameHeight
+        )
+        guard let frame = avatarSpritesheet.cropping(to: frameRect) else { break }
+        if Self.cgImagesEqual(frame, baseCell) { break }
+        frames.append(frame)
+      }
+      guard !frames.isEmpty else { continue }
+      customPoseCells[row] = frames
       customPoseRows.insert(row)
-      customPoseImages[row] = NSImage(cgImage: frame, size: NSSize(width: 48, height: 52))
+      customPoseImages[row] = frames.map {
+        NSImage(cgImage: $0, size: NSSize(width: 48, height: 52))
+      }
     }
   }
 

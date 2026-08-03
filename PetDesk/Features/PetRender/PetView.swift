@@ -34,16 +34,19 @@ struct PetView: View {
 
   @ViewBuilder
   private func petContent() -> some View {
+    let animState = PetAnimState.from(
+      baseState: environment.snapshot.baseState,
+      transient: environment.snapshot.transientState
+    )
     ZStack {
       AnimatedAvatarView(
         image: environment.avatarImage,
         spritesheet: environment.avatarSpritesheet,
-        animState: PetAnimState.from(
-          baseState: environment.snapshot.baseState,
-          transient: environment.snapshot.transientState
-        ),
+        animState: animState,
         displayMode: environment.avatarDisplayMode,
-        avatarSize: avatarSize
+        avatarSize: avatarSize,
+        multiFrameCount: environment.multiFrameCount(for: animState.row),
+        cpuProvider: { environment.latestCPU }
       )
       .frame(width: avatarSize, height: avatarHeight)
       OverlayEffectView(

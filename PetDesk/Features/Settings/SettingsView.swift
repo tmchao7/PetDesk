@@ -49,9 +49,9 @@ struct SettingsView: View {
           poseRow("摸鱼姿势", row: .drinking, systemImage: "cup.and.saucer.fill")
           poseRow("休息姿势", row: .sleeping, systemImage: "moon.zzz.fill")
           Text(
-            "每个状态一张姿势图（PNG/WebP，纯色或透明背景，自动抠底）："
-              + "导入后该状态的动画使用这张姿势图，其余状态仍用默认形象；"
-              + "一行动画帧由应用自动生成，无需提供多帧。"
+            "每个状态可导入姿势图（PNG/WebP，纯色或透明背景，自动抠底）："
+              + "专注支持一次多选最多 8 张动作帧，按序循环播放、速度随 CPU 变化；"
+              + "其余状态单张即可，未设置的状态仍用默认形象。"
           )
           .font(.caption)
           .foregroundStyle(.secondary)
@@ -148,14 +148,15 @@ struct SettingsView: View {
     .fileImporter(
       isPresented: $showingFileImporter,
       allowedContentTypes: pendingFileImport?.allowedContentTypes ?? [],
-      allowsMultipleSelection: false,
+      allowsMultipleSelection: pendingFileImport?.allowsMultipleSelection ?? false,
       onCompletion: { result in
         // 完成回调执行时 isPresented 已为 false，但 pendingFileImport 是独立状态，
         // 不会随弹窗关闭被清空，因此这里仍能拿到用户点的是哪一行。
         defer { pendingFileImport = nil }
-        guard case .success(let urls) = result, let url = urls.first else { return }
+        guard case .success(let urls) = result else { return }
         switch pendingFileImport {
         case .avatarSource:
+          guard let url = urls.first else { return }
           Task {
             await environment.loadSourceForEdit(from: url)
             if environment.avatarSourceImage != nil {
@@ -164,11 +165,14 @@ struct SettingsView: View {
           }
         case .pose(let row):
           Task {
-            let message = await environment.importPose(row: row, from: url)
+            let message = await environment.importPose(row: row, from: urls)
             if let message {
               poseImportMessage = message
             } else {
-              poseImportMessage = "已导入「\(poseName(for: row))」。"
+              poseImportMessage =
+                urls.count > 1
+                ? "已导入「\(poseName(for: row))」\(urls.count) 帧。"
+                : "已导入「\(poseName(for: row))」。"
             }
           }
         case nil:
@@ -227,11 +231,18 @@ struct SettingsView: View {
   @ViewBuilder
   private func poseRow(_ label: String, row: AnimationRow, systemImage: String) -> some View {
     HStack {
-      if let thumbnail = environment.customPoseImages[row] {
-        Image(nsImage: thumbnail)
-          .resizable()
-          .frame(width: 36, height: 39)
-          .clipShape(RoundedRectangle(cornerRadius: 6))
+      if let thumbnails = environment.customPoseImages[row] {
+        if let thumbnail = thumbnails.first {
+          Image(nsImage: thumbnail)
+            .resizable()
+            .frame(width: 36, height: 39)
+            .clipShape(RoundedRectangle(cornerRadius: 6))
+        }
+        if thumbnails.count > 1 {
+          Text("×\(thumbnails.count)")
+            .font(.system(size: 10, weight: .medium))
+            .foregroundStyle(.secondary)
+        }
       }
       Label(label, systemImage: systemImage)
       Spacer()
@@ -279,6 +290,14 @@ private enum FileImportMode {
     switch self {
     case .avatarSource: [.png, .jpeg, .heic]
     case .pose: [.png, .webP]
+    }
+  }
+
+  /// 姿势导入支持多选（专注可一次导入最多 8 帧动作帧）；头像单选。
+  var allowsMultipleSelection: Bool {
+    switch self {
+    case .avatarSource: false
+    case .pose: true
     }
   }
 }

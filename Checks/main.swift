@@ -381,6 +381,54 @@ private func checkSpriteSheetEyeBand() throws {
     "default band (y 60-70) should blink when no eye band is supplied")
 }
 
+/// 多帧行组装：working 行 3 帧不同颜色 + 其余行 fallback 单帧。
+/// 列 0/1/2 应为帧 0/1/2 的像素，列 3 起为 fallback 单元。
+private func checkMultiFrameAssembly() throws {
+  let fallback =
+    try makeSolidImage(width: 192, height: 208, color: (0.15, 0.15, 0.15))
+    ?? { throw CheckFailure(description: "could not create fallback cell") }()
+  var frames: [AnimationRow: [CGImage]] = [:]
+  for row in AnimationRow.allCases {
+    frames[row] = [fallback]
+  }
+  let red =
+    try makeSolidImage(width: 192, height: 208, color: (1, 0, 0))
+    ?? { throw CheckFailure(description: "could not create frame 0") }()
+  let green =
+    try makeSolidImage(width: 192, height: 208, color: (0, 1, 0))
+    ?? { throw CheckFailure(description: "could not create frame 1") }()
+  let blue =
+    try makeSolidImage(width: 192, height: 208, color: (0, 0, 1))
+    ?? { throw CheckFailure(description: "could not create frame 2") }()
+  frames[.working] = [red, green, blue]
+
+  guard let sheet = SpriteSheetGenerator.generate(fromRowFrames: frames, fallbackCell: fallback)
+  else {
+    throw CheckFailure(description: "multi-frame assembly returned nil")
+  }
+
+  let rowY = CGFloat(AnimationRow.working.rawValue) * SpriteSheetSpec.frameHeight
+  let sample = CGRect(x: 96, y: rowY + 104, width: 1, height: 1)
+  func color(at column: Int) -> (Int, Int, Int) {
+    let p = pixel(
+      sheet,
+      x: Int(sample.minX) + column * Int(SpriteSheetSpec.frameWidth),
+      y: Int(sample.minY)
+    )
+    return (p.r, p.g, p.b)
+  }
+  let c0 = color(at: 0)
+  try expect(c0.0 > 200 && c0.1 < 60 && c0.2 < 60, "column 0 should be frame 0 (red)")
+  let c1 = color(at: 1)
+  try expect(c1.1 > 200 && c1.0 < 60 && c1.2 < 60, "column 1 should be frame 1 (green)")
+  let c2 = color(at: 2)
+  try expect(c2.2 > 200 && c2.0 < 60 && c2.1 < 60, "column 2 should be frame 2 (blue)")
+  let c3 = color(at: 3)
+  try expect(
+    c3.0 > 30 && c3.0 < 80 && c3.1 > 30 && c3.1 < 80 && c3.2 > 30 && c3.2 < 80,
+    "column 3 should be the fallback cell")
+}
+
 private func checkRowCellGeneration() throws {
   var cells: [AnimationRow: CGImage] = [:]
   for row in AnimationRow.allCases {
@@ -629,6 +677,7 @@ private func runAllChecks() async throws {
   try checkStateMachine()
   try checkSnapshotDisplayEquality()
   try checkCoreServices()
+  try checkMultiFrameAssembly()
   try checkRowCellGeneration()
   try checkSpriteSheetBaseCell()
   try checkSpriteSheetEyeBand()

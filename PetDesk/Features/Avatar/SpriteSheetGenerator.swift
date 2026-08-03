@@ -27,19 +27,51 @@ public enum SpriteSheetGenerator {
         scaledEyeBand($0, imageWidth: source.width, imageHeight: source.height)
       }
       ?? defaultEyeBand
-    let rowCells = Dictionary(
-      uniqueKeysWithValues: AnimationRow.allCases.map { ($0, cell) }
+    let rowFrames = Dictionary(
+      uniqueKeysWithValues: AnimationRow.allCases.map { ($0, [cell]) }
     )
-    return assemble(rowCells: rowCells, eyeBandInCell: eyeBand)
+    return assemble(
+      rowFrames: rowFrames,
+      fallbackCell: cell,
+      transformsEnabled: true,
+      eyeBandInCell: eyeBand
+    )
   }
 
   /// 从每行一个基础单元（192×208，透明背景）生成完整精灵图（AI 姿态管线入口）。
+  /// 每行单单元 + 程序化微变换循环 8 列（默认头像与 AI 生成路径）。
   /// - Parameter eyeBandInCell: 眼睛遮罩在单元坐标中的位置；nil 使用默认遮罩。
   public static func generate(
     fromRowCells rowCells: [AnimationRow: CGImage],
     eyeBandInCell: CGRect? = nil
   ) -> CGImage? {
-    assemble(rowCells: rowCells, eyeBandInCell: eyeBandInCell ?? defaultEyeBand)
+    guard let anyCell = rowCells.first?.value else { return nil }
+    let frames = Dictionary(uniqueKeysWithValues: rowCells.map { ($0.key, [$0.value]) })
+    return assemble(
+      rowFrames: frames,
+      fallbackCell: anyCell,
+      transformsEnabled: true,
+      eyeBandInCell: eyeBandInCell ?? defaultEyeBand
+    )
+  }
+
+  /// 从每行一个或多个用户姿势帧生成完整精灵图（姿势导入入口）。
+  /// - 自定义行（单帧或多帧）：第 0..<N 列按帧序原样填入（不叠加微变换），
+  ///   剩余列用 fallbackCell 补位——保证重启后 sync 能从"遇到基准单元即停"
+  ///   精确恢复帧数（单帧行恢复 1 帧、多帧行恢复 N 帧）。
+  /// - 缺失行：使用 fallbackCell（走程序化微变换，与默认头像一致）。
+  /// - Parameter fallbackCell: 头像基准单元，作为补位与缺失行回退。
+  public static func generate(
+    fromRowFrames rowFrames: [AnimationRow: [CGImage]],
+    fallbackCell: CGImage,
+    eyeBandInCell: CGRect? = nil
+  ) -> CGImage? {
+    assemble(
+      rowFrames: rowFrames,
+      fallbackCell: fallbackCell,
+      transformsEnabled: false,
+      eyeBandInCell: eyeBandInCell ?? defaultEyeBand
+    )
   }
 
   /// 从方形头像生成底部对齐的 192×208 基准单元（供逐行姿势混合组装使用）。
@@ -49,7 +81,9 @@ public enum SpriteSheetGenerator {
   }
 
   private static func assemble(
-    rowCells: [AnimationRow: CGImage],
+    rowFrames: [AnimationRow: [CGImage]],
+    fallbackCell: CGImage,
+    transformsEnabled: Bool,
     eyeBandInCell: CGRect
   ) -> CGImage? {
     let frameW = Int(SpriteSheetSpec.frameWidth)
@@ -75,20 +109,37 @@ public enum SpriteSheetGenerator {
     context.interpolationQuality = .high
 
     for (rowIndex, row) in rows.enumerated() {
-      guard let cell = rowCells[row] else { return nil }
+      let frames = rowFrames[row] ?? [fallbackCell]
       let origin = CGPoint(
         x: 0,
         y: (rows.count - 1 - rowIndex) * frameH  // 精灵图 y 轴向下，CoreGraphics 向上
       )
-      for col in 0..<SpriteSheetSpec.columns {
-        let transform = transforms(for: row, frame: col)
-        drawFrame(
-          cell,
-          at: CGPoint(x: CGFloat(col * frameW), y: origin.y),
-          transform: transform,
-          eyeBand: eyeBandInCell,
-          context: context
-        )
+      if !transformsEnabled {
+        // 用户姿势行（单帧或多帧）：帧按序填入，剩余列用基准单元补位，
+        // 不叠加程序化微变换（动作帧本身是完整动作）。
+        for col in 0..<SpriteSheetSpec.columns {
+          let cell = col < frames.count ? frames[col] : fallbackCell
+          drawFrame(
+            cell,
+            at: CGPoint(x: CGFloat(col * frameW), y: origin.y),
+            transform: FrameTransform(),
+            eyeBand: eyeBandInCell,
+            context: context
+          )
+        }
+      } else {
+        // 默认/AI 行：单单元 + 程序化微变换循环 8 列。
+        let cell = frames[0]
+        for col in 0..<SpriteSheetSpec.columns {
+          let transform = transforms(for: row, frame: col)
+          drawFrame(
+            cell,
+            at: CGPoint(x: CGFloat(col * frameW), y: origin.y),
+            transform: transform,
+            eyeBand: eyeBandInCell,
+            context: context
+          )
+        }
       }
     }
 

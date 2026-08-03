@@ -535,6 +535,77 @@ final class AppEnvironmentTests: XCTestCase {
     XCTAssertNil(env.avatarError)
   }
 
+  /// 多帧姿势导入：一次导入 3 张动作帧 → 该行 3 帧 + 每帧缩略图，
+  /// 重启后从精灵图精确恢复 3 帧。
+  @MainActor
+  func testImportMultiFramePoseForWorking() async throws {
+    let tmp = tempDirectory()
+    defer { try? FileManager.default.removeItem(at: tmp) }
+    let repo = try AvatarRepository(directoryURL: tmp)
+    let env = AppEnvironment(defaults: defaults, signalSources: [], avatarRepository: repo)
+    await env.saveCroppedAvatar(try makeTestCGImage(width: 64, height: 64))
+
+    let frame1 = try writePoseFile(in: tmp, name: "frame1.png")
+    let frame2 = try writePoseFile(in: tmp, name: "frame2.png")
+    let frame3 = try writePoseFile(in: tmp, name: "frame3.png")
+
+    let message = await env.importPose(row: .working, from: [frame1, frame2, frame3])
+
+    XCTAssertNil(message)
+    XCTAssertEqual(env.multiFrameCount(for: .working), 3, "working row should hold 3 frames")
+    XCTAssertEqual(env.customPoseImages[.working]?.count, 3, "each frame gets a thumbnail")
+
+    // 模拟重启：新实例从同一目录加载，sync 应恢复 3 帧。
+    let env2 = AppEnvironment(defaults: defaults, signalSources: [], avatarRepository: repo)
+    env2.start()
+    await waitUntil { env2.multiFrameCount(for: .working) == 3 }
+    XCTAssertEqual(
+      env2.multiFrameCount(for: .working), 3,
+      "multi-frame count should restore from the persisted spritesheet")
+  }
+
+  /// 单帧姿势重启后仍恢复为 1 帧（不误判为多帧动画）。
+  @MainActor
+  func testSingleFramePoseRestoresAsOneFrame() async throws {
+    let tmp = tempDirectory()
+    defer { try? FileManager.default.removeItem(at: tmp) }
+    let repo = try AvatarRepository(directoryURL: tmp)
+    let env = AppEnvironment(defaults: defaults, signalSources: [], avatarRepository: repo)
+    await env.saveCroppedAvatar(try makeTestCGImage(width: 64, height: 64))
+    let poseURL = try writePoseFile(in: tmp)
+    _ = await env.importPose(row: .drinking, from: [poseURL])
+
+    let env2 = AppEnvironment(defaults: defaults, signalSources: [], avatarRepository: repo)
+    env2.start()
+    await waitUntil { env2.customPoseRows.contains(.drinking) }
+    XCTAssertEqual(
+      env2.multiFrameCount(for: .drinking), 1,
+      "single-frame pose should restore as exactly one frame")
+  }
+
+  /// 未设置姿势的行帧数为 0（静态显示，不开启动画）。
+  @MainActor
+  func testUnsetRowsHaveNoFrames() {
+    let env = AppEnvironment(defaults: defaults, signalSources: [])
+    XCTAssertEqual(env.multiFrameCount(for: .working), 0)
+    XCTAssertEqual(env.multiFrameCount(for: .drinking), 0)
+    XCTAssertEqual(env.multiFrameCount(for: .sleeping), 0)
+  }
+
+  /// RunCat 风格 CPU→帧间隔映射：0% CPU ≈ 200ms，50% ≈ 40ms，100% ≈ 10ms。
+  @MainActor
+  func testCPUSpeedMapping() {
+    let idle = FrameAnimator.computeInterval(cpu: 0)
+    XCTAssertEqual(idle, 0.20, accuracy: 0.001, "0% CPU should be the slowest (200ms)")
+    let half = FrameAnimator.computeInterval(cpu: 0.5)
+    XCTAssertEqual(half, 0.02, accuracy: 0.001, "50% CPU should be 20ms")
+    let full = FrameAnimator.computeInterval(cpu: 1.0)
+    XCTAssertEqual(full, 0.01, accuracy: 0.001, "100% CPU should be the fastest (10ms)")
+    // 越界输入应被夹紧。
+    XCTAssertEqual(FrameAnimator.computeInterval(cpu: -1), 0.20, accuracy: 0.001)
+    XCTAssertEqual(FrameAnimator.computeInterval(cpu: 2), 0.01, accuracy: 0.001)
+  }
+
   /// 活动提醒触发后切换状态（专注/摸鱼/放松/取消）会重置累计，
   /// 避免提醒永久卡死（第四轮修复的回归保护）。
   @MainActor
@@ -865,9 +936,9 @@ final class AppEnvironmentTests: XCTestCase {
     XCTAssertNotNil(env.avatarSpritesheet)
   }
 
-  private func writePoseFile(in directory: URL) throws -> URL {
+  private func writePoseFile(in directory: URL, name: String = "pose.png") throws -> URL {
     try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-    let url = directory.appendingPathComponent("pose.png")
+    let url = directory.appendingPathComponent(name)
     let size = 256
     let bitmapInfo = CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue)
     guard
@@ -905,7 +976,7 @@ final class AppEnvironmentTests: XCTestCase {
     await env.saveCroppedAvatar(try makeTestCGImage(width: 64, height: 64))
     let poseURL = try writePoseFile(in: tmp)
 
-    let message = await env.importPose(row: .working, from: poseURL)
+    let message = await env.importPose(row: .working, from: [poseURL])
 
     XCTAssertNil(message, "valid pose should import without an error")
     XCTAssertTrue(env.customPoseRows.contains(.working), "working row should be marked custom")
@@ -927,7 +998,7 @@ final class AppEnvironmentTests: XCTestCase {
     let env = AppEnvironment(defaults: defaults, signalSources: [], avatarRepository: repo)
     let poseURL = try writePoseFile(in: tmp)
 
-    let message = await env.importPose(row: .working, from: poseURL)
+    let message = await env.importPose(row: .working, from: [poseURL])
 
     XCTAssertNotNil(message, "pose import without avatar should fail with guidance")
     XCTAssertTrue(env.customPoseRows.isEmpty)
@@ -941,7 +1012,7 @@ final class AppEnvironmentTests: XCTestCase {
     let env = AppEnvironment(defaults: defaults, signalSources: [], avatarRepository: repo)
     await env.saveCroppedAvatar(try makeTestCGImage(width: 64, height: 64))
     let poseURL = try writePoseFile(in: tmp)
-    _ = await env.importPose(row: .working, from: poseURL)
+    _ = await env.importPose(row: .working, from: [poseURL])
     XCTAssertTrue(env.customPoseRows.contains(.working))
 
     let message = await env.clearPose(row: .working)
@@ -960,7 +1031,7 @@ final class AppEnvironmentTests: XCTestCase {
     let env = AppEnvironment(defaults: defaults, signalSources: [], avatarRepository: repo)
     await env.saveCroppedAvatar(try makeTestCGImage(width: 64, height: 64))
     let poseURL = try writePoseFile(in: tmp)
-    let message = await env.importPose(row: .working, from: poseURL)
+    let message = await env.importPose(row: .working, from: [poseURL])
     XCTAssertNil(message, "pose should import before restart")
 
     // 模拟重启：新实例从同一目录加载头像与精灵图。
