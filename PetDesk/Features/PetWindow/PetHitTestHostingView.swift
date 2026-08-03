@@ -66,10 +66,6 @@ final class PetHitTestHostingView<Content: View>: NSHostingView<Content> {
     NSRect(x: bounds.maxX - petSize - 40, y: bounds.minY, width: petSize + 40, height: petSize + 40)
   }
 
-  private var bubbleRegion: NSRect {
-    NSRect(x: bounds.maxX - 248, y: bounds.maxY - 190, width: 248, height: 182)
-  }
-
   override func hitTest(_ point: NSPoint) -> NSView? {
     // When the bubble is visible let SwiftUI handle all hit-testing so
     // bubble buttons receive taps.  When hidden, constrain clicks to the

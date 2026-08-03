@@ -19,7 +19,6 @@ public struct NotificationPulseDeduplicator: Sendable {
 
 public enum NotificationUnsupportedReason: String, Sendable, Equatable, Codable {
   case sourceApplicationUnavailable
-  case accessibilityDenied
 }
 
 public enum NotificationCapability: Sendable, Equatable {

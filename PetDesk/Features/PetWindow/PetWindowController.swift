@@ -47,14 +47,10 @@ final class PetWindowController: NSWindowController, NSWindowDelegate {
           window?.makeKey()
         }
       }
-    scaleCancellable = environment.$petScale.sink { [weak self] scale in
-      guard let self, let window = self.window else { return }
+    scaleCancellable = environment.$petScale.sink { [weak self] _ in
+      guard let self else { return }
+      // 窗口尺寸恒为 500×500，缩放只改宠物显示区（hit-test 与渲染都读它）。
       hostingView.petSize = environment.petAvatarSize
-      let newSize = environment.petWindowSize
-      guard window.frame.size != newSize else { return }
-      let origin = window.frame.origin
-      window.setFrame(NSRect(origin: origin, size: newSize), display: true, animate: true)
-      self.environment.updatePetWindowFrame(window.frame)
     }
     NotificationCenter.default.addObserver(
       self,

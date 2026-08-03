@@ -123,6 +123,9 @@ final class AppEnvironment: ObservableObject {
   private var secondsSinceStatsFlush = 0
   private var tasks: [Task<Void, Never>] = []
   private var reminderWasDue = false
+  /// 持久化写盘串行链：多次触发（todo 快速勾选、30s 批量 + stop 竞态）按
+  /// 触发顺序依次落盘，避免乱序覆盖丢数据。
+  private var pendingWrite: Task<Void, Never>?
 
   init(defaults: UserDefaults = .standard) {
     self.defaults = defaults
@@ -512,7 +515,7 @@ final class AppEnvironment: ObservableObject {
     // 摸鱼/放松的 manualState 拦截对称（点的是什么状态就是什么状态）。
     if manualState == .focusing {
       reduced.baseState = .focusing
-      reduced.effects = [.keyboard]
+      reduced.effects = []
     }
     // 发布门控：CPU 读数每秒都在变，但宠物外观（状态/特效/气泡）不变时
     // 跳过发布，避免每秒无效化悬浮窗整树重绘。averageCPU 只进诊断窗口，
@@ -660,9 +663,12 @@ final class AppEnvironment: ObservableObject {
     guard let usageStore else { return }
     let days = await usageStore.loadAll()
     usageStatsByDay = Dictionary(uniqueKeysWithValues: days.map { ($0.date, $0) })
-    // 恢复今天已存的累计值，避免重启后丢失。
+    // 恢复今天已存的累计值。启动瞬间 tick 可能已累计几秒，
+    // 与磁盘值合并而不是覆盖，避免丢秒。
     if let existing = usageStatsByDay[currentDayKey] {
-      dayAccumulator = existing
+      dayAccumulator.focusSeconds += existing.focusSeconds
+      dayAccumulator.teaSeconds += existing.teaSeconds
+      dayAccumulator.sleepSeconds += existing.sleepSeconds
     }
   }
 
@@ -670,10 +676,19 @@ final class AppEnvironment: ObservableObject {
     guard let usageStore else { return }
     let day = dayAccumulator
     let key = currentDayKey
-    Task {
-      try? await usageStore.upsert(day)
-      await MainActor.run {
-        usageStatsByDay[key] = day
+    let previous = pendingWrite
+    pendingWrite = Task {
+      _ = await previous?.value
+      do {
+        try await usageStore.upsert(day)
+        await MainActor.run {
+          usageStatsByDay[key] = day
+        }
+      } catch {
+        await MainActor.run {
+          diagnostics.record(category: "stats", message: "usage-stats-write-failed")
+          AppLog.app.error("Usage stats write failed: \(String(describing: error))")
+        }
       }
     }
   }
@@ -686,7 +701,18 @@ final class AppEnvironment: ObservableObject {
   private func persistTodo() {
     guard let todoStore else { return }
     let snapshot = todoItems
-    Task { try? await todoStore.save(snapshot) }
+    let previous = pendingWrite
+    pendingWrite = Task {
+      _ = await previous?.value
+      do {
+        try await todoStore.save(snapshot)
+      } catch {
+        await MainActor.run {
+          diagnostics.record(category: "todo", message: "todo-save-failed")
+          AppLog.app.error("Todo save failed: \(String(describing: error))")
+        }
+      }
+    }
   }
 
   private func loadStoredAvatar() async {

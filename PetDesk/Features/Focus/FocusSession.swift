@@ -3,7 +3,6 @@ import Foundation
 public enum FocusPhase: String, Sendable, Equatable, Codable {
   case idle
   case running
-  case paused
   case pausedForIdle
   case completed
 }
@@ -23,16 +22,6 @@ public struct FocusSession: Sendable, Equatable {
 
   public mutating func start() {
     remaining = duration
-    phase = .running
-  }
-
-  public mutating func pause() {
-    guard phase == .running else { return }
-    phase = .paused
-  }
-
-  public mutating func resume() {
-    guard phase == .paused || phase == .pausedForIdle else { return }
     phase = .running
   }
 

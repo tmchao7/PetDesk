@@ -53,7 +53,9 @@ public struct PetStateMachine: Sendable {
     if cpuSamples.count > policy.sampleCount {
       cpuSamples.removeFirst(cpuSamples.count - policy.sampleCount)
     }
-    snapshot.averageCPU = cpuSamples.reduce(0, +) / Double(cpuSamples.count)
+    // sampleCount 为 0 时避免 0/0 → NaN 污染 averageCPU 与诊断报告。
+    let divisor = policy.sampleCount > 0 ? Double(cpuSamples.count) : 1
+    snapshot.averageCPU = cpuSamples.reduce(0, +) / divisor
   }
 
   private mutating func updateLoadBand(elapsed: Duration) {
@@ -108,11 +110,9 @@ public struct PetStateMachine: Sendable {
 
   private mutating func handleFocus(_ command: FocusCommand) {
     switch command {
-    case .start, .resume:
+    case .start:
       focusActive = true
       snapshot.bubble = nil
-    case .pause:
-      focusActive = false
     case .complete:
       focusActive = false
       snapshot.transientState = .celebrating
@@ -129,11 +129,6 @@ public struct PetStateMachine: Sendable {
       snapshot.transientState = nil
       snapshot.bubble = nil
       transientRemaining = .zero
-    case .relax:
-      focusActive = false
-      snapshot.transientState = .stretching
-      snapshot.bubble = nil
-      transientRemaining = .seconds(5)
     }
   }
 
@@ -166,17 +161,13 @@ public struct PetStateMachine: Sendable {
   }
 
   private mutating func refreshEffects() {
+    // 状态由精灵图本身表达；tea/keyboard/zzz 覆盖效果已随表情移除，
+    // 这里只维护仍被渲染的 sweat（跑步）与 smoke（高温）。
     switch snapshot.baseState {
-    case .drinkingTea:
-      snapshot.effects = [.tea]
-    case .working, .focusing:
-      snapshot.effects = [.keyboard]
-    case .jogging:
-      snapshot.effects = []
     case .running:
       snapshot.effects = [.sweat]
-    case .sleeping:
-      snapshot.effects = [.zzz]
+    default:
+      snapshot.effects = []
     }
 
     if thermalLevel == .serious || thermalLevel == .critical {

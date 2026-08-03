@@ -54,24 +54,6 @@ private func pixel(_ image: CGImage, x: Int, y: Int) -> (r: Int, g: Int, b: Int,
   return (Int(bytes[0]), Int(bytes[1]), Int(bytes[2]), Int(bytes[3]))
 }
 
-private func makePNGData(width: Int, height: Int, color: (r: CGFloat, g: CGFloat, b: CGFloat))
-  -> Data?
-{
-  guard let image = makeSolidImage(width: width, height: height, color: color) else { return nil }
-  let data = NSMutableData()
-  guard
-    let destination = CGImageDestinationCreateWithData(
-      data,
-      UTType.png.identifier as CFString,
-      1,
-      nil
-    )
-  else { return nil }
-  CGImageDestinationAddImage(destination, image, nil)
-  guard CGImageDestinationFinalize(destination) else { return nil }
-  return data as Data
-}
-
 private func makePosePNGData() -> Data? {
   let size = 256
   let bitmapInfo = CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue)
@@ -223,7 +205,7 @@ private func checkStateMachine() throws {
   var sleeping = PetStateMachine()
   sleeping.reduce(.userIdleChanged(.seconds(301)), elapsed: .zero)
   try expect(sleeping.snapshot.baseState == .sleeping, "idle timeout should enter sleeping")
-  try expect(sleeping.snapshot.effects == [.zzz], "sleeping state should have zzz effect")
+  try expect(sleeping.snapshot.effects == [], "sleeping state should have no effects")
 
   var activity = PetStateMachine()
   activity.reduce(.focusCommand(.showActivityReminder), elapsed: .zero)
@@ -246,13 +228,13 @@ private func checkSnapshotDisplayEquality() throws {
     !base.displayEquals(PetSnapshot(baseState: .working)),
     "baseState change should not be display-equal")
   try expect(
-    !base.displayEquals(PetSnapshot(effects: [.keyboard])),
+    !base.displayEquals(PetSnapshot(effects: [.sweat])),
     "effects change should not be display-equal")
   try expect(
     !base.displayEquals(PetSnapshot(transientState: .startled(.wechat))),
     "transient change should not be display-equal")
   try expect(
-    !base.displayEquals(PetSnapshot(bubble: .focusInvite)),
+    !base.displayEquals(PetSnapshot(bubble: .focusComplete)),
     "bubble change should not be display-equal")
   try expect(
     base.displayEquals(PetSnapshot()),

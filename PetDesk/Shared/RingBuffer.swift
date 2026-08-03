@@ -14,8 +14,4 @@ public struct RingBuffer<Element: Sendable>: Sendable {
       values.removeFirst(values.count - capacity)
     }
   }
-
-  public mutating func removeAll(keepingCapacity: Bool = true) {
-    values.removeAll(keepingCapacity: keepingCapacity)
-  }
 }

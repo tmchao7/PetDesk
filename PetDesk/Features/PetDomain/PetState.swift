@@ -13,19 +13,14 @@ public enum TransientPetState: Sendable, Equatable {
   case startled(NotificationSource)
   case celebrating
   case stretching
-  case greeting
 }
 
 public enum PetEffect: String, Sendable, Hashable, Codable {
-  case tea
-  case keyboard
   case sweat
   case smoke
-  case zzz
 }
 
 public enum PetBubble: Sendable, Equatable {
-  case focusInvite
   case focusComplete
   case stretchReminder
   /// 状态持续时长提醒（如“你已连续专注 25 分钟”）。
@@ -42,7 +37,7 @@ public struct PetSnapshot: Sendable, Equatable {
   public init(
     baseState: BasePetState = .drinkingTea,
     transientState: TransientPetState? = nil,
-    effects: Set<PetEffect> = [.tea],
+    effects: Set<PetEffect> = [],
     bubble: PetBubble? = nil,
     averageCPU: Double = 0
   ) {

@@ -29,7 +29,7 @@ struct PetBubbleView: View {
           action("再来一次", icon: "arrow.clockwise") { environment.startFocus() }
         }
       } else {
-        if showingQuickActions || environment.snapshot.bubble == .focusInvite {
+        if showingQuickActions {
           if !incompleteItems.isEmpty {
             // 待办多时列表区可双指/滚轮上下滚动翻看（上限 160pt，约 7 行）。
             ScrollView {
@@ -79,7 +79,6 @@ struct PetBubbleView: View {
     switch environment.snapshot.bubble {
     case .focusComplete: "专注完成，辛苦了！"
     case .stretchReminder: "站起来活动一下吧。"
-    case .focusInvite: "开始专注？"
     case .stateDurationReminder(let text): text
     case nil: showingQuickActions ? "接下来做什么？" : ""
     }

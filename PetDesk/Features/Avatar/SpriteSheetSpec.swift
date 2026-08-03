@@ -35,22 +35,6 @@ public enum AnimationRow: Int, CaseIterable, Sendable {
     case .surprised: 4
     }
   }
-
-  /// 循环方式：restart 播完跳回第 0 帧；pingpong 到头反向播放。
-  public var loopsPingPong: Bool {
-    switch self {
-    case .idle, .drinking, .sleeping: true
-    default: false
-    }
-  }
-
-  /// 推荐帧率。
-  public var framesPerSecond: Int {
-    switch self {
-    case .walking, .running: 14
-    default: 10
-    }
-  }
 }
 
 /// 宠物当前动画状态（由 PetSnapshot 映射而来）。
@@ -70,7 +54,7 @@ public struct PetAnimState: Sendable, Equatable {
       switch transient {
       case .startled: return PetAnimState(row: .surprised)
       case .celebrating: return PetAnimState(row: .happy)
-      case .stretching, .greeting: return PetAnimState(row: .idle)
+      case .stretching: return PetAnimState(row: .idle)
       }
     }
     switch baseState {

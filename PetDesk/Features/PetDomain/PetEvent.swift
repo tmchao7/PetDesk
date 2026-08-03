@@ -20,18 +20,14 @@ public struct SystemMetrics: Sendable, Equatable {
 public enum NotificationSource: String, Sendable, Equatable, Hashable, Codable {
   case wechat
   case qq
-  case unknown
 }
 
 public enum FocusCommand: Sendable, Equatable {
   case start
-  case pause
-  case resume
   case complete
   case cancel
   case showActivityReminder
   case snoozeActivity
-  case relax  // 放松 — show stretching transient
 }
 
 public enum PetEvent: Sendable, Equatable {

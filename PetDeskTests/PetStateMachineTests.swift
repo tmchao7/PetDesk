@@ -13,7 +13,7 @@ final class PetStateMachineTests: XCTestCase {
     feed(cpu: 0.50, seconds: 10, to: &machine)
 
     XCTAssertEqual(machine.snapshot.baseState, .working)
-    XCTAssertTrue(machine.snapshot.effects.contains(.keyboard))
+    XCTAssertTrue(machine.snapshot.effects.isEmpty, "working state has no overlay effects")
   }
 
   func testBusyAndHotLoadMapToActiveStates() {
@@ -43,11 +43,11 @@ final class PetStateMachineTests: XCTestCase {
 
     machine.reduce(.userIdleChanged(.seconds(301)), elapsed: .zero)
     XCTAssertEqual(machine.snapshot.baseState, .sleeping)
-    XCTAssertEqual(machine.snapshot.effects, [.zzz])
+    XCTAssertEqual(machine.snapshot.effects, [])
 
     machine.reduce(.focusCommand(.start), elapsed: .zero)
     XCTAssertEqual(machine.snapshot.baseState, .focusing)
-    XCTAssertTrue(machine.snapshot.effects.contains(.keyboard))
+    XCTAssertTrue(machine.snapshot.effects.isEmpty, "focusing state has no overlay effects")
 
     machine.reduce(.focusCommand(.cancel), elapsed: .zero)
     machine.reduce(.userIdleChanged(.zero), elapsed: .zero)
@@ -104,7 +104,7 @@ final class PetStateMachineTests: XCTestCase {
     feed(cpu: 0.10, seconds: 10, to: &machine)
 
     XCTAssertEqual(machine.snapshot.baseState, .drinkingTea)
-    XCTAssertTrue(machine.snapshot.effects.contains(.tea))
+    XCTAssertTrue(machine.snapshot.effects.isEmpty, "drinkingTea state has no overlay effects")
   }
 
   func testCriticalThermalAddsSmoke() {
@@ -133,7 +133,7 @@ final class PetStateMachineTests: XCTestCase {
     machine.reduce(.userIdleChanged(.seconds(301)), elapsed: .zero)
 
     XCTAssertEqual(machine.snapshot.baseState, .sleeping)
-    XCTAssertEqual(machine.snapshot.effects, [.zzz])
+    XCTAssertEqual(machine.snapshot.effects, [])
   }
 
   private func feed(cpu: Double, seconds: Int, to machine: inout PetStateMachine) {

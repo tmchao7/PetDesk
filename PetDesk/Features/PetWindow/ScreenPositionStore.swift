@@ -52,8 +52,4 @@ final class ScreenPositionStore {
       height: size.height
     )
   }
-
-  private func defaultFrame(size: NSSize, screens: [NSScreen]) -> NSRect {
-    defaultFrame(size: size, visibleFrames: screens.map(\.visibleFrame))
-  }
 }
