@@ -23,7 +23,7 @@ Reminder messages are now user-customizable: Settings has per-state message temp
 - `swift run PetDeskCoreChecks`: passed (includes new spritesheet-policy check).
 - `swift build --product PetDeskAppCheck`: BUILD SUCCEEDED.
 - `make test`: TEST SUCCEEDED — 79 XCTest + 6 XCUITest (commit `e072ce7`).
-- `make verify`: passed (2026-08-03 14:24, commits `d034960` + `e5b0d8d`); rerun pending after this handoff record.
+- `make verify`: passed (2026-08-03 14:30, commits `e072ce7` + `a708d19`).
 
 ## Blockers
 
@@ -31,10 +31,9 @@ Reminder messages are now user-customizable: Settings has per-state message temp
 
 ## Next Actions
 
-1. Commit the handoff record (`docs(handoff)`) and rerun `make verify`.
-2. User: `make run-app`, open Settings → 状态时长提醒 to edit messages and watch the live preview, then confirm runtime reminders use the custom text.
-3. Optional later: re-enable micro-motion animation; extend pose import to all 8 rows; real-key trial of Plan C; pin 专注 if its timed completion bothers the user.
-4. Push after owner approval: feature branch, then `main` (currently 2 unpushed docs commits).
+1. User: `make run-app`, open Settings → 状态时长提醒 to edit messages and watch the live preview, then confirm runtime reminders use the custom text.
+2. Optional later: re-enable micro-motion animation; extend pose import to all 8 rows; real-key trial of Plan C; pin 专注 if its timed completion bothers the user.
+3. Push after owner approval: feature branch, then `main` (currently 2 unpushed docs commits).
 
 ## Working Rules
 
