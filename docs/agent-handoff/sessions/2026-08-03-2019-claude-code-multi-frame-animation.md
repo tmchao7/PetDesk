@@ -62,6 +62,13 @@
 - 首次实现时单帧行 sync 误收 8 帧（transforms 路径 8 列都是自定义帧）——
   通过"用户行统一帧+补位、默认行保留微变换"的入口拆分修复。
 - CPU 映射测试期望算错（50% 应为 20ms 而非 40ms）——实现正确，修正测试。
+- **运行时"没反应"根因（owner 实测反馈后定位）**：spritesheet 诊断确认
+  8 帧已正确组装（working 行 8 列像素各异）、8 张 PNG 处理 OK——导入链路
+  正常；问题在动画驱动。`Timer.scheduledTimer` 在 Swift 并发/SwiftUI 下
+  回调不可靠（单元测试证明 250ms 内 frameIndex 保持 0）→ 重写为
+  TimelineView(.periodic(by: 0.01)) display-link 驱动 + 纯函数帧索引
+  （elapsed/interval 推导），窗口遮挡自动暂停；88 XCTest 全过。
+- 另修：fileImporter 多选返回顺序不可靠 → 导入按文件名排序确定播放顺序。
 
 ## Open Issues and Risks
 
