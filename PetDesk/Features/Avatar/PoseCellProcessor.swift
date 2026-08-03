@@ -72,6 +72,12 @@ public enum PoseCellProcessor {
     var maxColumn = -1
     var minRow = height
     var maxRow = -1
+    // 强主体像素（软抠底后 alpha ≥ 0.5）的行/列投影，用于收紧包围盒：
+    // AI 生成图常带场景（桌面/床/渐变阴影）或角落水印，若把整幅图计入包围盒，
+    // 角色会被缩放变小且位置偏移。
+    var strongRowDensity = [Int](repeating: 0, count: height)
+    var strongColumnDensity = [Int](repeating: 0, count: width)
+    var strongTotal = 0
 
     for row in 0..<height {
       for column in 0..<width {
@@ -104,6 +110,11 @@ public enum PoseCellProcessor {
           bytes[offset + 1] = UInt8((g * alpha * 255).rounded())
           bytes[offset + 2] = UInt8((b * alpha * 255).rounded())
           bytes[offset + 3] = UInt8((alpha * 255).rounded())
+          if alpha >= 0.5 {
+            strongRowDensity[row] += 1
+            strongColumnDensity[column] += 1
+            strongTotal += 1
+          }
           if bytes[offset + 3] > 8 {
             minColumn = min(minColumn, column)
             maxColumn = max(maxColumn, column)
@@ -116,6 +127,32 @@ public enum PoseCellProcessor {
 
     guard maxColumn >= minColumn, maxRow >= minRow, let processed = context.makeImage() else {
       return nil
+    }
+
+    // 保留包含中央 96% 强主体的行/列窗口（两侧各裁掉 2% 长尾）：
+    // 场景边缘、桌面、阴影等占比低的区域被排除，角色在帧内更大、更居中。
+    // 若统计异常则回退到原始包围盒，绝不裁成空。
+    if strongTotal > 0 {
+      let rowWindow = Self.massWindow(
+        strongRowDensity,
+        total: strongTotal,
+        low: 0.02,
+        high: 0.98,
+        fallbackMin: minRow,
+        fallbackMax: maxRow
+      )
+      let columnWindow = Self.massWindow(
+        strongColumnDensity,
+        total: strongTotal,
+        low: 0.02,
+        high: 0.98,
+        fallbackMin: minColumn,
+        fallbackMax: maxColumn
+      )
+      minRow = rowWindow.min
+      maxRow = rowWindow.max
+      minColumn = columnWindow.min
+      maxColumn = columnWindow.max
     }
 
     // 位图内存第 0 行即图像视觉顶部，与 CGImage.cropping 的 y=0 一致，直接使用行列。
@@ -158,6 +195,35 @@ public enum PoseCellProcessor {
       )
     )
     return cellContext.makeImage()
+  }
+
+  /// 返回累计质量落在 [low, high] 区间的行/列索引窗口；统计异常时回退原始包围盒。
+  private static func massWindow(
+    _ counts: [Int],
+    total: Int,
+    low: Double,
+    high: Double,
+    fallbackMin: Int,
+    fallbackMax: Int
+  ) -> (min: Int, max: Int) {
+    guard total > 0, low >= 0, high <= 1, low < high else {
+      return (fallbackMin, fallbackMax)
+    }
+    var accumulated = 0
+    var start: Int?
+    var end = counts.count - 1
+    for index in 0..<counts.count {
+      accumulated += counts[index]
+      if start == nil, Double(accumulated) >= Double(total) * low {
+        start = index
+      }
+      if Double(accumulated) >= Double(total) * high {
+        end = index
+        break
+      }
+    }
+    guard let start, start <= end else { return (fallbackMin, fallbackMax) }
+    return (start, end)
   }
 
   private static func averageBackgroundColor(

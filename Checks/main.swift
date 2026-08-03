@@ -612,6 +612,47 @@ private func checkPoseCellProcessor() throws {
     "all-chroma image should produce nil cell")
 }
 
+private func checkPoseCellBBoxTrimsCornerNoise() throws {
+  let magenta = (r: CGFloat(1.0), g: CGFloat(0.0), b: CGFloat(1.0))
+  guard
+    let canvas = makeSolidImage(width: 256, height: 256, color: magenta),
+    let context = CGContext(
+      data: nil,
+      width: 256,
+      height: 256,
+      bitsPerComponent: 8,
+      bytesPerRow: 0,
+      space: CGColorSpaceCreateDeviceRGB(),
+      bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+    )
+  else {
+    throw CheckFailure(description: "could not create pose noise canvas")
+  }
+  context.draw(canvas, in: CGRect(x: 0, y: 0, width: 256, height: 256))
+  // 主体：较窄较高的绿色方块（视觉中部），收紧后 x 方向会留出空白边距。
+  context.setFillColor(CGColor(red: 0, green: 1, blue: 0, alpha: 1))
+  context.fill(CGRect(x: 80, y: 64, width: 64, height: 128))
+  // 稀疏噪点：左上角 3×3 红色像素（视觉顶部 = Quartz y 高值一侧）。
+  context.setFillColor(CGColor(red: 1, green: 0, blue: 0, alpha: 1))
+  context.fill(CGRect(x: 4, y: 256 - 7, width: 3, height: 3))
+  guard let subjectImage = context.makeImage() else {
+    throw CheckFailure(description: "could not make noisy subject image")
+  }
+
+  guard let cell = PoseCellProcessor.makeCell(from: subjectImage) else {
+    throw CheckFailure(description: "pose cell processing returned nil")
+  }
+  // 未收紧时噪点会落在 (18...25, 4...7)；收紧后该区域是透明留白。
+  let noiseRegion = pixel(cell, x: 20, y: 6)
+  try expect(
+    noiseRegion.a == 0,
+    "sparse corner noise should be trimmed from the subject bbox")
+  let center = pixel(cell, x: 96, y: 104)
+  try expect(
+    center.a > 200 && center.g > 150,
+    "subject should remain opaque after bbox trimming")
+}
+
 private func checkGPTImage2Provider() async throws {
   guard
     let pngData = makePosePNGData(),
@@ -768,6 +809,7 @@ private func runAllChecks() async throws {
   try checkSpriteSheetBaseCell()
   try checkSpriteSheetEyeBand()
   try checkPoseCellProcessor()
+  try checkPoseCellBBoxTrimsCornerNoise()
   try await checkGPTImage2Provider()
   try checkVisionEyeBandLocator()
   try checkSpritesheetImportPolicy()
