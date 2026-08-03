@@ -23,7 +23,7 @@ Pose keying now uses edge flood-fill instead of plain chroma-key: only backgroun
 - `swift run PetDeskCoreChecks`: passed (includes new spritesheet-policy check).
 - `swift build --product PetDeskAppCheck`: BUILD SUCCEEDED.
 - `make test`: TEST SUCCEEDED — 79 XCTest + 6 XCUITest (commit `ce89433`).
-- `make verify`: passed (2026-08-03 14:30, commits `e072ce7` + `a708d19`); rerun pending after this handoff record.
+- `make verify`: passed (2026-08-03 14:38, commits `ce89433` + `a62d63c`).
 
 ## Blockers
 
@@ -31,10 +31,9 @@ Pose keying now uses edge flood-fill instead of plain chroma-key: only backgroun
 
 ## Next Actions
 
-1. Commit the handoff record (`docs(handoff)`) and rerun `make verify`.
-2. User: `make run-app`, re-import the white-subject pose (or use the regenerated sheet), confirm white parts are opaque over the desktop while the background stays transparent.
-3. Optional later: re-enable micro-motion animation; extend pose import to all 8 rows; real-key trial of Plan C; pin 专注 if its timed completion bothers the user.
-4. Push after owner approval: feature branch, then `main` (currently 2 unpushed docs commits).
+1. User: `make run-app`, re-import the white-subject pose (or use the regenerated sheet), confirm white parts are opaque over the desktop while the background stays transparent.
+2. Optional later: re-enable micro-motion animation; extend pose import to all 8 rows; real-key trial of Plan C; pin 专注 if its timed completion bothers the user.
+3. Push after owner approval: feature branch, then `main` (currently 2 unpushed docs commits).
 
 ## Working Rules
 
