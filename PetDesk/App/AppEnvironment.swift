@@ -412,8 +412,11 @@ final class AppEnvironment: ObservableObject {
       return "一次最多导入 \(SpriteSheetSpec.columns) 帧。"
     }
     do {
+      // 按文件名排序确定播放顺序（fileImporter 多选返回顺序不可靠；
+      // 用户按 focus-01…08 命名即期望顺序）。
+      let orderedURLs = urls.sorted { $0.lastPathComponent < $1.lastPathComponent }
       var cells: [CGImage] = []
-      for url in urls {
+      for url in orderedURLs {
         cells.append(try PoseCellProcessor.loadCell(from: url))
       }
       customPoseCells[row] = cells
