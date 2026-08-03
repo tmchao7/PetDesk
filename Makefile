@@ -1,6 +1,6 @@
 SHELL := /bin/zsh
 
-.PHONY: bootstrap setup-git handoff-new handoff-check handoff-test generate build release test lint format verify run run-app clean
+.PHONY: bootstrap setup-git handoff-new handoff-check handoff-test generate build release dmg test lint format verify run run-app clean
 
 bootstrap:
 	./scripts/bootstrap.sh
@@ -47,6 +47,14 @@ release:
 		xcodebuild -project PetDesk.xcodeproj -scheme PetDesk -configuration Release build CODE_SIGNING_ALLOWED=NO; \
 	else \
 		echo "Full Xcode unavailable; skipping Release build."; \
+	fi
+
+dmg:
+	@if xcodebuild -version >/dev/null 2>&1; then \
+		$(MAKE) generate && \
+		zsh scripts/make-dmg.sh; \
+	else \
+		echo "Full Xcode unavailable; cannot build the .dmg."; \
 	fi
 
 lint:

@@ -22,6 +22,7 @@ xcuserdata/
 
 # Release artifacts
 *.dmg
+dist/
 
 # Local configuration and signing material
 .env

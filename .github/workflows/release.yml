@@ -1,0 +1,35 @@
+# 打 tag（v*）时自动构建 Release 并发布 .dmg 到 GitHub Release。
+# 无签名分发：用户需右键 → 打开（或 xattr -cr /Applications/PetDesk.app）。
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Build Release app
+        run: |
+          xcodegen generate --spec project.yml
+          xcodebuild -project PetDesk.xcodeproj -scheme PetDesk \
+            -configuration Release build CODE_SIGNING_ALLOWED=NO
+
+      - name: Create DMG
+        run: zsh scripts/make-dmg.sh "${GITHUB_REF_NAME#v}"
+
+      - name: Attach to Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/PetDesk-*.dmg
+          fail_on_unmatched_files: true
