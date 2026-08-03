@@ -632,9 +632,10 @@ private func checkPoseCellBBoxTrimsCornerNoise() throws {
   // 主体：较窄较高的绿色方块（视觉中部），收紧后 x 方向会留出空白边距。
   context.setFillColor(CGColor(red: 0, green: 1, blue: 0, alpha: 1))
   context.fill(CGRect(x: 80, y: 64, width: 64, height: 128))
-  // 稀疏噪点：左上角 3×3 红色像素（视觉顶部 = Quartz y 高值一侧）。
+  // 稀疏噪点：左上角 2×2 红色像素（视觉顶部 = Quartz y 高值一侧），
+  // 质量占比约 0.05%，应被 99.8% 质量窗口剔除。
   context.setFillColor(CGColor(red: 1, green: 0, blue: 0, alpha: 1))
-  context.fill(CGRect(x: 4, y: 256 - 7, width: 3, height: 3))
+  context.fill(CGRect(x: 4, y: 256 - 6, width: 2, height: 2))
   guard let subjectImage = context.makeImage() else {
     throw CheckFailure(description: "could not make noisy subject image")
   }
@@ -642,8 +643,8 @@ private func checkPoseCellBBoxTrimsCornerNoise() throws {
   guard let cell = PoseCellProcessor.makeCell(from: subjectImage) else {
     throw CheckFailure(description: "pose cell processing returned nil")
   }
-  // 未收紧时噪点会落在 (18...25, 4...7)；收紧后该区域是透明留白。
-  let noiseRegion = pixel(cell, x: 20, y: 6)
+  // 未收紧时噪点会落在 (18...22, 0...2)；收紧后该区域是透明留白。
+  let noiseRegion = pixel(cell, x: 21, y: 2)
   try expect(
     noiseRegion.a == 0,
     "sparse corner noise should be trimmed from the subject bbox")

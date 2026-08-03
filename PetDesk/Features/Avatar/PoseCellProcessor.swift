@@ -129,8 +129,9 @@ public enum PoseCellProcessor {
       return nil
     }
 
-    // 保留包含中央 96% 强主体的行/列窗口（两侧各裁掉 2% 长尾）：
-    // 场景边缘、桌面、阴影等占比低的区域被排除，角色在帧内更大、更居中。
+    // 保留包含中央 99.8% 强主体的行/列窗口（两侧各裁掉 0.1% 长尾）：
+    // 只剔除极端稀疏的边缘杂色；窗口过窄会切到角色的头/脚/道具边缘
+    // （96% 窗口曾被实测裁掉角色腿部约 10%）。
     // 只有当强主体占原始包围盒面积不足一半（存在明显长尾场景）时才收紧；
     // 若图片本身已紧贴主体（如整幅都是角色），直接保留原始包围盒，避免切头脚。
     let rawArea = (maxRow - minRow + 1) * (maxColumn - minColumn + 1)
@@ -139,16 +140,16 @@ public enum PoseCellProcessor {
       let rowWindow = Self.massWindow(
         strongRowDensity,
         total: strongTotal,
-        low: 0.02,
-        high: 0.98,
+        low: 0.001,
+        high: 0.999,
         fallbackMin: minRow,
         fallbackMax: maxRow
       )
       let columnWindow = Self.massWindow(
         strongColumnDensity,
         total: strongTotal,
-        low: 0.02,
-        high: 0.98,
+        low: 0.001,
+        high: 0.999,
         fallbackMin: minColumn,
         fallbackMax: maxColumn
       )
