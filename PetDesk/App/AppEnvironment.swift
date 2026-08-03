@@ -748,6 +748,9 @@ final class AppEnvironment: ObservableObject {
     guard let avatarRepository else { return }
     let url = await avatarRepository.avatarURL
     guard FileManager.default.fileExists(atPath: url.path) else { return }
+    // 竞态防护：加载期间用户可能已完成导入（avatarImage 已被设置），
+    // 此时不再用磁盘旧图覆盖内存显示（磁盘本身已是新图，重启即正确）。
+    guard avatarImage == nil else { return }
     avatarImage = AvatarImageLoader.load(from: url)
     avatarBaseCGImage = await avatarRepository.loadAvatarCGImage()
     avatarSpritesheet = await avatarRepository.loadSpritesheet()

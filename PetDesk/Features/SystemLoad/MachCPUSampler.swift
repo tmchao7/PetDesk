@@ -28,6 +28,9 @@ public actor MachCPUSampler: CPUSampling {
       throw CPUSamplingError.hostStatisticsFailed(result)
     }
 
+    // cpu_ticks 字段类型是 natural_t（UInt32）：UInt32 → UInt64 是无符号
+    // 提升，永不 trap；长期运行的机器上计数器会无符号环绕回 0 附近，
+    // 由 CPULoadCalculator 的 total >= previous 检测并重置基线。
     let ticks = CPUTicks(
       user: UInt64(info.cpu_ticks.0),
       system: UInt64(info.cpu_ticks.1),
