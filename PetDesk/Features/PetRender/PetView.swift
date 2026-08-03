@@ -7,6 +7,7 @@ import SwiftUI
 struct PetView: View {
   @ObservedObject var environment: AppEnvironment
   @State private var showingSpritesheetImporter = false
+  @State private var importMessage: String?
 
   private var avatarSize: CGFloat { environment.petAvatarSize }
   private var cornerRadius: CGFloat { 20 * environment.petScale }
@@ -104,8 +105,19 @@ struct PetView: View {
       NSApp.setActivationPolicy(.accessory)
       guard case .success(let urls) = result, let url = urls.first else { return }
       Task {
-        await environment.importSpritesheet(from: url)
+        importMessage = await environment.importSpritesheet(from: url)
       }
+    }
+    .alert(
+      "导入精灵图",
+      isPresented: Binding(
+        get: { importMessage != nil },
+        set: { if !$0 { importMessage = nil } }
+      )
+    ) {
+      Button("好") { importMessage = nil }
+    } message: {
+      Text(importMessage ?? "")
     }
   }
 

@@ -34,9 +34,9 @@ struct SettingsView: View {
           .font(.caption)
           .foregroundStyle(.secondary)
         Text(
-          "用在线 AI（豆包/GPT/Gemini 等）生成整张精灵图后上传：1536×1664（8 行 × 8 列，"
-            + "每格 192×208），行序为 idle / walking / running / working / drinking / sleeping / "
-            + "happy / surprised，需要透明背景（PNG/WebP）。"
+          "支持 1536×1664 标准图，或任意 1:1 方形 8×8 网格（如 1024×1024，自动规整重排）；"
+            + "纯色背景会自动抠底。行序为 idle / walking / running / working / drinking / "
+            + "sleeping / happy / surprised（PNG/WebP）。"
         )
         .font(.caption)
         .foregroundStyle(.secondary)

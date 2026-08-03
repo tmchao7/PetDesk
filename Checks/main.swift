@@ -53,6 +53,88 @@ private func makeOpaqueImage(width: Int, height: Int) -> CGImage? {
   return context.makeImage()
 }
 
+/// 四角颜色不一致的无透明图（无法自动抠底）。
+private func makeNonUniformOpaqueImage(width: Int, height: Int) -> CGImage? {
+  let bitmapInfo = CGBitmapInfo(rawValue: CGImageAlphaInfo.noneSkipLast.rawValue)
+  guard
+    let context = CGContext(
+      data: nil,
+      width: width,
+      height: height,
+      bitsPerComponent: 8,
+      bytesPerRow: 0,
+      space: CGColorSpaceCreateDeviceRGB(),
+      bitmapInfo: bitmapInfo.rawValue
+    )
+  else { return nil }
+  let halfW = width / 2
+  let halfH = height / 2
+  let quadrants: [(CGRect, CGFloat, CGFloat, CGFloat)] = [
+    (CGRect(x: 0, y: 0, width: halfW, height: halfH), 1, 0, 0),
+    (CGRect(x: halfW, y: 0, width: halfW, height: halfH), 0, 1, 0),
+    (CGRect(x: 0, y: halfH, width: halfW, height: halfH), 0, 0, 1),
+    (CGRect(x: halfW, y: halfH, width: halfW, height: halfH), 1, 1, 1),
+  ]
+  for (rect, r, g, b) in quadrants {
+    context.setFillColor(CGColor(red: r, green: g, blue: b, alpha: 1))
+    context.fill(rect)
+  }
+  return context.makeImage()
+}
+
+/// 1:1 方形 8×8 网格：纯色背景 + 每格中央不透明方块；可让方块跨边界制造“不整齐”图。
+private func makeSquareGridImage(
+  boundaryBlock: Bool = false,
+  width: Int = 1024,
+  height: Int = 1024
+) -> CGImage? {
+  let bitmapInfo = CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue)
+  guard
+    let context = CGContext(
+      data: nil,
+      width: width,
+      height: height,
+      bitsPerComponent: 8,
+      bytesPerRow: 0,
+      space: CGColorSpaceCreateDeviceRGB(),
+      bitmapInfo: bitmapInfo.rawValue
+    )
+  else { return nil }
+  context.setFillColor(CGColor(red: 0.92, green: 0.92, blue: 0.92, alpha: 1))
+  context.fill(CGRect(x: 0, y: 0, width: width, height: height))
+  let cellW = width / 8
+  let cellH = height / 8
+  let blockSize = min(cellW, cellH) / 2
+  for row in 0..<8 {
+    for column in 0..<8 {
+      context.setFillColor(CGColor(red: 0.2, green: 0.5, blue: 0.8, alpha: 1))
+      let visualX = column * cellW + (cellW - blockSize) / 2
+      let visualY = row * cellH + (cellH - blockSize) / 2
+      context.fill(
+        CGRect(
+          x: visualX,
+          y: height - visualY - blockSize,
+          width: blockSize,
+          height: blockSize
+        )
+      )
+    }
+  }
+  if boundaryBlock {
+    context.setFillColor(CGColor(red: 0.9, green: 0.1, blue: 0.1, alpha: 1))
+    // 竖条横跨第 1 条竖网格线（x = cellW）且占满格子高度，模拟角色跨格。
+    context.fill(
+      CGRect(
+        x: cellW - 10,
+        y: height - cellH - 10,
+        width: 20,
+        height: cellH
+      )
+    )
+  }
+  return context.makeImage()
+}
+
 /// 生成符合 8×8 规格的测试精灵图：每行已用帧中央画一个 64×64 不透明方块。
 private func makeSheetImage(
   sparseCell: (row: Int, column: Int)? = nil,
@@ -604,18 +686,54 @@ private func checkSpritesheetImportPolicy() throws {
   }
 
   guard
-    let opaque = makeOpaqueImage(
+    let opaque = makeNonUniformOpaqueImage(
       width: SpritesheetImportPolicy.expectedWidth,
       height: SpritesheetImportPolicy.expectedHeight
     )
   else {
-    throw CheckFailure(description: "could not create opaque image")
+    throw CheckFailure(description: "could not create non-uniform opaque image")
   }
   do {
-    try policy.validate(image: opaque)
-    throw CheckFailure(description: "opaque sheet should be rejected")
+    _ = try policy.prepare(image: opaque)
+    throw CheckFailure(description: "non-uniform opaque sheet should be rejected")
   } catch SpritesheetImportError.missingAlpha {
     // Expected.
+  }
+
+  guard let grid = makeSquareGridImage() else {
+    throw CheckFailure(description: "could not create square grid image")
+  }
+  let prepared = try policy.prepare(image: grid)
+  try expect(
+    prepared.width == SpritesheetImportPolicy.expectedWidth
+      && prepared.height == SpritesheetImportPolicy.expectedHeight,
+    "square grid should normalize to 1536x1664")
+  try policy.validate(image: prepared)
+
+  guard let badGrid = makeSquareGridImage(boundaryBlock: true) else {
+    throw CheckFailure(description: "could not create boundary grid image")
+  }
+  do {
+    _ = try policy.prepare(image: badGrid)
+    throw CheckFailure(description: "grid with content on boundaries should be rejected")
+  } catch SpritesheetImportError.invalidGrid {
+    // Expected.
+  }
+
+  guard
+    let uniformOpaque = makeOpaqueImage(
+      width: SpritesheetImportPolicy.expectedWidth,
+      height: SpritesheetImportPolicy.expectedHeight
+    )
+  else {
+    throw CheckFailure(description: "could not create uniform opaque image")
+  }
+  do {
+    let emptyPrepared = try policy.prepare(image: uniformOpaque)
+    try policy.validate(image: emptyPrepared)
+    throw CheckFailure(description: "uniform opaque image should key to empty cells")
+  } catch SpritesheetImportError.sparseCell(let row, let column) {
+    try expect(row == 0 && column == 0, "empty keyed cells should report sparse content")
   }
 
   guard let sparse = makeSheetImage(sparseCell: (row: 0, column: 0)) else {

@@ -45,13 +45,20 @@ The pet animation (Timeline + frame timer) pauses when the pet window is hidden 
 
 ## Importing a User-Made Spritesheet
 
-Settings → 头像 → 导入精灵图 accepts PNG/WebP atlases generated elsewhere (online AI, Codex Pet tooling). Validation mirrors hatch-pet's atlas rules, adjusted to this project's 8-row spec:
+Settings → 头像 → 导入精灵图 (or right-click the pet → 导入精灵图) accepts PNG/WebP atlases generated elsewhere (online AI, Codex Pet tooling). Two accepted forms:
 
-- exact size 1536×1664 (8 rows × 8 columns of 192×208);
-- PNG or WebP with an alpha channel (transparent background);
+- a standard 1536×1664 sheet with an alpha channel; or
+- any 8×8 grid whose width/height are both divisible by 8 (cells ≥64 px, e.g., 1024×1024 or 1728×2304) with a uniform solid background — the background is chroma-keyed from the four corners and each cell is contain-fit re-tiled into 192×208.
+
+Validation mirrors hatch-pet's atlas rules, adjusted to this project's 8-row spec:
+
+- PNG or WebP; the final sheet must have an alpha channel (auto keying handles uniform opaque backgrounds);
 - each used frame per row must contain at least 50 non-transparent pixels (`SpritesheetImportPolicy.minUsedPixels`).
+- grid lines must be clean: content crossing cell boundaries means the layout is not a usable 8×8 grid and the import is rejected with `invalidGrid`.
 
 Row order is fixed: idle, walking, running, working, drinking, sleeping, happy, surprised. Used frame counts per row come from `AnimationRow.frameCount` (idle 6, walking 8, running 8, working 6, drinking 6, sleeping 6, happy 5, surprised 4); trailing cells in a row are never played. On success the sheet replaces `spritesheet.png` and playback switches immediately; on failure the previous sheet is kept and a Chinese error is shown in Settings.
+
+Import feedback: the pet context-menu flow shows an alert with the exact failure reason (dimensions, grid layout, background, sparse cells); Settings shows the same message inline. If a generated sheet is rejected as `invalidGrid`, regenerate a cleaner 1:1 grid or use the single-avatar path instead.
 
 ## Xcode Target Identity Conflicts
 

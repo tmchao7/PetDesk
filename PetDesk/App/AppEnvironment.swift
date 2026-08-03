@@ -253,22 +253,30 @@ final class AppEnvironment: ObservableObject {
   }
 
   /// 导入用户自备的整张精灵图（在线 AI 生成后上传）。
-  func importSpritesheet(from url: URL) async {
+  /// - Returns: 失败时的用户可见错误信息；成功返回 nil。
+  @discardableResult
+  func importSpritesheet(from url: URL) async -> String? {
     guard let avatarRepository else {
-      avatarError = "头像存储不可用。"
-      return
+      let message = "头像存储不可用。"
+      avatarError = message
+      return message
     }
     do {
       let sheet = try await avatarRepository.importSpritesheet(from: url)
       avatarSpritesheet = sheet
       avatarError = nil
       diagnostics.record(category: "avatar", message: "spritesheet-imported")
+      return nil
     } catch let error as SpritesheetImportError {
-      avatarError = Self.spritesheetMessage(for: error)
+      let message = Self.spritesheetMessage(for: error)
+      avatarError = message
       diagnostics.record(category: "avatar", message: "spritesheet-import-failed")
+      return message
     } catch {
-      avatarError = "精灵图导入失败。"
+      let message = "精灵图导入失败。"
+      avatarError = message
       diagnostics.record(category: "avatar", message: "spritesheet-import-failed")
+      return message
     }
   }
 
@@ -517,8 +525,11 @@ final class AppEnvironment: ObservableObject {
     case .unreadableImage: "无法读取所选文件。"
     case .unsupportedType: "请选择 PNG 或 WebP 格式的精灵图。"
     case .invalidDimensions:
-      "精灵图尺寸必须是 1536×1664（8 行 × 8 列，每格 192×208）。"
-    case .missingAlpha: "精灵图需要透明背景（PNG/WebP 带 alpha 通道）。"
+      "尺寸不符合：需要 1536×1664，或宽高都能被 8 整除的 8×8 网格（如 1024×1024、1728×2304）。"
+    case .invalidGrid:
+      "无法识别为整齐的 8×8 动作网格（格子边界有内容或角色跨格）。请生成 1:1 方形、每格独立姿势、纯色背景的图集，或改用单张头像自动生成动画。"
+    case .missingAlpha:
+      "图片没有透明背景且四角颜色不一致，无法自动抠底。请用透明 PNG，或保证背景为纯色（四角同色）。"
     case .sparseCell(let row, let column):
       "精灵图第 \(row + 1) 行第 \(column + 1) 列几乎没有内容。"
     }

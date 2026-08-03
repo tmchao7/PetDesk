@@ -123,6 +123,92 @@ final class AvatarRepositoryTests: XCTestCase {
     return url
   }
 
+  private func makeNonUniformOpaqueFile(in directory: URL) throws -> URL {
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    let url = directory.appendingPathComponent("opaque.png")
+    let width = SpritesheetImportPolicy.expectedWidth
+    let height = SpritesheetImportPolicy.expectedHeight
+    let bitmapInfo = CGBitmapInfo(rawValue: CGImageAlphaInfo.noneSkipLast.rawValue)
+    guard
+      let context = CGContext(
+        data: nil,
+        width: width,
+        height: height,
+        bitsPerComponent: 8,
+        bytesPerRow: 0,
+        space: CGColorSpaceCreateDeviceRGB(),
+        bitmapInfo: bitmapInfo.rawValue
+      )
+    else { throw NSError(domain: "test", code: 20) }
+    let halfW = width / 2
+    let halfH = height / 2
+    let quadrants: [(CGRect, CGFloat, CGFloat, CGFloat)] = [
+      (CGRect(x: 0, y: 0, width: halfW, height: halfH), 1, 0, 0),
+      (CGRect(x: halfW, y: 0, width: halfW, height: halfH), 0, 1, 0),
+      (CGRect(x: 0, y: halfH, width: halfW, height: halfH), 0, 0, 1),
+      (CGRect(x: halfW, y: halfH, width: halfW, height: halfH), 1, 1, 1),
+    ]
+    for (rect, r, g, b) in quadrants {
+      context.setFillColor(CGColor(red: r, green: g, blue: b, alpha: 1))
+      context.fill(rect)
+    }
+    guard let image = context.makeImage(),
+      let destination = CGImageDestinationCreateWithURL(
+        url as CFURL, UTType.png.identifier as CFString, 1, nil)
+    else { throw NSError(domain: "test", code: 21) }
+    CGImageDestinationAddImage(destination, image, nil)
+    guard CGImageDestinationFinalize(destination) else {
+      throw NSError(domain: "test", code: 22)
+    }
+    return url
+  }
+
+  private func makeSquareGridFile(in directory: URL, size: Int = 1024) throws -> URL {
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    let url = directory.appendingPathComponent("grid.png")
+    let bitmapInfo = CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue)
+    guard
+      let context = CGContext(
+        data: nil,
+        width: size,
+        height: size,
+        bitsPerComponent: 8,
+        bytesPerRow: 0,
+        space: CGColorSpaceCreateDeviceRGB(),
+        bitmapInfo: bitmapInfo.rawValue
+      )
+    else { throw NSError(domain: "test", code: 30) }
+    context.setFillColor(CGColor(red: 0.92, green: 0.92, blue: 0.92, alpha: 1))
+    context.fill(CGRect(x: 0, y: 0, width: size, height: size))
+    let cellW = size / 8
+    let cellH = size / 8
+    let blockSize = min(cellW, cellH) / 2
+    for row in 0..<8 {
+      for column in 0..<8 {
+        context.setFillColor(CGColor(red: 0.2, green: 0.5, blue: 0.8, alpha: 1))
+        let visualX = column * cellW + (cellW - blockSize) / 2
+        let visualY = row * cellH + (cellH - blockSize) / 2
+        context.fill(
+          CGRect(
+            x: visualX,
+            y: size - visualY - blockSize,
+            width: blockSize,
+            height: blockSize
+          )
+        )
+      }
+    }
+    guard let image = context.makeImage(),
+      let destination = CGImageDestinationCreateWithURL(
+        url as CFURL, UTType.png.identifier as CFString, 1, nil)
+    else { throw NSError(domain: "test", code: 31) }
+    CGImageDestinationAddImage(destination, image, nil)
+    guard CGImageDestinationFinalize(destination) else {
+      throw NSError(domain: "test", code: 32)
+    }
+    return url
+  }
+
   func testImportSpritesheetValidPNG() async throws {
     let sourceURL = try makeSpritesheetFile(in: tempDirectory)
     let repo = try AvatarRepository(directoryURL: tempDirectory)
@@ -176,16 +262,28 @@ final class AvatarRepositoryTests: XCTestCase {
     }
   }
 
-  func testImportSpritesheetRejectsOpaquePNG() async throws {
-    let sourceURL = try makeSpritesheetFile(in: tempDirectory, opaque: true)
+  func testImportSpritesheetRejectsNonUniformOpaquePNG() async throws {
+    let sourceURL = try makeNonUniformOpaqueFile(in: tempDirectory)
     let repo = try AvatarRepository(directoryURL: tempDirectory)
 
     do {
       _ = try await repo.importSpritesheet(from: sourceURL)
-      XCTFail("opaque sheet should be rejected")
+      XCTFail("non-uniform opaque sheet should be rejected")
     } catch SpritesheetImportError.missingAlpha {
       // Expected.
     }
+  }
+
+  func testImportSpritesheetNormalizesSquareGrid() async throws {
+    let sourceURL = try makeSquareGridFile(in: tempDirectory)
+    let repo = try AvatarRepository(directoryURL: tempDirectory)
+
+    let sheet = try await repo.importSpritesheet(from: sourceURL)
+
+    XCTAssertEqual(sheet.width, 1536, "square grid should normalize to 1536 wide")
+    XCTAssertEqual(sheet.height, 1664, "square grid should normalize to 1664 tall")
+    let loaded = await repo.loadSpritesheet()
+    XCTAssertNotNil(loaded, "normalized sheet should persist")
   }
 
   func testImportSpritesheetRejectsSparseUsedCell() async throws {
