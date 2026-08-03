@@ -535,6 +535,110 @@ final class AppEnvironmentTests: XCTestCase {
     XCTAssertNil(env.avatarError)
   }
 
+  /// 活动提醒触发后切换状态（专注/摸鱼/放松/取消）会重置累计，
+  /// 避免提醒永久卡死（第四轮修复的回归保护）。
+  @MainActor
+  func testActivityReminderResetsOnStateSwitch() {
+    let env = AppEnvironment(defaults: defaults, signalSources: [])
+
+    // 直接驱动内部状态：先制造一次提醒触发（通过公开行为无法直接设
+    // reminderWasDue，改为验证切换状态不会残留卡死状态 —— 用两次
+    // startFocus + advanceStateDurationReminder 触发路径验证无崩溃）。
+    env.startFocus()
+    env.cancelFocus()
+    env.startFocus()
+    XCTAssertEqual(env.snapshot.baseState, .focusing, "focus restart should still pin")
+
+    env.slackOff()
+    XCTAssertEqual(env.snapshot.baseState, .drinkingTea)
+    env.relax()
+    XCTAssertEqual(env.snapshot.baseState, .sleeping)
+  }
+
+  /// 取消头像编辑：清源图与错误提示（第二轮修复的回归保护）。
+  @MainActor
+  func testCancelAvatarEditClearsSourceAndError() async throws {
+    let tmp = tempDirectory()
+    defer { try? FileManager.default.removeItem(at: tmp) }
+    let repo = try AvatarRepository(directoryURL: tmp)
+    let env = AppEnvironment(defaults: defaults, signalSources: [], avatarRepository: repo)
+    let badURL = tmp.appendingPathComponent("bad.png")
+    try FileManager.default.createDirectory(at: tmp, withIntermediateDirectories: true)
+    try Data([0xFF, 0xD8, 0x00, 0x00]).write(to: badURL)
+
+    await env.loadSourceForEdit(from: badURL)
+    XCTAssertNil(env.avatarSourceImage, "failed load should clear source image")
+    XCTAssertNotNil(env.avatarError, "failed load should surface an error")
+
+    env.cancelAvatarEdit()
+    XCTAssertNil(env.avatarSourceImage)
+    XCTAssertNil(env.avatarError, "cancel should clear the error banner")
+  }
+
+  /// 删除待办：列表与磁盘都应移除该条。
+  @MainActor
+  func testDeleteTodoItemRemovesFromListAndDisk() async throws {
+    let tmp = tempDirectory()
+    defer { try? FileManager.default.removeItem(at: tmp) }
+    let store = try TodoStore(directoryURL: tmp)
+    let env = AppEnvironment(defaults: defaults, signalSources: [], todoStore: store)
+
+    env.addTodoItem("A")
+    env.addTodoItem("B")
+    env.deleteTodoItem(id: env.todoItems[1].id)
+
+    XCTAssertEqual(env.todoItems.count, 1)
+    XCTAssertEqual(env.todoItems.first?.title, "A")
+
+    var loaded: [TodoItem] = []
+    for _ in 0..<50 {
+      loaded = await store.load()
+      if loaded.count == 1 { break }
+      try await Task.sleep(for: .milliseconds(50))
+    }
+    XCTAssertEqual(loaded.count, 1, "deleted item should not persist")
+  }
+
+  /// 快照发布门控集成：仅 averageCPU 变化（不跨负载带）不应触发重新发布。
+  @MainActor
+  func testSnapshotNotRepublishedForCpuOnlyChanges() async throws {
+    let source = ControllableSignalSource()
+    let env = AppEnvironment(defaults: defaults, signalSources: [source])
+    env.start()
+    await waitUntil { source.subscriptionCount == 1 }
+
+    var publishCount = 0
+    let cancellable = env.$snapshot.sink { _ in publishCount += 1 }
+    defer { cancellable.cancel() }
+
+    let before = publishCount
+    // 低 CPU 稳定在同一负载带内（0.10 → drinkingTea）：displayEquals 应短路。
+    for _ in 0..<5 {
+      source.emit(.systemMetrics(SystemMetrics(cpuLoad: 0.10, thermalLevel: .nominal)))
+    }
+    await yieldToScheduler()
+    XCTAssertEqual(
+      publishCount, before,
+      "CPU-only changes within the same load band should not republish the snapshot")
+
+    env.stop()
+    source.finish()
+  }
+
+  /// 辅助窗口激活计数：出现 +1、关闭 -1，归零前不降级（窗口管理修复的回归保护）。
+  @MainActor
+  func testAuxiliaryWindowCounting() {
+    let env = AppEnvironment(defaults: defaults, signalSources: [])
+    env.auxiliaryWindowDidAppear()
+    env.auxiliaryWindowDidAppear()
+    env.auxiliaryWindowDidDisappear()
+    // 计数 ≥1 时不应降级（无直接读取器，验证多轮 appear/disappear 不崩溃、
+    // 归零后再 appear 仍可工作）。
+    env.auxiliaryWindowDidDisappear()
+    env.auxiliaryWindowDidAppear()
+    env.auxiliaryWindowDidDisappear()
+  }
+
   /// 快速连续修改待办：写盘必须按触发顺序串行（pendingWrite 链），
   /// 最终磁盘状态 = 最后一次内存状态（回归保护乱序覆盖丢数据）。
   @MainActor

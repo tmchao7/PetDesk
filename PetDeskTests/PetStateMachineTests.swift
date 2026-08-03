@@ -128,7 +128,7 @@ final class PetStateMachineTests: XCTestCase {
     XCTAssertEqual(machine.snapshot.baseState, .focusing)
   }
 
-  func testSleepingStateHasZzzEffects() {
+  func testSleepingStateHasNoEffects() {
     var machine = PetStateMachine()
     machine.reduce(.userIdleChanged(.seconds(301)), elapsed: .zero)
 

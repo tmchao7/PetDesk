@@ -274,6 +274,10 @@ final class AppEnvironment: ObservableObject {
     // userIdleChanged 被拦截、状态机内的 idle 停留旧值，这里把最近一次
     // 真实 idle 同步回去，避免取消后按旧 idle 直接睡回放松。
     manualState = nil
+    // 与 startFocus/slackOff/relax 一致：取消会话也重置活动提醒，
+    // 防止直接调用本方法（未来菜单/快捷键等入口）让提醒永久卡死。
+    reminderWasDue = false
+    activityReminder.acknowledgeBreak()
     focusSession.cancel()
     handle(.userIdleChanged(latestIdle))
     handle(.focusCommand(.cancel))

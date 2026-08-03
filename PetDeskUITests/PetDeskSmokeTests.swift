@@ -75,15 +75,12 @@ final class PetDeskSmokeTests: XCTestCase {
     let slackLabel = app.descendants(matching: .any)["摸鱼"]
     let relaxLabel = app.descendants(matching: .any)["放松"]
 
-    let appeared =
-      bubble.waitForExistence(timeout: 2)
-      || focusLabel.waitForExistence(timeout: 2)
-      || slackLabel.waitForExistence(timeout: 2)
-      || relaxLabel.waitForExistence(timeout: 2)
-    if !appeared {
-      print("DEBUG UI TREE AFTER TAP:\n\(app.debugDescription)")
-    }
-    XCTAssertTrue(appeared, "bubble or quick actions should appear after tapping pet")
+    // 逐个断言（不用 OR 链）：任一元素缺失即失败，避免"只出现气泡、
+    // 动作标签不存在"的假阳性通过。
+    XCTAssertTrue(bubble.waitForExistence(timeout: 3), "bubble should appear after tapping pet")
+    XCTAssertTrue(focusLabel.exists, "专注 action should be visible")
+    XCTAssertTrue(slackLabel.exists, "摸鱼 action should be visible")
+    XCTAssertTrue(relaxLabel.exists, "放松 action should be visible")
 
     // Click the 专注 action in the bubble, then verify the bubble dismisses
     // (startFocus() hides the quick actions).

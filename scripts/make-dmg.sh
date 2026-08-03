@@ -7,9 +7,9 @@ APP_NAME="PetDesk"
 VERSION="${1:-0.1.0}"
 DIST="dist"
 
-echo "==> Release 构建"
+echo "==> Release 构建（版本 $VERSION）"
 xcodebuild -project PetDesk.xcodeproj -scheme PetDesk -configuration Release build \
-  CODE_SIGNING_ALLOWED=NO >/dev/null
+  CODE_SIGNING_ALLOWED=NO MARKETING_VERSION="$VERSION" >/dev/null
 
 BUILT_PRODUCTS_DIR=$(xcodebuild -project PetDesk.xcodeproj -scheme PetDesk \
   -configuration Release -showBuildSettings 2>/dev/null | awk '/ BUILT_PRODUCTS_DIR =/{print $3; exit}')
