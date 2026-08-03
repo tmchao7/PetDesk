@@ -2,31 +2,30 @@
 
 - Status: ready
 - Active owner: unassigned
-- Updated: 2026-08-03T17:32:00+0800
-- Branch: `feat/code-review-cleanup`（全库 review 清理，未提交）
-- Latest implementation commit: `acbe815`（基点）
-- Latest session: [claude-code code-review-cleanup](sessions/2026-08-03-1730-claude-code-code-review-cleanup.md)
+- Updated: 2026-08-03T17:56:00+0800
+- Branch: `feat/code-review-cleanup`（两轮 review 清理，第二轮未提交）
+- Latest implementation commit: `d752dc5`（第一轮）+ 第二轮待提交
+- Latest session: [claude-code code-review-round2](sessions/2026-08-03-1754-claude-code-code-review-round2.md)
 
 ## Active Objective
 
-全库 code review/debug：删除 20 项不可达分支/死代码（FocusCommand.pause/
-resume/relax、greeting、focusInvite、tea/keyboard/zzz 效果、bubbleRegion 等）；
-修复 5 项（写盘乱序覆盖、启动统计覆盖、写失败静默、除零 NaN、scale 死分支）；
-预留接口保留（AI pose、Vision、LoginItem 等）。报告见
+两轮全库 review 完成。第二轮修复 7 项：激活策略引用计数（多窗口）、头像
+残留/取消释放、编辑器手势跨手势累计、裁切方形 clamp、todayKey formatter
+只读化、AI 响应尺寸校验、XCUITest 假阳性断言删除。确认 2 项 agent 误判
+（精灵图行坐标、eyeBand Y 轴）。报告见
 `docs/development/code-review-2026-08-03.md`。
 
 ## Repository Snapshot
 
-- `feat/code-review-cleanup`：基点 `acbe815`，18 文件未提交改动。
-- `feat/bubble-todo-scroll` @ `acbe815`（气泡滚动 + 专注钉住）未合并、未推送。
-- main @ `f132187`（trim 分支已合并，本地领先 origin 4 提交未推送）。
+- `feat/code-review-cleanup`：第一轮 3 提交（d752dc5）+ 第二轮 13 文件未提交。
+- `feat/bubble-todo-scroll` @ `acbe815` 未合并、未推送。
+- main @ `f132187`（trim 已合并，本地领先 origin 4 提交未推送）。
 
 ## Latest Verification
 
 - `swift run PetDeskCoreChecks`：passed。
 - `make test`：TEST SUCCEEDED — 75 XCTest + 7 XCUITest，0 失败。
 - `make lint`：passed。
-- 残留引用 grep 清零。
 
 ## Blockers
 
@@ -34,8 +33,8 @@ resume/relax、greeting、focusInvite、tea/keyboard/zzz 效果、bubbleRegion �
 
 ## Next Actions
 
-1. 提交 docs(handoff) + 分逻辑提交清理改动。
-2. 询问 owner：推送/合并 code-review-cleanup、bubble-todo-scroll、main 的 trim。
+1. 提交 docs(handoff) + 第二轮改动分组提交。
+2. 询问 owner 推送合并全部待推分支。
 3. 待办：dmg 打包脚本 + GitHub Actions + README；"重置位置"右键菜单。
 
 ## Working Rules
