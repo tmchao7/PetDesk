@@ -41,7 +41,7 @@ The spritesheet spec uses a top-left origin (row 0 at the top). Empirically (202
 
 ## Animation Pause
 
-The pet animation (Timeline + frame timer) pauses when the pet window is hidden or fully occluded. To debug CPU usage, hide the pet or cover the window and confirm `isPetAnimationPaused` flips in Diagnostics state.
+The pet is in static mode (v1): no frame timer or 30 fps Timeline is running; the pet shows the current state row's base frame. `isPetAnimationPaused` (window hidden/occluded) remains wired for when animation is re-enabled. To debug CPU usage, hide the pet and confirm `isPetAnimationPaused` flips in Diagnostics state.
 
 ## Importing a User-Made Spritesheet
 

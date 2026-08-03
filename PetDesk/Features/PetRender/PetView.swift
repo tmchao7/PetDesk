@@ -14,11 +14,9 @@ struct PetView: View {
 
   var body: some View {
     ZStack(alignment: .bottomTrailing) {
-      // Pin the TimelineView to the pet's size.  Without an explicit frame
-      // the TimelineView expands to fill the window, centering the pet in
-      // the middle of the panel instead of the bottom-right corner.
-      // 窗口被遮挡/隐藏时切到静态内容，停掉 Timeline 与帧 Timer，省 CPU。
-      petTimeline()
+      // 固定宠物区域尺寸：没有显式 frame 时会撑满窗口居中。
+      // 静态模式：直接渲染当前状态行，不做浮动/缩放/旋转微动作。
+      petContent(phase: 0)
         .frame(width: avatarSize, height: avatarSize)
 
       if environment.quickActionsVisible || environment.snapshot.bubble != nil {
@@ -33,18 +31,6 @@ struct PetView: View {
   }
 
   @ViewBuilder
-  private func petTimeline() -> some View {
-    if environment.isPetAnimationPaused {
-      petContent(phase: 0)
-    } else {
-      TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { timeline in
-        let phase = timeline.date.timeIntervalSinceReferenceDate * animationSpeed
-        petContent(phase: phase)
-      }
-    }
-  }
-
-  @ViewBuilder
   private func petContent(phase: Double) -> some View {
     ZStack {
       AnimatedAvatarView(
@@ -54,15 +40,14 @@ struct PetView: View {
           baseState: environment.snapshot.baseState,
           transient: environment.snapshot.transientState
         ),
-        displayMode: environment.avatarDisplayMode,
-        animationPaused: environment.isPetAnimationPaused
+        displayMode: environment.avatarDisplayMode
       )
       .frame(width: avatarSize, height: avatarSize)
       OverlayEffectView(
         effects: environment.snapshot.effects,
         transient: environment.snapshot.transientState,
         scale: environment.petScale,
-        paused: environment.isPetAnimationPaused
+        paused: true
       )
     }
     .scaleEffect(scale(for: phase))
@@ -118,15 +103,6 @@ struct PetView: View {
       Button("好") { importMessage = nil }
     } message: {
       Text(importMessage ?? "")
-    }
-  }
-
-  private var animationSpeed: Double {
-    switch environment.snapshot.baseState {
-    case .sleeping: 1.2
-    case .drinkingTea, .working, .focusing: 2.0
-    case .jogging: 5.0
-    case .running: 8.0
     }
   }
 

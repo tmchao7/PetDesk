@@ -13,10 +13,6 @@ struct AnimatedAvatarView: View {
   let spritesheet: CGImage?
   let animState: PetAnimState
   let displayMode: AvatarDisplayMode
-  var animationPaused = false
-
-  @State private var frameIndex = 0
-  @State private var pingPongForward = true
 
   private var row: AnimationRow { animState.row }
 
@@ -37,7 +33,6 @@ struct AnimatedAvatarView: View {
         Image(nsImage: image)
           .resizable()
           .scaledToFill()
-          .scaleEffect(1 + sin(breathingPhase) * 0.012)
       } else {
         placeholder
       }
@@ -53,18 +48,6 @@ struct AnimatedAvatarView: View {
     .shadow(color: .black.opacity(0.18), radius: 9, y: 5)
     .accessibilityLabel("Pet avatar")
     .accessibilityIdentifier("pet.avatar")
-    .onChange(of: row) { advanceToRowStart() }
-    .onReceive(
-      Timer.publish(every: 1.0 / Double(row.framesPerSecond), on: .main, in: .common)
-        .autoconnect()
-    ) { _ in
-      guard !animationPaused else { return }
-      advanceFrame()
-    }
-  }
-
-  private var breathingPhase: Double {
-    Date().timeIntervalSinceReferenceDate * 1.6
   }
 
   private var placeholder: some View {
@@ -77,7 +60,8 @@ struct AnimatedAvatarView: View {
   }
 
   private func frameImage(from sheet: CGImage) -> CGImage {
-    let rect = animState.frameRect(index: frameIndex)
+    // 静态模式：直接显示当前状态行的基准帧，不做帧动画（先不启用微动作）。
+    let rect = animState.frameRect(index: staticFrameIndex)
     // 精灵图规范与 CGImage.cropping 同为“y=0 在视觉顶部”，直接按行/列裁剪。
     // （实测：本 SDK 上 cropping 的 y=0 对应图像顶部；曾误做 y 翻转导致行映射上下颠倒。）
     let cropRect = CGRect(
@@ -89,36 +73,12 @@ struct AnimatedAvatarView: View {
     return sheet.cropping(to: cropRect) ?? sheet
   }
 
-  private func advanceFrame() {
-    let count = row.frameCount
-    guard count > 1 else {
-      frameIndex = 0
-      return
+  /// 静态模式下每个状态行显示的基准帧（避开眨眼/位移/旋转帧）。
+  private var staticFrameIndex: Int {
+    switch row {
+    case .happy, .surprised: 1
+    default: 0
     }
-    if row.loopsPingPong {
-      if pingPongForward {
-        if frameIndex >= count - 1 {
-          pingPongForward = false
-          frameIndex -= 1
-        } else {
-          frameIndex += 1
-        }
-      } else {
-        if frameIndex <= 0 {
-          pingPongForward = true
-          frameIndex += 1
-        } else {
-          frameIndex -= 1
-        }
-      }
-    } else {
-      frameIndex = (frameIndex + 1) % count
-    }
-  }
-
-  private func advanceToRowStart() {
-    frameIndex = 0
-    pingPongForward = true
   }
 }
 
