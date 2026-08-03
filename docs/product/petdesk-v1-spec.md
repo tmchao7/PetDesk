@@ -14,7 +14,7 @@ PetDesk is a quiet desktop companion for one user on an Apple silicon Mac runnin
 - Sleep after five minutes of input inactivity.
 - A 25-minute focus session that pauses after 60 seconds of user inactivity.
 - A movement reminder after 60 active minutes, with Done and 10-minute snooze actions.
-- **Bubble quick actions** (left-click the pet): today's todo (top 5, inline check-off) + 专注 / 摸鱼 / 放松 buttons — focus starts a session, slack-off nudges toward tea, relax forces a 15-second sleep. The state itself is shown by the pet image (imported pose or avatar default); the keyboard/tea-cup/Zzz emoji overlays have been removed.
+- **Bubble quick actions** (left-click the pet): today's todo (top 5, inline check-off) + 专注 / 摸鱼 / 放松 buttons — 摸鱼 and 放松 pin the pet to that state until the user picks another action (real CPU/idle readings no longer switch it back); 专注 starts a focus session. The state itself is shown by the pet image (imported pose or avatar default); the keyboard/tea-cup/Zzz emoji overlays have been removed.
 - **Todo list**: add / check / delete items persisted to JSON; accessible from the pet context menu, status bar, and Settings.
 - **Usage stats**: daily 专注 / 摸鱼 / 休息 durations accumulated from pet state, viewable per day (last 7 days with bars) from the context menu, status bar, and Settings.
 - Pet size setting (小 / 中 / 大) that scales the pet, effects, and window.

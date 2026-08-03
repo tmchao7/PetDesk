@@ -75,7 +75,9 @@ final class AppEnvironment: ObservableObject {
   private var machine = PetStateMachine()
   private var activityReminder = ActivityReminderAccumulator()
   private var latestIdle: Duration = .zero
-  private var forcedSleepRemaining: Duration = .zero
+  /// 用户手动选择的摸鱼/放松状态：锁定期间忽略 CPU/idle 统计事件，
+  /// 直到用户再点 专注/摸鱼/放松（点击什么就是什么，不自动切回）。
+  private var manualState: BasePetState?
   private var currentDayKey = DayStats.todayKey()
   private var dayAccumulator = DayStats(date: DayStats.todayKey())
   private var secondsSinceStatsFlush = 0
@@ -163,9 +165,7 @@ final class AppEnvironment: ObservableObject {
 
   func startFocus() {
     quickActionsVisible = false
-    // 用户手动进入专注时解除强制睡眠窗口：否则 15 秒内真实 idle 读数仍被拦截，
-    // 取消专注后可能带着旧的 301 秒 idle 直接睡回去。
-    forcedSleepRemaining = .zero
+    manualState = nil
     focusSession.start()
     handle(.focusCommand(.start))
     diagnostics.record(category: "focus", message: "session-started")
@@ -397,9 +397,7 @@ final class AppEnvironment: ObservableObject {
   /// 喝茶 (drinkingTea).
   func slackOff() {
     quickActionsVisible = false
-    // 用户手动切回摸鱼时立即解除强制睡眠并唤醒：否则 15 秒强制睡眠窗口内
-    // 点击摸鱼会被“真实 idle 拦截”吞掉，表现为切换无响应/延迟。
-    forcedSleepRemaining = .zero
+    manualState = nil
     if focusSession.phase == .running || focusSession.phase == .pausedForIdle {
       cancelFocus()
     }
@@ -407,24 +405,19 @@ final class AppEnvironment: ObservableObject {
     for _ in 0..<10 {
       handle(.systemMetrics(SystemMetrics(cpuLoad: 0.12, thermalLevel: .nominal)))
     }
+    manualState = .drinkingTea
   }
 
-  /// Put the pet to sleep (Zzz) for 15 seconds.  Real idle events are
-  /// intercepted while the forced sleep is active so the effect is not
-  /// immediately overwritten by the monitor's next reading.
+  /// Put the pet to sleep (Zzz) and keep it sleeping until the user picks
+  /// another state — real idle/CPU readings no longer switch it back.
   func relax() {
     quickActionsVisible = false
+    manualState = nil
     if focusSession.phase == .running || focusSession.phase == .pausedForIdle {
       cancelFocus()
     }
-    if forcedSleepRemaining <= .zero {
-      // Send the sleep trigger BEFORE arming the interception, otherwise
-      // handle() drops it as a "real idle" event while forcedSleepRemaining
-      // is already non-zero and the pet never enters sleeping.
-      handle(.userIdleChanged(.seconds(301)))
-    }
-    // 已睡眠时重复点击放松：保持睡眠并顺延计时，而不是静默无效。
-    forcedSleepRemaining = .seconds(15)
+    handle(.userIdleChanged(.seconds(301)))
+    manualState = .sleeping
   }
 
   func injectNotification(_ source: NotificationSource) {
@@ -441,6 +434,7 @@ final class AppEnvironment: ObservableObject {
   }
 
   func applyDemoState(_ name: String) {
+    manualState = nil
     switch name {
     case "sleeping": handle(.userIdleChanged(.seconds(301)))
     case "working": feedDemoCPU(0.50)
@@ -453,16 +447,10 @@ final class AppEnvironment: ObservableObject {
 
   private func handle(_ event: PetEvent) {
     if case .userIdleChanged(let duration) = event { latestIdle = duration }
-    if forcedSleepRemaining > .zero {
+    if manualState != nil {
       switch event {
-      case .userIdleChanged:
-        return  // keep forced sleep state; ignore the monitor's real reading
-      case .tick(let duration):
-        forcedSleepRemaining -= duration
-        if forcedSleepRemaining <= .zero {
-          forcedSleepRemaining = .zero
-          return  // drop the tick that ended the forced sleep
-        }
+      case .systemMetrics, .userIdleChanged:
+        return  // 手动状态锁定：忽略统计事件，保持用户选择的状态
       default:
         break
       }

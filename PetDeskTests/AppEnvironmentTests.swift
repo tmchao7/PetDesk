@@ -103,6 +103,32 @@ final class AppEnvironmentTests: XCTestCase {
   }
 
   @MainActor
+  func testManualPoseStatePersistsUntilUserSwitches() async {
+    let source = ControllableSignalSource()
+    let env = AppEnvironment(defaults: defaults, signalSources: [source])
+    env.start()
+    await waitUntil { source.subscriptionCount == 1 }
+
+    env.slackOff()
+    XCTAssertEqual(env.snapshot.baseState, .drinkingTea)
+    // 高 CPU 与活跃 idle 不应把手动摸鱼切回工作/跑步状态。
+    for _ in 0..<6 {
+      source.emit(.systemMetrics(SystemMetrics(cpuLoad: 0.9, thermalLevel: .nominal)))
+    }
+    source.emit(.userIdleChanged(.seconds(5)))
+    await yieldToScheduler()
+    XCTAssertEqual(
+      env.snapshot.baseState, .drinkingTea,
+      "slackOff should persist until the user picks another state")
+
+    // 点专注解除手动锁定。
+    env.startFocus()
+    XCTAssertEqual(env.snapshot.baseState, .focusing)
+    env.stop()
+    source.finish()
+  }
+
+  @MainActor
   func testStartProcessesSignalEvents() async {
     let source = ControllableSignalSource()
     let env = AppEnvironment(defaults: defaults, signalSources: [source])
