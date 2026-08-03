@@ -115,6 +115,25 @@ final class AvatarRepositoryTests: XCTestCase {
     XCTAssertEqual(croppedZoomed?.width, 64)
   }
 
+  /// 极端宽高比（横幅）源图 + 边缘平移：裁剪区可能被图像边界截成非方形，
+  /// 必须夹紧成方形而不是把非方形区域拉伸到方形输出。
+  func testCropClampsToSquareOnWideSourceEdgePan() throws {
+    let image = try makeTestCGImage(width: 240, height: 48)
+
+    // 大幅缩放到边缘（zoom 4，平移超出边界）——裁剪窗口超出图像高边。
+    let cropped = AvatarCropper.crop(
+      image: image,
+      viewSize: 100,
+      panOffset: CGSize(width: 100, height: 100),
+      zoomScale: 4.0,
+      outputSize: 64
+    )
+
+    XCTAssertNotNil(cropped, "edge-pan crop should still succeed")
+    XCTAssertEqual(cropped?.width, 64)
+    XCTAssertEqual(cropped?.height, 64)
+  }
+
   // MARK: - Save / Reset
 
   func testSaveAvatarWritesPNG() async throws {

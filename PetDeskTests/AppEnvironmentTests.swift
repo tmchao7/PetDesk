@@ -535,6 +535,60 @@ final class AppEnvironmentTests: XCTestCase {
     XCTAssertNil(env.avatarError)
   }
 
+  /// 快速连续修改待办：写盘必须按触发顺序串行（pendingWrite 链），
+  /// 最终磁盘状态 = 最后一次内存状态（回归保护乱序覆盖丢数据）。
+  @MainActor
+  func testRapidTodoMutationsPersistFinalState() async throws {
+    let tmp = tempDirectory()
+    defer { try? FileManager.default.removeItem(at: tmp) }
+    let store = try TodoStore(directoryURL: tmp)
+    let env = AppEnvironment(defaults: defaults, signalSources: [], todoStore: store)
+
+    env.addTodoItem("A")
+    env.addTodoItem("B")
+    env.toggleTodoItem(id: env.todoItems[0].id)
+
+    var loaded: [TodoItem] = []
+    for _ in 0..<50 {
+      loaded = await store.load()
+      if loaded.count == 2 && loaded[0].isCompleted && !loaded[1].isCompleted { break }
+      try await Task.sleep(for: .milliseconds(50))
+    }
+    XCTAssertEqual(loaded.count, 2, "both todos should persist")
+    XCTAssertTrue(loaded[0].isCompleted, "first todo should be completed on disk")
+    XCTAssertFalse(loaded[1].isCompleted, "second todo should stay incomplete on disk")
+  }
+
+  /// 启动统计与磁盘值合并：预写 100 秒专注 + 启动后 tick 累计，
+  /// 最终落盘 = 磁盘值 + 新增累计（不覆盖、不双计）。
+  @MainActor
+  func testStartupStatsMergeWithDiskValue() async throws {
+    let tmp = tempDirectory()
+    defer { try? FileManager.default.removeItem(at: tmp) }
+    let store = try UsageStatsStore(directoryURL: tmp)
+    let today = DayStats.todayKey()
+    try await store.upsert(DayStats(date: today, focusSeconds: 100))
+
+    let env = AppEnvironment(defaults: defaults, signalSources: [], usageStore: store)
+    env.start()
+    env.startFocus()  // focusing → 每秒累计 1 秒专注
+
+    // 等真实 tick 累计至少 3 秒（tick 每秒一次，留足余量）。
+    try await Task.sleep(for: .seconds(5))
+
+    env.stop()  // 触发 flush
+
+    var finalFocus = 0
+    for _ in 0..<50 {
+      let saved = await store.loadAll()
+      finalFocus = saved.first(where: { $0.date == today })?.focusSeconds ?? 0
+      if finalFocus >= 103 { break }
+      try await Task.sleep(for: .milliseconds(50))
+    }
+    XCTAssertGreaterThanOrEqual(finalFocus, 103, "disk 100 + startup ticks should merge")
+    XCTAssertLessThan(finalFocus, 200, "disk value should not be double-counted")
+  }
+
   /// 气泡待办列表不再截断前 5 条：全部未完成项都应暴露，供气泡内滚动查看。
   @MainActor
   func testIncompleteTodoItemsExposesAllPendingForBubbleScroll() {
