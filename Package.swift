@@ -54,6 +54,7 @@ let package = Package(
                 "Features/Avatar/EyeBandLocator.swift",
                 "Features/Avatar/GPTImage2Provider.swift",
                 "Features/Avatar/PoseCellProcessor.swift",
+                "Features/Avatar/SpritesheetImportPolicy.swift",
                 "Features/Avatar/SpriteSheetGenerator.swift",
                 "Features/Avatar/SpriteSheetSpec.swift",
                 "Features/Focus",

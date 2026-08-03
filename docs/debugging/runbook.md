@@ -43,6 +43,16 @@ The spritesheet spec uses a top-left origin (row 0 at the top). Empirically (202
 
 The pet animation (Timeline + frame timer) pauses when the pet window is hidden or fully occluded. To debug CPU usage, hide the pet or cover the window and confirm `isPetAnimationPaused` flips in Diagnostics state.
 
+## Importing a User-Made Spritesheet
+
+Settings → 头像 → 导入精灵图 accepts PNG/WebP atlases generated elsewhere (online AI, Codex Pet tooling). Validation mirrors hatch-pet's atlas rules, adjusted to this project's 8-row spec:
+
+- exact size 1536×1664 (8 rows × 8 columns of 192×208);
+- PNG or WebP with an alpha channel (transparent background);
+- each used frame per row must contain at least 50 non-transparent pixels (`SpritesheetImportPolicy.minUsedPixels`).
+
+Row order is fixed: idle, walking, running, working, drinking, sleeping, happy, surprised. Used frame counts per row come from `AnimationRow.frameCount` (idle 6, walking 8, running 8, working 6, drinking 6, sleeping 6, happy 5, surprised 4); trailing cells in a row are never played. On success the sheet replaces `spritesheet.png` and playback switches immediately; on failure the previous sheet is kept and a Chinese error is shown in Settings.
+
 ## Xcode Target Identity Conflicts
 
 If Xcode reports that multiple targets produce the same `.swiftmodule` or `.xctest` output, run:

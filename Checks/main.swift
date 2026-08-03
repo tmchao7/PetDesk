@@ -35,6 +35,68 @@ private func makeSolidImage(
   return context.makeImage()
 }
 
+private func makeOpaqueImage(width: Int, height: Int) -> CGImage? {
+  let bitmapInfo = CGBitmapInfo(rawValue: CGImageAlphaInfo.noneSkipLast.rawValue)
+  guard
+    let context = CGContext(
+      data: nil,
+      width: width,
+      height: height,
+      bitsPerComponent: 8,
+      bytesPerRow: 0,
+      space: CGColorSpaceCreateDeviceRGB(),
+      bitmapInfo: bitmapInfo.rawValue
+    )
+  else { return nil }
+  context.setFillColor(CGColor(red: 0.5, green: 0.6, blue: 0.7, alpha: 1))
+  context.fill(CGRect(x: 0, y: 0, width: width, height: height))
+  return context.makeImage()
+}
+
+/// 生成符合 8×8 规格的测试精灵图：每行已用帧中央画一个 64×64 不透明方块。
+private func makeSheetImage(
+  sparseCell: (row: Int, column: Int)? = nil,
+  width: Int = SpritesheetImportPolicy.expectedWidth,
+  height: Int = SpritesheetImportPolicy.expectedHeight
+) -> CGImage? {
+  let bitmapInfo = CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue)
+  guard
+    let context = CGContext(
+      data: nil,
+      width: width,
+      height: height,
+      bitsPerComponent: 8,
+      bytesPerRow: 0,
+      space: CGColorSpaceCreateDeviceRGB(),
+      bitmapInfo: bitmapInfo.rawValue
+    )
+  else { return nil }
+  context.clear(CGRect(x: 0, y: 0, width: width, height: height))
+  let frameW = Int(SpriteSheetSpec.frameWidth)
+  let frameH = Int(SpriteSheetSpec.frameHeight)
+  for row in AnimationRow.allCases {
+    for column in 0..<row.frameCount {
+      if let sparseCell, sparseCell.row == row.rawValue, sparseCell.column == column {
+        continue
+      }
+      context.setFillColor(CGColor(red: 0.2, green: 0.5, blue: 0.8, alpha: 1))
+      // 视觉坐标 → CG 坐标（y 翻转）：块位于视觉 (column*192+64, row*208+64)。
+      let blockSize = 64
+      let visualX = column * frameW + 64
+      let visualY = row.rawValue * frameH + 64
+      context.fill(
+        CGRect(
+          x: visualX,
+          y: height - visualY - blockSize,
+          width: blockSize,
+          height: blockSize
+        )
+      )
+    }
+  }
+  return context.makeImage()
+}
+
 private func pixel(_ image: CGImage, x: Int, y: Int) -> (r: Int, g: Int, b: Int, a: Int) {
   guard
     let cropped = image.cropping(to: CGRect(x: x, y: y, width: 1, height: 1)),
@@ -524,6 +586,49 @@ private func checkVisionEyeBandLocator() throws {
     "blank image should not produce an eye band")
 }
 
+private func checkSpritesheetImportPolicy() throws {
+  let policy = SpritesheetImportPolicy()
+  guard let valid = makeSheetImage() else {
+    throw CheckFailure(description: "could not create valid sheet image")
+  }
+  try policy.validate(image: valid)
+
+  guard let small = makeSolidImage(width: 64, height: 64, color: (0.5, 0.5, 0.5)) else {
+    throw CheckFailure(description: "could not create small image")
+  }
+  do {
+    try policy.validate(image: small)
+    throw CheckFailure(description: "wrong-size sheet should be rejected")
+  } catch SpritesheetImportError.invalidDimensions {
+    // Expected.
+  }
+
+  guard
+    let opaque = makeOpaqueImage(
+      width: SpritesheetImportPolicy.expectedWidth,
+      height: SpritesheetImportPolicy.expectedHeight
+    )
+  else {
+    throw CheckFailure(description: "could not create opaque image")
+  }
+  do {
+    try policy.validate(image: opaque)
+    throw CheckFailure(description: "opaque sheet should be rejected")
+  } catch SpritesheetImportError.missingAlpha {
+    // Expected.
+  }
+
+  guard let sparse = makeSheetImage(sparseCell: (row: 0, column: 0)) else {
+    throw CheckFailure(description: "could not create sparse sheet image")
+  }
+  do {
+    try policy.validate(image: sparse)
+    throw CheckFailure(description: "sparse used cell should be rejected")
+  } catch SpritesheetImportError.sparseCell(let row, let column) {
+    try expect(row == 0 && column == 0, "sparse error should name the empty cell")
+  }
+}
+
 private func runAllChecks() async throws {
   try checkStateMachine()
   try checkCoreServices()
@@ -532,6 +637,7 @@ private func runAllChecks() async throws {
   try checkPoseCellProcessor()
   try await checkGPTImage2Provider()
   try checkVisionEyeBandLocator()
+  try checkSpritesheetImportPolicy()
 }
 
 do {

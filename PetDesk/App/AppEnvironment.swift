@@ -252,6 +252,26 @@ final class AppEnvironment: ObservableObject {
     }
   }
 
+  /// 导入用户自备的整张精灵图（在线 AI 生成后上传）。
+  func importSpritesheet(from url: URL) async {
+    guard let avatarRepository else {
+      avatarError = "头像存储不可用。"
+      return
+    }
+    do {
+      let sheet = try await avatarRepository.importSpritesheet(from: url)
+      avatarSpritesheet = sheet
+      avatarError = nil
+      diagnostics.record(category: "avatar", message: "spritesheet-imported")
+    } catch let error as SpritesheetImportError {
+      avatarError = Self.spritesheetMessage(for: error)
+      diagnostics.record(category: "avatar", message: "spritesheet-import-failed")
+    } catch {
+      avatarError = "精灵图导入失败。"
+      diagnostics.record(category: "avatar", message: "spritesheet-import-failed")
+    }
+  }
+
   // MARK: Todo
 
   func addTodoItem(_ title: String) {
@@ -489,6 +509,18 @@ final class AppEnvironment: ObservableObject {
     case .unsupportedType: "请选择 PNG、JPEG 或 HEIC 格式的图片。"
     case .unreadableImage: "无法读取所选文件。"
     case .encodingFailed: "图片保存失败。"
+    }
+  }
+
+  private static func spritesheetMessage(for error: SpritesheetImportError) -> String {
+    switch error {
+    case .unreadableImage: "无法读取所选文件。"
+    case .unsupportedType: "请选择 PNG 或 WebP 格式的精灵图。"
+    case .invalidDimensions:
+      "精灵图尺寸必须是 1536×1664（8 行 × 8 列，每格 192×208）。"
+    case .missingAlpha: "精灵图需要透明背景（PNG/WebP 带 alpha 通道）。"
+    case .sparseCell(let row, let column):
+      "精灵图第 \(row + 1) 行第 \(column + 1) 列几乎没有内容。"
     }
   }
 }

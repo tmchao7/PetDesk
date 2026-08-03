@@ -5,6 +5,7 @@ struct SettingsView: View {
   @ObservedObject var environment: AppEnvironment
   @StateObject private var loginItem = LoginItemController()
   @State private var showingImporter = false
+  @State private var showingSpritesheetImporter = false
   @State private var showingEditor = false
 
   var body: some View {
@@ -29,6 +30,16 @@ struct SettingsView: View {
         Text("支持 PNG、JPEG 或 HEIC，最大 20 MB。")
           .font(.caption)
           .foregroundStyle(.secondary)
+        Button("导入精灵图…", systemImage: "square.grid.3x3") {
+          showingSpritesheetImporter = true
+        }
+        Text(
+          "用在线 AI（豆包/GPT/Gemini 等）生成整张精灵图后上传：1536×1664（8 行 × 8 列，"
+            + "每格 192×208），行序为 idle / walking / running / working / drinking / sleeping / "
+            + "happy / surprised，需要透明背景（PNG/WebP）。"
+        )
+        .font(.caption)
+        .foregroundStyle(.secondary)
       }
 
       Section("外观") {
@@ -70,7 +81,7 @@ struct SettingsView: View {
       }
     }
     .formStyle(.grouped)
-    .frame(width: 480, height: 430)
+    .frame(width: 480, height: 500)
     .onAppear {
       NSApp.setActivationPolicy(.regular)
       NSApp.activate(ignoringOtherApps: true)
@@ -89,6 +100,16 @@ struct SettingsView: View {
         if environment.avatarSourceImage != nil {
           showingEditor = true
         }
+      }
+    }
+    .fileImporter(
+      isPresented: $showingSpritesheetImporter,
+      allowedContentTypes: [.png, .webP],
+      allowsMultipleSelection: false
+    ) { result in
+      guard case .success(let urls) = result, let url = urls.first else { return }
+      Task {
+        await environment.importSpritesheet(from: url)
       }
     }
     .sheet(isPresented: $showingEditor) {

@@ -8,6 +8,7 @@
 - Imported images are validated and downsampled before persistence.
 - Logs and diagnostics contain no paths, filenames, contacts, or message contents.
 - AI pose generation is opt-in via environment only; the API key and avatar image are never logged, and the avatar leaves the machine only when the provider is configured.
+- Imported spritesheets are validated (format, exact dimensions, alpha, per-row content) before they replace the active sheet.
 - Pet animation pauses when the pet window is hidden or occluded (no 30 fps Timeline when invisible).
 - No force unwrap, `try!`, `as!`, `fatalError`, or unexplained `@unchecked Sendable` exists.
 - `project.yml`, docs, and tests change with interface changes.
