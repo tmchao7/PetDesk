@@ -15,11 +15,9 @@ struct PetView: View {
       // Pin the TimelineView to the pet's size.  Without an explicit frame
       // the TimelineView expands to fill the window, centering the pet in
       // the middle of the panel instead of the bottom-right corner.
-      TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { timeline in
-        let phase = timeline.date.timeIntervalSinceReferenceDate * animationSpeed
-        petContent(phase: phase)
-      }
-      .frame(width: avatarSize, height: avatarSize)
+      // 窗口被遮挡/隐藏时切到静态内容，停掉 Timeline 与帧 Timer，省 CPU。
+      petTimeline()
+        .frame(width: avatarSize, height: avatarSize)
 
       if environment.quickActionsVisible || environment.snapshot.bubble != nil {
         PetBubbleView(
@@ -33,6 +31,18 @@ struct PetView: View {
   }
 
   @ViewBuilder
+  private func petTimeline() -> some View {
+    if environment.isPetAnimationPaused {
+      petContent(phase: 0)
+    } else {
+      TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { timeline in
+        let phase = timeline.date.timeIntervalSinceReferenceDate * animationSpeed
+        petContent(phase: phase)
+      }
+    }
+  }
+
+  @ViewBuilder
   private func petContent(phase: Double) -> some View {
     ZStack {
       AnimatedAvatarView(
@@ -42,13 +52,15 @@ struct PetView: View {
           baseState: environment.snapshot.baseState,
           transient: environment.snapshot.transientState
         ),
-        displayMode: environment.avatarDisplayMode
+        displayMode: environment.avatarDisplayMode,
+        animationPaused: environment.isPetAnimationPaused
       )
       .frame(width: avatarSize, height: avatarSize)
       OverlayEffectView(
         effects: environment.snapshot.effects,
         transient: environment.snapshot.transientState,
-        scale: environment.petScale
+        scale: environment.petScale,
+        paused: environment.isPetAnimationPaused
       )
     }
     .scaleEffect(scale(for: phase))

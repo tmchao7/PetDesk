@@ -70,12 +70,23 @@ final class PetWindowController: NSWindowController, NSWindowDelegate {
     // Keep the panel key so clicks dispatch mouse events immediately
     // instead of being swallowed by window activation.
     window.makeKey()
+    environment.updatePetAnimationPaused(false)
     AppLog.window.debug("Pet window shown")
   }
 
   func toggleVisibility() {
     guard let window else { return }
-    window.isVisible ? window.orderOut(nil) : showPet()
+    if window.isVisible {
+      environment.updatePetAnimationPaused(true)
+      window.orderOut(nil)
+    } else {
+      showPet()
+    }
+  }
+
+  func windowDidChangeOcclusionState(_ notification: Notification) {
+    let isVisible = window?.occlusionState.contains(.visible) == true
+    environment.updatePetAnimationPaused(!isVisible)
   }
 
   func windowDidMove(_ notification: Notification) {

@@ -8,6 +8,7 @@ struct OverlayEffectView: View {
   let effects: Set<PetEffect>
   let transient: TransientPetState?
   let scale: Double
+  var paused = false
 
   private var iconSize: CGFloat { 25 * scale }
   private var zzzSize: CGFloat { 22 * scale }
@@ -33,7 +34,7 @@ struct OverlayEffectView: View {
           .foregroundStyle(.indigo)
           .shadow(color: .indigo.opacity(0.45), radius: 5)
           .offset(x: 62 * scale, y: -72 * scale)
-          .modifier(SleepFloatAnimation(scale: scale))
+          .modifier(SleepFloatAnimation(scale: scale, paused: paused))
       }
       if case .startled = transient {
         prop("bell.badge.fill", color: .red, x: -70 * scale, y: -68 * scale)
@@ -61,13 +62,14 @@ struct OverlayEffectView: View {
 /// 让睡觉表情缓慢上下浮动，模拟呼吸节奏。
 private struct SleepFloatAnimation: ViewModifier {
   let scale: Double
+  let paused: Bool
   @State private var floating = false
 
   func body(content: Content) -> some View {
     content
-      .offset(y: floating ? -7 * scale : 5 * scale)
+      .offset(y: paused ? 0 : (floating ? -7 * scale : 5 * scale))
       .animation(
-        .easeInOut(duration: 1.6).repeatForever(autoreverses: true),
+        paused ? nil : .easeInOut(duration: 1.6).repeatForever(autoreverses: true),
         value: floating
       )
       .onAppear { floating = true }
