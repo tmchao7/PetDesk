@@ -2,39 +2,33 @@
 
 - Status: ready
 - Active owner: unassigned
-- Updated: 2026-08-03T15:47:00+0800
-- Branch: `feat/lightweight-cpu-memory`（轻量化整改，未推送）
-- Latest implementation commit: `929d0d1`
-- Latest session: [claude-code lightweight-cpu-memory](sessions/2026-08-03-1546-claude-code-lightweight-cpu-memory.md)
+- Updated: 2026-08-03T16:22:00+0800
+- Branch: `feat/trim-quietmode-spritesheet-import`（删冗余功能，未推送）
+- Latest implementation commit: `docs(trim)` 提交（git log 最新）
+- Latest session: [claude-code trim-quietmode-spritesheet-import](sessions/2026-08-03-1620-claude-code-trim-quietmode-spritesheet-import.md)
 
 ## Active Objective
 
-轻量化整改（联网检索 + 代码审计 + 前后对比测量）：快照发布门控（显示字段
-变化才发布，消除每秒视图无效化）、帧 NSImage 缓存、DateFormatter 共享实例、
-PetView 死动画数学删除、AnyShape 收口共享、观察者 deinit 清理。
-空闲 CPU ≈0.36% → ≈0.26%（相对 -28%），RSS 109 MB 不变。报告见
-`docs/development/performance-2026-08-03.md`。分支待提交/推送。
+按 owner 实测反馈砍掉两个冗余功能：
+（1）静音模式——与系统勿扰重复，用户在系统设置控制；
+（2）导入精灵图（整张 8×8 图集入口）——三状态单图导入（专注/摸鱼/休息）
+是唯一自定义路径。内部 spritesheet 机制保留。分支待推送。
 
 ## Repository Snapshot
 
-- `main` @ `0adcdca` 未动；`feat/lightweight-cpu-memory` 含全部改动未提交。
-- 改动文件：`PetState.swift`（displayEquals）、`AppEnvironment.swift`（发布门控）、
-  `AnimatedAvatarView.swift`（帧缓存）、`DayStats.swift` + `StatsView.swift`
-  （共享 DateFormatter）、`PetView.swift`（死数学删除）、新建
-  `Shared/AnyShape.swift`（4 份重复收口）、`PetWindowController.swift`（deinit
-  清理）、`Checks/main.swift`（新断言）、`AppEnvironmentTests.swift`（3 用例
-  适配新契约）、新建 `scripts/measure-petdesk.sh`。
-- 前一个完成目标：feat/ai-pose-vision-animation 已合并推送 main（codex session
-  2026-08-03-1512）。
+- `main` @ `cfc7e6e` 未动；`feat/trim-quietmode-spritesheet-import` 含 3 个
+  提交（test(trim) 清理、feat(trim) 实现删除、docs(trim)）未推送。
+- 上两个完成目标：lightweight-cpu-memory 已推送并快进合并 main
+  （`cfc7e6e`，8 提交）；ai-pose-vision-animation 已合并（`a78b222`）。
+- 删除：`SpritesheetImportPolicy.swift`（含校验策略与错误类型）。
 
 ## Latest Verification
 
-- `swift run PetDeskCoreChecks`: passed（含新增 checkSnapshotDisplayEquality）。
-- `make test`: TEST SUCCEEDED — 81 XCTest + 7 XCUITest，0 失败。
-- `make lint`: passed。
-- `make verify`: passed（2026-08-03 15:43）。
-- 测量（Debug，60–90s 空闲）：before CPU 0.41%/0.30%、RSS 109 MB；
-  after CPU 0.29%/0.23%、RSS 109 MB。
+- `swift run PetDeskCoreChecks`：passed。
+- `make test`：TEST SUCCEEDED — 73 XCTest + 7 XCUITest，0 失败
+  （81 → 73：删 8 个导入/静音测试）。
+- `make lint`：passed（修掉 2 个删除遗留格式警告后重跑）。
+- `make verify`：passed（2026-08-03 16:18）。
 
 ## Blockers
 
@@ -42,10 +36,10 @@ PetView 死动画数学删除、AnyShape 收口共享、观察者 deinit 清理�
 
 ## Next Actions
 
-1. 分逻辑提交（perf/refactor/fix/docs + docs(handoff)）。
-2. 询问 owner 是否推送分支。
-3. 可选后续：GPTImage2Provider 接 RunComfy CLI；Vision 人脸定位眼睛；
-   “重置位置”右键菜单；专注状态钉住确认。
+1. 提交 docs(handoff) 并跑 handoff-check。
+2. 询问 owner 是否推送合并 `feat/trim-quietmode-spritesheet-import` 到 main。
+3. 待办（owner 已提）：dmg 打包脚本 + GitHub Actions 自动发布 + README 使用说明。
+4. 可选后续：GPTImage2Provider 接 RunComfy CLI；“重置位置”右键菜单。
 
 ## Working Rules
 
