@@ -2,19 +2,19 @@
 
 - Status: ready
 - Active owner: unassigned
-- Updated: 2026-07-31T17:01:00+0800
-- Branch: `feat/petdesk-v1`
-- Latest implementation commit: `1eda4cb`
-- Latest session: [claude spritesheet-generator-phase2](sessions/2026-07-31-1701-claude-spritesheet-generator-phase2.md)
+- Updated: 2026-08-03T09:02:00+0800
+- Branch: `main`
+- Latest implementation commit: `52e727f`
+- Latest session: [claude codex-spritesheet-phase3](sessions/2026-08-03-0902-claude-codex-spritesheet-phase3.md)
 
 ## Active Objective
 
-Continue PetDesk v1. Claude relay complete: pet image is now ANIMATED. Saving an avatar auto-generates a programmatic 8×8 spritesheet (idle/walking/running/working/drinking/sleeping/happy/surprised micro-transforms via CoreGraphics) and the pet view plays frames per state. Reset avatar cleans the sheet. Full `make verify` passes.
+Continue PetDesk v1. Claude relay complete: spritesheet generator upgraded to Codex Pet quality (blinking idle, subtle walk/run micro-shifts, jump arc, sleeping tilts) + `AIPoseProvider` protocol added with programmatic fallback. Full `make verify` passes.
 
 ## Repository Snapshot
 
-- PetDesk v1 implementation on `feat/petdesk-v1`.
-- Spritesheet pipeline: spec → generator → repository → animated view → import flow (all wired).
+- PetDesk on `main` (was fast-forwarded from feat/petdesk-v1 in the previous session).
+- Spritesheet pipeline: Codex-level programmatic generator + AI provider protocol (no AI backend yet).
 - Features: todo, usage stats, pet size, bubble quick actions, avatar editor, animated spritesheet pet.
 
 ## Latest Verification
@@ -29,9 +29,9 @@ Continue PetDesk v1. Claude relay complete: pet image is now ANIMATED. Saving an
 
 ## Next Actions
 
-1. Manual QA: import avatar → pet animates across all 8 states.
-2. Optional Phase 3: AI pose provider for richer poses.
-3. Push `feat/petdesk-v1` after owner approval.
+1. Manual QA: re-import avatar → verify blinking idle and motion quality.
+2. Optional: implement GPT Image 2 provider behind AIPoseProvider.
+3. Push `main` after owner approval (1 commit ahead: `52e727f`).
 4. Create a new session record, update this file, run `make handoff-check`, commit handoff.
 
 ## Working Rules
