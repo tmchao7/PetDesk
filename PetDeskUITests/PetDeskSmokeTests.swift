@@ -32,6 +32,9 @@ final class PetDeskSmokeTests: XCTestCase {
     XCTAssertTrue(
       app.descendants(matching: .any)["pet.avatar"].waitForExistence(timeout: 5),
       "pet avatar should appear in sleeping state")
+    XCTAssertFalse(
+      app.images["moon.zzz.fill"].exists,
+      "sleeping state should be shown by the pet image, not the Zzz emoji")
   }
 
   @MainActor
@@ -43,6 +46,9 @@ final class PetDeskSmokeTests: XCTestCase {
     XCTAssertTrue(
       app.descendants(matching: .any)["pet.avatar"].waitForExistence(timeout: 5),
       "pet avatar should appear in focusing state")
+    XCTAssertFalse(
+      app.images["keyboard"].exists,
+      "focusing state should be shown by the pet image, not the keyboard emoji")
   }
 
   @MainActor
@@ -105,7 +111,8 @@ final class PetDeskSmokeTests: XCTestCase {
     XCTAssertTrue(
       bubble.waitForNonExistence(timeout: 2),
       "bubble should dismiss after tapping 放松")
-    let zzz = app.images["moon.zzz.fill"]
-    XCTAssertTrue(zzz.waitForExistence(timeout: 2), "sleeping Zzz effect should appear after 放松")
+    XCTAssertFalse(
+      app.images["moon.zzz.fill"].exists,
+      "sleeping state should not show the Zzz emoji after 放松")
   }
 }

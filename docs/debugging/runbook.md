@@ -72,6 +72,8 @@ Each accepts one PNG/WebP pose image (any size; solid or transparent background)
 
 Feedback: each pose row shows an imported thumbnail, the button changes to 更换…/清除, and import/clear show a confirmation alert. Single-pose images imported through the full-sheet entry (导入精灵图) are rejected with an `invalidGrid`-style message that points to the per-state entry — make sure to use the per-state buttons (专注/摸鱼/休息) for single poses.
 
+State representation: the keyboard / tea-cup / Zzz emoji overlays are removed. States are shown by the pet image itself — the imported pose when set, otherwise the avatar default. If a state still shows an emoji instead of the pet changing, the running app is an old build (check that Settings shows the 专注姿势/摸鱼姿势/休息姿势 rows).
+
 For generation guidance and copy-paste prompts, see `docs/design/spritesheet-authoring.md`.
 
 ## Xcode Target Identity Conflicts

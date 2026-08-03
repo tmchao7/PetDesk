@@ -46,8 +46,7 @@ struct PetView: View {
       OverlayEffectView(
         effects: environment.snapshot.effects,
         transient: environment.snapshot.transientState,
-        scale: environment.petScale,
-        paused: true
+        scale: environment.petScale
       )
     }
     .scaleEffect(scale(for: phase))
