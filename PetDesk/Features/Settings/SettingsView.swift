@@ -27,12 +27,12 @@ struct SettingsView: View {
         if let avatarError = environment.avatarError {
           Text(avatarError).foregroundStyle(.red)
         }
-        Text("支持 PNG、JPEG 或 HEIC，最大 20 MB。")
-          .font(.caption)
-          .foregroundStyle(.secondary)
         Button("导入精灵图…", systemImage: "square.grid.3x3") {
           showingSpritesheetImporter = true
         }
+        Text("支持 PNG、JPEG 或 HEIC，最大 20 MB。")
+          .font(.caption)
+          .foregroundStyle(.secondary)
         Text(
           "用在线 AI（豆包/GPT/Gemini 等）生成整张精灵图后上传：1536×1664（8 行 × 8 列，"
             + "每格 192×208），行序为 idle / walking / running / working / drinking / sleeping / "

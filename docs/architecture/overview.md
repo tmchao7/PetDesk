@@ -59,6 +59,8 @@ Feature adapters own system calls. `AppEnvironment` owns cancellable tasks and o
 
 `PetDeskApp` declares: `MenuBarExtra` (status bar), `Settings`, and named windows — `diagnostics`, `todo`, `stats`. Deep views open windows via relay closures (`openSettings`, `openDiagnosticsWindow`, `openTodoWindow`, `openStatsWindow`) wired in `wireRelays()` from the App-level `@Environment`, because `@Environment` values are unavailable inside context menus and MenuBarExtra.
 
+The status-bar menu covers show/hide pet, quiet mode, todo/stats/diagnostics/settings, and quit. Focus start/cancel intentionally lives in the pet bubble (专注/摸鱼/放松) rather than the status bar; the pet's right-click menu also offers 导入精灵图 directly.
+
 ## Persistence
 
 | Path | Format | Owner |
