@@ -13,6 +13,10 @@ struct AvatarEditorView: View {
   @State private var panOffset: CGSize = .zero
   @State private var zoomScale: CGFloat = 1.0
   @State private var displayMode: AvatarDisplayMode
+  /// 手势起点（@GestureState 每次手势开始自动重置）：让平移/缩放跨手势累计，
+  /// 而不是每次松手后回到中心/1x。
+  @GestureState private var gestureStartPan: CGSize?
+  @GestureState private var gestureStartZoom: CGFloat?
 
   private let cropSize: CGFloat = 240
 
@@ -119,17 +123,21 @@ struct AvatarEditorView: View {
   private var magnificationGesture: some Gesture {
     MagnificationGesture()
       .onChanged { value in
-        zoomScale = max(1.0, min(value, 5.0))
+        // 每次手势的 value 从 1.0 开始：乘上手势开始时的缩放，跨手势累计。
+        let start = gestureStartZoom ?? zoomScale
+        zoomScale = max(1.0, min(start * value, 5.0))
       }
   }
 
   private var dragGesture: some Gesture {
     DragGesture()
       .onChanged { value in
+        // 每次手势的 translation 从 0 开始：加在手势开始时的位移上，跨手势累计。
+        let start = gestureStartPan ?? panOffset
         let maxPan = (zoomScale - 1.0) * cropSize / 2
         panOffset = CGSize(
-          width: max(-maxPan, min(maxPan, value.translation.width)),
-          height: max(-maxPan, min(maxPan, value.translation.height))
+          width: max(-maxPan, min(maxPan, start.width + value.translation.width)),
+          height: max(-maxPan, min(maxPan, start.height + value.translation.height))
         )
       }
   }
