@@ -413,8 +413,12 @@ final class AppEnvironment: ObservableObject {
     }
     do {
       // 按文件名排序确定播放顺序（fileImporter 多选返回顺序不可靠；
-      // 用户按 focus-01…08 命名即期望顺序）。
-      let orderedURLs = urls.sorted { $0.lastPathComponent < $1.lastPathComponent }
+      // 用户按 focus-01…08 命名即期望顺序）。用 Finder 风格数字感知比较，
+      // 避免 "专注2" 排在 "专注10" 之后这类字符串排序陷阱。
+      let orderedURLs = urls.sorted {
+        $0.lastPathComponent.localizedStandardCompare($1.lastPathComponent)
+          == .orderedAscending
+      }
       var cells: [CGImage] = []
       for url in orderedURLs {
         cells.append(try PoseCellProcessor.loadCell(from: url))

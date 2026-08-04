@@ -564,6 +564,41 @@ final class AppEnvironmentTests: XCTestCase {
       "multi-frame count should restore from the persisted spritesheet")
   }
 
+  /// 超过 8 帧与空数组导入都应被拒绝（帧数上限与空选防护）。
+  @MainActor
+  func testImportPoseRejectsTooManyAndEmpty() async throws {
+    let tmp = tempDirectory()
+    defer { try? FileManager.default.removeItem(at: tmp) }
+    let repo = try AvatarRepository(directoryURL: tmp)
+    let env = AppEnvironment(defaults: defaults, signalSources: [], avatarRepository: repo)
+    await env.saveCroppedAvatar(try makeTestCGImage(width: 64, height: 64))
+
+    let message = await env.importPose(row: .working, from: [])
+    XCTAssertNotNil(message, "empty selection should be rejected")
+
+    var urls: [URL] = []
+    for index in 1...9 {
+      urls.append(try writePoseFile(in: tmp, name: "f\(index).png"))
+    }
+    let tooMany = await env.importPose(row: .working, from: urls)
+    XCTAssertNotNil(tooMany, "more than 8 frames should be rejected")
+    XCTAssertFalse(env.customPoseRows.contains(.working), "rejected import should not mark the row")
+  }
+
+  /// 帧序按文件名数字感知排序：focus-2 应排在 focus-10 之前
+  /// （localizedStandardCompare，Finder 风格）。
+  @MainActor
+  func testPoseFramesOrderedByFilenameNumerically() {
+    let names = ["focus-10.png", "focus-2.png", "focus-3.png"]
+    let sorted = names.sorted {
+      $0.localizedStandardCompare($1) == .orderedAscending
+    }
+    XCTAssertEqual(sorted, ["focus-2.png", "focus-3.png", "focus-10.png"])
+    XCTAssertNotEqual(
+      names.sorted(), sorted,
+      "plain string sort would put focus-10 before focus-2")
+  }
+
   /// 单帧姿势重启后仍恢复为 1 帧（不误判为多帧动画）。
   @MainActor
   func testSingleFramePoseRestoresAsOneFrame() async throws {

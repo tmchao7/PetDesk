@@ -114,20 +114,13 @@ public enum SpriteSheetGenerator {
         x: 0,
         y: (rows.count - 1 - rowIndex) * frameH  // 精灵图 y 轴向下，CoreGraphics 向上
       )
-      if !transformsEnabled {
-        // 用户姿势行（单帧或多帧）：帧按序填入，剩余列用基准单元补位，
-        // 不叠加程序化微变换（动作帧本身是完整动作）。
-        for col in 0..<SpriteSheetSpec.columns {
-          let cell = col < frames.count ? frames[col] : fallbackCell
-          drawFrame(
-            cell,
-            at: CGPoint(x: CGFloat(col * frameW), y: origin.y),
-            transform: FrameTransform(),
-            eyeBand: eyeBandInCell,
-            context: context
-          )
-        }
-      } else {
+      // 走程序化微变换的条件：显式启用（默认/AI 入口），或用户入口下该行
+      // 是未设置行（单帧且与 fallbackCell 引用相同 = 默认头像单元）——
+      // 后者保留默认行的微动帧，避免导入姿势后其他行退化为单帧。
+      let useTransforms =
+        transformsEnabled
+        || (frames.count == 1 && isSameReference(frames[0], fallbackCell))
+      if useTransforms {
         // 默认/AI 行：单单元 + 程序化微变换循环 8 列。
         let cell = frames[0]
         for col in 0..<SpriteSheetSpec.columns {
@@ -140,10 +133,28 @@ public enum SpriteSheetGenerator {
             context: context
           )
         }
+      } else {
+        // 用户姿势行（单帧或多帧）：帧按序填入，剩余列用基准单元补位，
+        // 不叠加程序化微变换（动作帧本身是完整动作）。
+        for col in 0..<SpriteSheetSpec.columns {
+          let cell = col < frames.count ? frames[col] : fallbackCell
+          drawFrame(
+            cell,
+            at: CGPoint(x: CGFloat(col * frameW), y: origin.y),
+            transform: FrameTransform(),
+            eyeBand: eyeBandInCell,
+            context: context
+          )
+        }
       }
     }
 
     return context.makeImage()
+  }
+
+  /// CGImage 引用相等判断（用于区分"默认头像单元"与"用户导入单元"）。
+  private static func isSameReference(_ lhs: CGImage, _ rhs: CGImage) -> Bool {
+    Unmanaged.passUnretained(lhs).toOpaque() == Unmanaged.passUnretained(rhs).toOpaque()
   }
 
   /// 每行每帧的确定性变换（Codex Pet build_row 风格）。
