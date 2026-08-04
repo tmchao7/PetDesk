@@ -19,13 +19,23 @@ user activity, focus sessions, and optional best-effort WeChat/QQ notification p
 
 从 [Releases](https://github.com/tmchao7/PetDesk/releases/latest) 下载 `PetDesk-*.dmg`（约 2.6 MB），然后：
 
-1. 打开 dmg，把 **PetDesk** 拖进 **Applications**
-2. 首次启动：由于当前版本未签名（ad-hoc），macOS 会提示"无法验证开发者"——
-   **右键 PetDesk.app → 打开 → 再点"打开"** 即可（只需一次）；
-   或终端执行 `xattr -cr /Applications/PetDesk.app`
-3. 启动后从菜单栏 🐾 图标进入设置，导入一张动漫风头像即可使用
+```bash
+# 1. 挂载 dmg 并复制到 Applications
+hdiutil attach ~/Downloads/PetDesk-0.1.2.dmg
+cp -R "/Volumes/PetDesk/PetDesk.app" /Applications/
+hdiutil detach /Volumes/PetDesk
 
-> 无签名分发是开发阶段的轻量方案；正式签名 + 公证（无警告安装）将在
+# 2. 清除 Gatekeeper 隔离标记（未签名应用必需；若提示"已损坏"就是这个原因）
+xattr -cr /Applications/PetDesk.app
+
+# 3. 启动
+open /Applications/PetDesk.app
+```
+
+或拖拽安装后只执行第 2 步的 `xattr -cr`。启动后从菜单栏 🐾 图标进入设置，导入一张动漫风头像即可使用。
+
+> 当前版本未签名（ad-hoc），macOS 会拦截并提示"已损坏/无法验证开发者"——
+> 应用本身没坏，执行 `xattr -cr` 即可。正式签名 + 公证（零警告安装）将在
 > Developer ID 证书就绪后随版本发布。
 
 ## 功能速览（Features）
