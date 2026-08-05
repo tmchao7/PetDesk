@@ -82,6 +82,8 @@ final class AppEnvironment: ObservableObject {
   /// 最新 CPU 读数（0~1）。故意不做 @Published：动画速度读取用，
   /// 不触发视图重算（与 snapshot 发布门控保持一致的性能约束）。
   private(set) var latestCPU: Double = 0
+  /// 测试接口：已消费事件序号（handle 入口递增，含被 manualState 拦截的事件）。
+  private(set) var processedEventCount = 0
   /// 动画播放速度信号（低频，每秒随 CPU 采样更新）：
   /// 在现有每秒 metric 链路发布，CPU 变化但外观不变时渲染器也能收到新速度。
   /// 基准 0.1s/帧（10 FPS），speed = 0.1 / 实际帧间隔（5 FPS → 0.5，30 FPS → 3.0）。
@@ -639,6 +641,8 @@ final class AppEnvironment: ObservableObject {
   }
 
   private func handle(_ event: PetEvent) {
+    // 测试接口：已消费事件序号（AsyncStream 事件确认用，无行为副作用）。
+    processedEventCount += 1
     if case .userIdleChanged(let duration) = event { latestIdle = duration }
     if manualState != nil {
       switch event {
@@ -727,8 +731,9 @@ final class AppEnvironment: ObservableObject {
   }
 
   /// 播放速度纯函数：base / computeInterval(cpu, multiplier)。
-  /// 输入为有限离散集（CPU 采样 0~1、倍率 UI 步进），输出离散、无浮点抖动
-  /// 依赖——相同输入恒等，精确比较安全。
+  /// CPU 是采样后的连续 Double（非离散输入），但相同输入会得到完全相同的
+  /// 计算结果——exact 比较只用于抑制真正相同的重复值，CPU 的微小变化产生
+  /// 新的速度发布是设计允许的（1 Hz 低频，不引入容差抑制）。
   private static func playbackSpeed(
     cpu: Double,
     multiplier: Double,
