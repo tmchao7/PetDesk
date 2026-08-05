@@ -226,6 +226,37 @@ final class AppEnvironmentTests: XCTestCase {
   }
 
   @MainActor
+  func testPetStatsRestorePersistedZeroValues() {
+    defaults.set(0.0, forKey: "petMood")
+    defaults.set(0.0, forKey: "petEnergy")
+
+    let env = AppEnvironment(defaults: defaults, signalSources: [])
+
+    XCTAssertEqual(env.petMood, 0, "a persisted zero mood is a valid value")
+    XCTAssertEqual(env.petEnergy, 0, "a persisted zero energy is a valid value")
+  }
+
+  @MainActor
+  func testPetStatsDoNotWriteDefaultsOnEveryTick() async throws {
+    let env = AppEnvironment(defaults: defaults, signalSources: [])
+    env.startFocus()
+    env.start()
+
+    try await Task.sleep(for: .milliseconds(1_200))
+
+    XCTAssertNil(
+      defaults.object(forKey: "petMood"),
+      "one-second pet ticks should not synchronously persist mood")
+    XCTAssertNil(
+      defaults.object(forKey: "petEnergy"),
+      "one-second pet ticks should not synchronously persist energy")
+
+    env.stop()
+    XCTAssertNotNil(defaults.object(forKey: "petMood"), "stop should flush mood")
+    XCTAssertNotNil(defaults.object(forKey: "petEnergy"), "stop should flush energy")
+  }
+
+  @MainActor
   func testCustomReminderMessagesRenderWithMinutes() {
     let env = AppEnvironment(defaults: defaults, signalSources: [])
     env.focusDurationMinutes = 1

@@ -55,15 +55,13 @@ final class AppEnvironment: ObservableObject {
     didSet { defaults.set(animationSpeedMultiplier, forKey: Keys.animationSpeedMultiplier) }
   }
   /// 心情（0-100）：专注下降、摸鱼上升、互动恢复。
-  @Published private(set) var petMood: Double {
-    didSet { defaults.set(petMood, forKey: Keys.petMood) }
-  }
+  @Published private(set) var petMood: Double
   /// 精力（0-100）：专注下降、休息恢复。
-  @Published private(set) var petEnergy: Double {
-    didSet { defaults.set(petEnergy, forKey: Keys.petEnergy) }
-  }
+  @Published private(set) var petEnergy: Double
   /// 距上次互动（点击/投喂）的秒数，用于限制互动恢复频率。
   private var secondsSinceInteraction = 0
+  /// 心情/精力写盘节流：避免每秒 tick 触发 UserDefaults I/O。
+  private var secondsSincePetStatsFlush = 0
   /// 拖拽缓存托盘条目（文件/文件夹路径）。
   @Published private(set) var shelfItems: [String] = []
   private let shelfStore = DragShelfStore()
@@ -207,8 +205,8 @@ final class AppEnvironment: ObservableObject {
     self.petScale = storedScale > 0 ? storedScale : 1.0
     let storedSpeed = defaults.double(forKey: Keys.animationSpeedMultiplier)
     self.animationSpeedMultiplier = storedSpeed > 0 ? storedSpeed : 1.0
-    self.petMood = Self.clampStat(defaults.double(forKey: Keys.petMood), fallback: 70)
-    self.petEnergy = Self.clampStat(defaults.double(forKey: Keys.petEnergy), fallback: 80)
+    self.petMood = Self.storedStat(defaults, key: Keys.petMood, fallback: 70)
+    self.petEnergy = Self.storedStat(defaults, key: Keys.petEnergy, fallback: 80)
     self.shelfDragOutMode =
       ShelfDragOutMode(
         rawValue: defaults.string(forKey: Keys.shelfDragOutMode) ?? "") ?? .copy
@@ -256,8 +254,8 @@ final class AppEnvironment: ObservableObject {
     self.petScale = storedScale > 0 ? storedScale : 1.0
     let storedSpeed = defaults.double(forKey: Keys.animationSpeedMultiplier)
     self.animationSpeedMultiplier = storedSpeed > 0 ? storedSpeed : 1.0
-    self.petMood = Self.clampStat(defaults.double(forKey: Keys.petMood), fallback: 70)
-    self.petEnergy = Self.clampStat(defaults.double(forKey: Keys.petEnergy), fallback: 80)
+    self.petMood = Self.storedStat(defaults, key: Keys.petMood, fallback: 70)
+    self.petEnergy = Self.storedStat(defaults, key: Keys.petEnergy, fallback: 80)
     self.shelfDragOutMode =
       ShelfDragOutMode(
         rawValue: defaults.string(forKey: Keys.shelfDragOutMode) ?? "") ?? .copy
@@ -302,6 +300,7 @@ final class AppEnvironment: ObservableObject {
       task.cancel()
     }
     tasks.removeAll()
+    persistPetStats()
     flushUsageStats()
     diagnostics.record(category: "app", message: "stopped")
   }
@@ -682,6 +681,11 @@ final class AppEnvironment: ObservableObject {
     default:
       break
     }
+    secondsSincePetStatsFlush += 1
+    if secondsSincePetStatsFlush >= 30 {
+      persistPetStats()
+      secondsSincePetStatsFlush = 0
+    }
   }
 
   /// 互动恢复：点击宠物（限频 10 秒一次）或拖入文件，心情回升。
@@ -689,6 +693,7 @@ final class AppEnvironment: ObservableObject {
     guard secondsSinceInteraction >= 10 else { return }
     secondsSinceInteraction = 0
     petMood = Self.clampStat(petMood + 2)
+    persistPetStats()
   }
 
   // MARK: - 拖拽缓存托盘
@@ -701,6 +706,7 @@ final class AppEnvironment: ObservableObject {
     shelfItems.append(contentsOf: fresh)
     shelfStore.save(shelfItems)
     petMood = Self.clampStat(petMood + 5)
+    persistPetStats()
   }
 
   func removeShelfItem(_ path: String) {
@@ -718,9 +724,20 @@ final class AppEnvironment: ObservableObject {
     shelfItems = shelfStore.load()
   }
 
-  private static func clampStat(_ value: Double, fallback: Double? = nil) -> Double {
-    let v = fallback.map { value > 0 ? value : $0 } ?? value
-    return max(0, min(100, v))
+  private static func clampStat(_ value: Double) -> Double {
+    max(0, min(100, value))
+  }
+
+  private static func storedStat(
+    _ defaults: UserDefaults, key: String, fallback: Double
+  ) -> Double {
+    guard defaults.object(forKey: key) != nil else { return fallback }
+    return clampStat(defaults.double(forKey: key))
+  }
+
+  private func persistPetStats() {
+    defaults.set(petMood, forKey: Keys.petMood)
+    defaults.set(petEnergy, forKey: Keys.petEnergy)
   }
 
   /// 状态连续时长提醒：到达设定时长（如每 25 分钟）弹一次气泡，

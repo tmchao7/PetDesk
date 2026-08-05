@@ -23,9 +23,9 @@ struct AnimatedAvatarView: View {
   let cpuProvider: () -> Double
 
   /// 帧缓存：裁剪是 O(1) 但 NSImage 包装/释放有分配流量，状态切换时复用。
-  /// cachedFrameSheet 强引用精灵图，保证缓存命中比较时其地址不被复用。
-  @State private var cachedFrameSheet: CGImage?
-  @State private var cachedFrame: (sheetID: UInt, row: AnimationRow, index: Int, image: NSImage)?
+  /// 引用对象的属性不会在 body 求值期间触发 SwiftUI 状态发布；直接写
+  /// @State 值会产生“Modifying state during view update”并在 Timeline 高频刷新时放大。
+  @State private var frameCache = FrameCache()
   /// 动画计时起点（视图生命周期内稳定；帧索引由 elapsed/interval 纯函数推导）。
   @State private var animationStart = Date()
 
@@ -106,7 +106,7 @@ struct AnimatedAvatarView: View {
   /// 同为“y=0 在视觉顶部”，直接按行/列裁剪，不做 y 翻转。
   private func cachedFrameImage(from sheet: CGImage, index: Int) -> NSImage {
     let sheetID = UInt(bitPattern: Unmanaged.passUnretained(sheet).toOpaque())
-    if let cached = cachedFrame, cached.sheetID == sheetID, cached.row == row,
+    if let cached = frameCache.frame, cached.sheetID == sheetID, cached.row == row,
       cached.index == index
     {
       return cached.image
@@ -126,8 +126,8 @@ struct AnimatedAvatarView: View {
       size: NSSize(width: SpriteSheetSpec.frameWidth, height: SpriteSheetSpec.frameHeight)
     )
     // 先强引用精灵图再缓存，保证地址在命中比较期间不被复用。
-    cachedFrameSheet = sheet
-    cachedFrame = (sheetID, row, index, image)
+    frameCache.sheet = sheet
+    frameCache.frame = (sheetID, row, index, image)
     return image
   }
 
@@ -169,5 +169,10 @@ struct AnimatedAvatarView: View {
     let base = max(0.01, min(0.20, 0.20 / max(1.0, min(20.0, cpuPercent / 5.0))))
     let multiplier = max(0.1, speedMultiplier)
     return base / multiplier
+  }
+
+  private final class FrameCache {
+    var sheet: CGImage?
+    var frame: (sheetID: UInt, row: AnimationRow, index: Int, image: NSImage)?
   }
 }
