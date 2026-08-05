@@ -36,6 +36,14 @@ targets:
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.productivity
         INFOPLIST_KEY_LSUIElement: true
         INFOPLIST_KEY_NSPrincipalClass: NSApplication
+      configs:
+        Release:
+          # 链接器死代码剥离：函数级移除未引用的符号（Swift internal 符号
+          # 可被剥离；public 符号不可，所以尽量保持 internal 可见性）。
+          OTHER_LDFLAGS: -Wl,-dead_strip
+          # 安装时剥离符号表（dSYM 保留崩溃符号化能力）。
+          DEPLOYMENT_POSTPROCESSING: YES
+          STRIP_INSTALLED_PRODUCT: YES
   PetDeskTests:
     type: bundle.unit-test
     platform: macOS
