@@ -2,14 +2,14 @@
 
 - Status: ready
 - Active owner: unassigned
-- Updated: 2026-08-05T13:45:00+0800
-- Branch: `feat/performance-optimization`
-- Latest implementation commit: `5e11bd9`
-- Latest session: [claudecode performance-optimization](sessions/2026-08-05-1344-claudecode-performance-optimization.md)
+- Updated: 2026-08-05T14:40:00+0800
+- Branch: `fix/performance-review`
+- Latest implementation commit: `8ab44a6`
+- Latest session: [codex performance code review](sessions/2026-08-05-1440-codex-performance-code-review.md)
 
 ## Active Objective
 
-Continue PetDesk. Performance optimization implemented on `feat/performance-optimization` (5 commits): timeline capped 5–30 FPS with explicit occlusion pause, `AnimationFrameStore` pre-sliced frames, `PetLayerRenderer` CALayer discrete playback (idempotent), and one downsampled pose preview per row. Optimized Release static CPU 9.61% → 1.09% (↓89%). Docs + re-measurement + handoff recorded.
+Continue PetDesk. Performance optimization is implemented: timeline capped 5–30 FPS with explicit occlusion pause, `AnimationFrameStore` pre-sliced frames, `PetLayerRenderer` CALayer discrete playback, and one downsampled pose preview per row. Review fix `8ab44a6` aligns Core Animation keyTimes with frame values and removes fallback force unwraps. The review still has open findings around CPU-speed publication, pause/resume reset behavior, and 30-minute RSS attribution.
 
 ## Repository Snapshot
 
@@ -19,20 +19,22 @@ Continue PetDesk. Performance optimization implemented on `feat/performance-opti
 
 ## Latest Verification
 
-- `make verify`: TEST SUCCEEDED after each task and final gate (53 AppEnvironment tests, 6 AnimationFrameStore tests, 4 PetLayerRenderer tests, 7 UI tests).
+- `make verify`: TEST SUCCEEDED after the review fix (106 unit tests, 7 UI tests, Debug/Release builds, CoreChecks).
 - `make lint`: passed.
-- Re-measured optimized Release: static 1.09% CPU / 120MB RSS, single 0.72%, eight-working 0.83% (60s each).
+- Review focused renderer test: 5 tests passed.
+- Optimized Release measurements remain static 1.09% CPU, single 0.72%, eight-frame 0.92% for 60s; the recorded 30-minute run averaged 2.06% CPU and RSS climbed 120→131MB.
 
 ## Blockers
 
-- None for code. Allocations/Energy templates unavailable under `xctrace` (use Instruments GUI); real 8-frame animation baseline and 30-minute stability measurement pending owner via Settings import path.
+- Allocations/Energy templates remain unavailable under `xctrace`; RSS growth is not attributed. CPU-paced CALayer speed is not currently proven because CPU-only changes are publication-gated, and `--demo-state focusing` filters later system-metric events.
 
 ## Next Actions
 
-1. Owner: import 8-frame pose via Settings → re-run `scripts/measure-petdesk.sh` for real animation baseline; 30-min stability check.
-2. Merge `feat/performance-optimization` after owner approval (branch ahead of `docs/performance-optimization-plan`).
-3. Commit Task 7 docs (`docs(performance): document optimization results and handoff`).
-4. Create a new session record, update this file, run `make handoff-check`, commit handoff.
+1. Fix or design the CPU animation-speed publication path and add a stable-state regression test.
+2. Fix pause/resume transition handling and stale animation replacement; add renderer lifecycle coverage.
+3. Use Instruments GUI Allocations for 30–60 minutes with Diagnostics closed and an imported 8-frame pose.
+4. Add a pinned animation benchmark that changes CPU input without changing PetState.
+5. Review redundant Package.swift entries and stale 100 FPS documentation.
 
 ## Working Rules
 
