@@ -257,8 +257,10 @@ struct SettingsView: View {
             .frame(width: 36, height: 39)
             .clipShape(RoundedRectangle(cornerRadius: 6))
         }
-        if thumbnails.count > 1 {
-          Text("×\(thumbnails.count)")
+        // 预览只保留第一帧；帧数徽标来自播放帧数（multiFrameCount）。
+        let frameCount = environment.multiFrameCount(for: row)
+        if frameCount > 1 {
+          Text("×\(frameCount)")
             .font(.system(size: 10, weight: .medium))
             .foregroundStyle(.secondary)
         }

@@ -584,7 +584,9 @@ final class AppEnvironmentTests: XCTestCase {
 
     XCTAssertNil(message)
     XCTAssertEqual(env.multiFrameCount(for: .working), 3, "working row should hold 3 frames")
-    XCTAssertEqual(env.customPoseImages[.working]?.count, 3, "each frame gets a thumbnail")
+    // 预览只保留第一帧降采样缩略图；播放帧数不受影响（内存策略）。
+    XCTAssertEqual(
+      env.customPoseImages[.working]?.count, 1, "only one downsampled preview is retained")
 
     // 模拟重启：新实例从同一目录加载，sync 应恢复 3 帧。
     let env2 = AppEnvironment(defaults: defaults, signalSources: [], avatarRepository: repo)

@@ -467,9 +467,8 @@ final class AppEnvironment: ObservableObject {
       }
       customPoseCells[row] = cells
       customPoseRows = Set(customPoseCells.keys)
-      customPoseImages[row] = cells.map {
-        NSImage(cgImage: $0, size: NSSize(width: 48, height: 52))
-      }
+      // 只保留第一帧的降采样预览（48×52），播放用全分辨率帧仍在 customPoseCells。
+      customPoseImages[row] = Self.makePosePreview(from: cells)
       if let message = await reassembleSpritesheet() {
         AppLog.avatar.error("Pose import reassembly failed: \(message, privacy: .public)")
         return message
@@ -949,10 +948,23 @@ final class AppEnvironment: ObservableObject {
       guard !frames.isEmpty else { continue }
       customPoseCells[row] = frames
       customPoseRows.insert(row)
-      customPoseImages[row] = frames.map {
-        NSImage(cgImage: $0, size: NSSize(width: 48, height: 52))
-      }
+      // 恢复路径同样只保留第一帧降采样预览。
+      customPoseImages[row] = Self.makePosePreview(from: frames)
     }
+  }
+
+  /// 姿势行预览：只保留第一帧的降采样缩略图（48×52），
+  /// 全分辨率播放帧仍在 customPoseCells，不重复持有。
+  private static func makePosePreview(from frames: [CGImage]) -> [NSImage] {
+    guard let first = frames.first else { return [] }
+    if let preview = AvatarPreviewImageFactory.makePreview(
+      from: first,
+      size: NSSize(width: 48, height: 52)
+    ) {
+      return [preview]
+    }
+    // 降采样失败时的安全回退：不持有全分辨率引用。
+    return []
   }
 
   /// 逐像素比较两张同尺寸图像（容差 4/255，容忍 PNG 往返与色彩管理的舍入误差）。
