@@ -1,15 +1,15 @@
 # Current Agent Handoff
 
 - Status: ready
-- Active owner: unassigned
-- Updated: 2026-08-05T15:20:00+0800
-- Branch: `fix/animation-speed-and-pause`
+- Active owner: claude code
+- Updated: 2026-08-05T15:40:41+0800
+- Branch: `docs/review-animation-speed-pause`
 - Latest implementation commit: `3f3294f`
-- Latest session: [claudecode animation-speed-and-pause-fix](sessions/2026-08-05-1520-claudecode-animation-speed-and-pause-fix.md)
+- Latest session: [codex animation speed pause review](sessions/2026-08-05-1540-codex-animation-speed-pause-review.md)
 
 ## Active Objective
 
-Continue PetDesk. Fix relay complete: CPU-driven animation speed now publishes as a separate low-frequency signal (1 Hz, displayEquals gating untouched), and CALayer pause/resume follows Apple QA1673 with idempotent transitions (no rebuild, no frame-0 reset; replacing images while paused stays paused). All tests pass. RSS rise remains unattributed (Allocations template unavailable under xctrace; Instruments GUI session pending owner).
+Continue PetDesk. The CPU-driven speed signal and QA1673 pause/resume fix are merged, but review found that direct `CALayer.speed` changes are not time-continuous and that animation-speed preference changes can remain stale in manual states. RSS rise remains unattributed.
 
 ## Repository Snapshot
 
@@ -26,13 +26,15 @@ Continue PetDesk. Fix relay complete: CPU-driven animation speed now publishes a
 
 ## Blockers
 
-- None for code. RSS attribution requires an Instruments GUI Allocations session (30–60 min, Diagnostics closed, real 8-frame pose) — owner action.
+- Code review blocker: fix time-preserving `CALayer.speed` transitions before treating the renderer fix as complete. RSS attribution still requires an Instruments GUI Allocations session (30–60 min, Diagnostics closed, real 8-frame pose).
 
 ## Next Actions
 
-1. Owner: Instruments GUI Allocations 30–60 min for RSS attribution.
-2. Merge `fix/animation-speed-and-pause` after owner approval.
-3. Update CURRENT.md (already points here), run `make handoff-check`, commit handoff.
+1. Claude Code fixes time-continuous speed transitions and adds a regression test.
+2. Refresh animation speed when `animationSpeedMultiplier` changes, including manual states.
+3. Strengthen publication and pause/content replacement tests.
+4. Owner: Instruments GUI Allocations 30–60 min for RSS attribution.
+5. Run `make test`, `make lint`, `make verify`, and create the next handoff.
 
 ## Working Rules
 
