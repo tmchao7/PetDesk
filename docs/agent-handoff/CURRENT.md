@@ -2,18 +2,18 @@
 
 - Status: ready
 - Active owner: unassigned
-- Updated: 2026-08-05T14:40:00+0800
-- Branch: `fix/performance-review`
+- Updated: 2026-08-05T14:54:20+0800
+- Branch: `main`
 - Latest implementation commit: `8ab44a6`
-- Latest session: [codex performance code review](sessions/2026-08-05-1440-codex-performance-code-review.md)
+- Latest session: [codex merge and follow-up research](sessions/2026-08-05-1454-codex-merge-and-followup-research.md)
 
 ## Active Objective
 
-Continue PetDesk. Performance optimization is implemented: timeline capped 5–30 FPS with explicit occlusion pause, `AnimationFrameStore` pre-sliced frames, `PetLayerRenderer` CALayer discrete playback, and one downsampled pose preview per row. Review fix `8ab44a6` aligns Core Animation keyTimes with frame values and removes fallback force unwraps. The review still has open findings around CPU-speed publication, pause/resume reset behavior, and 30-minute RSS attribution.
+Continue PetDesk on `main`. Performance optimization is implemented: timeline capped 5–30 FPS with explicit occlusion pause, `AnimationFrameStore` pre-sliced frames, `PetLayerRenderer` CALayer discrete playback, and one downsampled pose preview per row. Review fix `8ab44a6` aligns Core Animation keyTimes with frame values and removes fallback force unwraps. Open follow-up work remains around CPU-speed publication, pause/resume continuity, and 30-minute RSS attribution.
 
 ## Repository Snapshot
 
-- PetDesk on `main`; optimization branch `feat/performance-optimization` ahead of `docs/performance-optimization-plan`.
+- PetDesk on `main`; `main` now includes the performance review fix and handoff commits. `origin/main` is two commits behind and has not been pushed.
 - Shipped: todo, usage stats, pet size + animation speed, bubble quick actions, avatar editor, spritesheet pet (programmatic + pose import + multi-frame), AI pose provider (off by default), mood/energy, drag shelf, **performance optimization** (frame cap/pause/preload/CALayer/preview memory).
 - Docs: architecture, runbook, test-plan updated with renderer boundary and performance scenarios; baselines + results in `docs/performance/`.
 
@@ -30,8 +30,8 @@ Continue PetDesk. Performance optimization is implemented: timeline capped 5–3
 
 ## Next Actions
 
-1. Fix or design the CPU animation-speed publication path and add a stable-state regression test.
-2. Fix pause/resume transition handling and stale animation replacement; add renderer lifecycle coverage.
+1. Claude Code implements the CPU timing signal and renderer transition tests from the follow-up prompt.
+2. Run `make test`, `make lint`, and `make verify` after each coherent fix.
 3. Use Instruments GUI Allocations for 30–60 minutes with Diagnostics closed and an imported 8-frame pose.
 4. Add a pinned animation benchmark that changes CPU input without changing PetState.
 5. Review redundant Package.swift entries and stale 100 FPS documentation.
