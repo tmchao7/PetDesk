@@ -20,9 +20,12 @@ let package = Package(
                 "Features/Todo/TodoView.swift",
                 "Features/UsageStats/StatsView.swift",
                 "Features/Avatar/AnimatedAvatarView.swift",
+                "Features/DragShelf/DragShelfPanel.swift",
+                "Features/DragShelf/DragShelfView.swift",
             ],
             sources: [
                 "Features/Avatar",
+                "Features/DragShelf",
                 "Features/Focus",
                 "Features/Notification",
                 "Features/PetDomain",
@@ -64,6 +67,7 @@ let package = Package(
                 "Features/UsageStats/UsageStatsStore.swift",
                 "Features/UserActivity",
                 "Shared",
+                "Features/DragShelf/DragShelfStore.swift",
             ],
             sources: [
                 "App",
@@ -73,6 +77,8 @@ let package = Package(
                 "Features/Todo/TodoView.swift",
                 "Features/UsageStats/StatsView.swift",
                 "Features/Avatar/AnimatedAvatarView.swift",
+                "Features/DragShelf/DragShelfPanel.swift",
+                "Features/DragShelf/DragShelfView.swift",
             ]
         ),
     ]

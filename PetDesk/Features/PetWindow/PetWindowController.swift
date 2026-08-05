@@ -27,6 +27,12 @@ final class PetWindowController: NSWindowController, NSWindowDelegate {
     super.init(window: panel)
     panel.delegate = self
     environment.updatePetWindowFrame(panel.frame)
+    // 接收 Finder 拖入的文件，暂存到拖拽托盘。
+    panel.registerForDraggedTypes([.fileURL])
+    panel.onFilesDropped = { [weak environment] urls in
+      environment?.addShelfItems(urls)
+      environment?.shelfPanel?.orderFrontRegardless()
+    }
 
     // bubbleVisible must be derived from both sources in one pipeline —
     // two separate sinks would overwrite each other (snapshot publishes

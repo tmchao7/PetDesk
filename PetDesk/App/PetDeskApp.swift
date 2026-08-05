@@ -21,7 +21,8 @@ struct PetDeskApp: App {
         openDiagnostics: {
           NSApp.activate(ignoringOtherApps: true)
           openWindow(id: "diagnostics")
-        }
+        },
+        toggleShelf: { appDelegate.toggleShelf() }
       )
     }
 

@@ -64,6 +64,7 @@ struct PetView: View {
         : AnyShape(RoundedRectangle(cornerRadius: cornerRadius))
     )
     .onTapGesture {
+      environment.petInteraction()
       withAnimation(.snappy(duration: 0.22)) { environment.quickActionsVisible.toggle() }
     }
     .contextMenu {

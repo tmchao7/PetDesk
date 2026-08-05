@@ -65,6 +65,23 @@ struct PetBubbleView: View {
             action("放松", icon: "leaf") { environment.relax() }
           }
         }
+
+        // 心情 / 精力状态行
+        HStack(spacing: 8) {
+          Text(moodEmoji)
+            .font(.system(size: 13))
+          statBar(value: environment.petMood, color: moodColor)
+          if environment.petEnergy < 20 {
+            Image(systemName: "battery.25")
+              .font(.system(size: 10))
+              .foregroundStyle(.red)
+          }
+          statBar(value: environment.petEnergy, color: energyColor)
+          Text("⚡\(Int(environment.petEnergy))")
+            .font(.system(size: 10, weight: .medium))
+            .monospacedDigit()
+            .foregroundStyle(.secondary)
+        }
       }
     }
     .padding(13)
@@ -82,6 +99,38 @@ struct PetBubbleView: View {
     case .stateDurationReminder(let text): text
     case nil: showingQuickActions ? "接下来做什么？" : ""
     }
+  }
+
+  private var moodEmoji: String {
+    switch environment.petMood {
+    case 60...: "😊"
+    case 30..<60: "😐"
+    default: "😢"
+    }
+  }
+
+  private var moodColor: Color {
+    switch environment.petMood {
+    case 60...: .orange
+    case 30..<60: .secondary
+    default: .blue
+    }
+  }
+
+  private var energyColor: Color {
+    environment.petEnergy < 20 ? .red : .green
+  }
+
+  private func statBar(value: Double, color: Color) -> some View {
+    GeometryReader { geometry in
+      ZStack(alignment: .leading) {
+        Capsule().fill(.quaternary)
+        Capsule()
+          .fill(color)
+          .frame(width: max(3, geometry.size.width * value / 100))
+      }
+    }
+    .frame(width: 42, height: 5)
   }
 
   private func action(_ title: String, icon: String, action: @escaping () -> Void) -> some View {

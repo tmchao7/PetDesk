@@ -5,6 +5,7 @@ struct MenuBarView: View {
   @ObservedObject var environment: AppEnvironment
   let togglePet: () -> Void
   let openDiagnostics: () -> Void
+  let toggleShelf: () -> Void
 
   var body: some View {
     Button("显示/隐藏桌宠", systemImage: "eye") {
@@ -12,6 +13,10 @@ struct MenuBarView: View {
     }
 
     Divider()
+
+    Button("暂存托盘", systemImage: "tray.full.fill") {
+      dismissThen { toggleShelf() }
+    }
 
     Button("待办事项", systemImage: "checklist") {
       dismissThen { environment.openTodoWindow?() }

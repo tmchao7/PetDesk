@@ -54,6 +54,21 @@ final class AppEnvironment: ObservableObject {
   @Published var animationSpeedMultiplier: Double {
     didSet { defaults.set(animationSpeedMultiplier, forKey: Keys.animationSpeedMultiplier) }
   }
+  /// 心情（0-100）：专注下降、摸鱼上升、互动恢复。
+  @Published private(set) var petMood: Double {
+    didSet { defaults.set(petMood, forKey: Keys.petMood) }
+  }
+  /// 精力（0-100）：专注下降、休息恢复。
+  @Published private(set) var petEnergy: Double {
+    didSet { defaults.set(petEnergy, forKey: Keys.petEnergy) }
+  }
+  /// 距上次互动（点击/投喂）的秒数，用于限制互动恢复频率。
+  private var secondsSinceInteraction = 0
+  /// 拖拽缓存托盘条目（文件/文件夹路径）。
+  @Published private(set) var shelfItems: [String] = []
+  private let shelfStore = DragShelfStore()
+  /// 托盘是否可见（AppDelegate 管理 DragShelfPanel）。
+  var shelfPanel: DragShelfPanel?
   /// 宠物窗口不可见或被遮挡时为 true，视图据此暂停帧动画与 Timeline 驱动。
   @Published private(set) var isPetAnimationPaused = true
   /// 最新 CPU 读数（0~1）。故意不做 @Published：动画速度读取用，
@@ -122,6 +137,8 @@ final class AppEnvironment: ObservableObject {
     static let reminderDisplaySeconds = "reminderDisplaySeconds"
     static let petScale = "petScale"
     static let animationSpeedMultiplier = "animationSpeedMultiplier"
+    static let petMood = "petMood"
+    static let petEnergy = "petEnergy"
   }
 
   private let defaults: UserDefaults
@@ -183,6 +200,8 @@ final class AppEnvironment: ObservableObject {
     self.petScale = storedScale > 0 ? storedScale : 1.0
     let storedSpeed = defaults.double(forKey: Keys.animationSpeedMultiplier)
     self.animationSpeedMultiplier = storedSpeed > 0 ? storedSpeed : 1.0
+    self.petMood = Self.clampStat(defaults.double(forKey: Keys.petMood), fallback: 70)
+    self.petEnergy = Self.clampStat(defaults.double(forKey: Keys.petEnergy), fallback: 80)
     let notificationMonitor = AccessibilityNotificationPulseMonitor()
     self.notificationCapability = notificationMonitor.capability
     self.signalSources = [SystemLoadMonitor(), UserIdleMonitor(), notificationMonitor]
@@ -227,6 +246,8 @@ final class AppEnvironment: ObservableObject {
     self.petScale = storedScale > 0 ? storedScale : 1.0
     let storedSpeed = defaults.double(forKey: Keys.animationSpeedMultiplier)
     self.animationSpeedMultiplier = storedSpeed > 0 ? storedSpeed : 1.0
+    self.petMood = Self.clampStat(defaults.double(forKey: Keys.petMood), fallback: 70)
+    self.petEnergy = Self.clampStat(defaults.double(forKey: Keys.petEnergy), fallback: 80)
     self.notificationCapability = notificationCapability
     self.signalSources = signalSources
     self.avatarRepository = avatarRepository
@@ -631,6 +652,62 @@ final class AppEnvironment: ObservableObject {
 
     advanceStateDurationReminder(by: .seconds(1))
     accumulateUsageStats()
+    advancePetStats()
+  }
+
+  /// 心情/精力随时间变化：专注消耗、摸鱼回升心情、休息恢复精力。
+  private func advancePetStats() {
+    secondsSinceInteraction += 1
+    switch snapshot.baseState {
+    case .focusing:
+      petMood = Self.clampStat(petMood - 0.05)
+      petEnergy = Self.clampStat(petEnergy - 0.15)
+    case .drinkingTea:
+      petMood = Self.clampStat(petMood + 0.10)
+    case .sleeping:
+      petEnergy = Self.clampStat(petEnergy + 0.30)
+    default:
+      break
+    }
+  }
+
+  /// 互动恢复：点击宠物（限频 10 秒一次）或拖入文件，心情回升。
+  func petInteraction() {
+    guard secondsSinceInteraction >= 10 else { return }
+    secondsSinceInteraction = 0
+    petMood = Self.clampStat(petMood + 2)
+  }
+
+  // MARK: - 拖拽缓存托盘
+
+  /// 往托盘追加文件（拖入时调用），并让心情回升。
+  func addShelfItems(_ urls: [URL]) {
+    let existing = Set(shelfItems)
+    let fresh = urls.map(\.path).filter { !existing.contains($0) }
+    guard !fresh.isEmpty else { return }
+    shelfItems.append(contentsOf: fresh)
+    shelfStore.save(shelfItems)
+    petMood = Self.clampStat(petMood + 5)
+  }
+
+  func removeShelfItem(_ path: String) {
+    shelfItems.removeAll { $0 == path }
+    shelfStore.save(shelfItems)
+  }
+
+  func clearShelf() {
+    shelfItems.removeAll()
+    shelfStore.save(shelfItems)
+  }
+
+  /// 启动时恢复托盘内容（失效路径由 store 自动过滤）。
+  func loadShelfItems() {
+    shelfItems = shelfStore.load()
+  }
+
+  private static func clampStat(_ value: Double, fallback: Double? = nil) -> Double {
+    let v = fallback.map { value > 0 ? value : $0 } ?? value
+    return max(0, min(100, v))
   }
 
   /// 状态连续时长提醒：到达设定时长（如每 25 分钟）弹一次气泡，

@@ -1,4 +1,5 @@
 import AppKit
+import SwiftUI
 
 /// 构建标记：用于从磁盘/设置界面确认运行的是新代码。
 enum AppBuildMarker {
@@ -9,6 +10,7 @@ enum AppBuildMarker {
 final class AppDelegate: NSObject, NSApplicationDelegate {
   let environment = AppEnvironment()
   private var petWindowController: PetWindowController?
+  private var shelfPanel: DragShelfPanel?
 
   func applicationDidFinishLaunching(_ notification: Notification) {
     let arguments = ProcessInfo.processInfo.arguments
@@ -17,10 +19,47 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
     NSApplication.shared.setActivationPolicy(.accessory)
     environment.start()
+    environment.loadShelfItems()
     writeBuildMarker()
     petWindowController = PetWindowController(environment: environment)
     petWindowController?.showPet()
+    setupShelfPanel()
     applyLaunchArguments(arguments)
+  }
+
+  /// 创建拖拽缓存托盘面板（拖入文件时由桌宠窗口回调打开）。
+  private func setupShelfPanel() {
+    let panel = DragShelfPanel(
+      contentRect: NSRect(x: 0, y: 0, width: 300, height: 340)
+    )
+    let hosting = NSHostingView(rootView: DragShelfView(environment: environment))
+    panel.contentView = hosting
+    panel.onFilesDropped = { [weak self] urls in
+      self?.environment.addShelfItems(urls)
+      self?.showShelf()
+    }
+    panel.center()
+    environment.shelfPanel = panel
+    shelfPanel = panel
+  }
+
+  /// 显示/隐藏暂存托盘（状态栏入口）。
+  func toggleShelf() {
+    guard let panel = shelfPanel else { return }
+    if panel.isVisible {
+      panel.orderOut(nil)
+    } else {
+      NSApp.setActivationPolicy(.regular)
+      NSApp.activate(ignoringOtherApps: true)
+      panel.orderFrontRegardless()
+      panel.makeKey()
+    }
+  }
+
+  /// 拖入文件时自动弹出托盘（不抢焦点）。
+  func showShelf() {
+    guard let panel = shelfPanel else { return }
+    panel.orderFrontRegardless()
   }
 
   /// 每次启动把构建标记写入应用数据目录，便于确认当前运行的是新构建。

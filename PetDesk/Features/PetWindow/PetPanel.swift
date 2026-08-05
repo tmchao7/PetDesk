@@ -1,7 +1,10 @@
 import AppKit
 
 @MainActor
-final class PetPanel: NSPanel {
+final class PetPanel: NSPanel, NSDraggingDestination {
+  /// 拖入文件时回调（urls 非空）。
+  var onFilesDropped: (([URL]) -> Void)?
+
   init(contentRect: NSRect) {
     super.init(
       contentRect: contentRect,
@@ -21,6 +24,24 @@ final class PetPanel: NSPanel {
     animationBehavior = .utilityWindow
     acceptsMouseMovedEvents = true
     becomesKeyOnlyIfNeeded = false
+  }
+
+  // MARK: - NSDraggingDestination（拖文件到桌宠 → 暂存托盘）
+
+  func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
+    .copy
+  }
+
+  func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
+    let urls =
+      sender.draggingPasteboard.readObjects(
+        forClasses: [NSURL.self],
+        options: [
+          .urlReadingFileURLsOnly: true
+        ]) as? [URL] ?? []
+    guard !urls.isEmpty else { return false }
+    onFilesDropped?(urls)
+    return true
   }
 
   override var canBecomeKey: Bool { true }
