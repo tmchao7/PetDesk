@@ -79,3 +79,8 @@ run-app: generate
 
 clean:
 	rm -rf .build DerivedData PetDesk.xcodeproj
+
+# 清理全部本地产物（构建、测试残留、崩溃日志、临时测量文件），
+# 保留用户数据（Application Support）与源码。
+clean-all:
+	./scripts/clean-petdesk.sh
