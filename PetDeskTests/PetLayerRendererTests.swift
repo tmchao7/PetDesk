@@ -120,6 +120,26 @@ final class PetLayerRendererTests: XCTestCase {
       "paused content replacement should show the new first frame")
   }
 
+  /// 暂停期间替换内容后，CALayer 的实际 local time 也必须保持冻结，
+  /// 不能只保留 isAnimationPaused 标志而让新动画以基准速度播放。
+  @MainActor
+  func testReplacingImagesWhilePausedFreezesNewAnimation() {
+    let renderer = PetLayerRenderer()
+    let config = PetLayerAnimationConfiguration(frameCount: 4, baseFrameDuration: 0.1)
+    renderer.update(images: makeFrames(4), config: config, isPaused: true, speed: 1.0)
+
+    renderer.update(
+      images: makeFrames(4, seed: 99), config: config, isPaused: true, speed: 1.0)
+    let before = renderer.currentLayerLocalTime
+    Thread.sleep(forTimeInterval: 0.03)
+    let after = renderer.currentLayerLocalTime
+
+    XCTAssertTrue(renderer.isAnimationPaused)
+    XCTAssertEqual(
+      after, before, accuracy: 0.01,
+      "replacing content while paused must keep the new animation frozen")
+  }
+
   /// CPU-only 速度变化不重建动画。
   @MainActor
   func testSpeedChangeDoesNotRebuildAnimation() {
@@ -179,6 +199,23 @@ final class PetLayerRendererTests: XCTestCase {
     XCTAssertEqual(
       renderer.effectiveSpeed, 3.0, accuracy: 0.001,
       "resume must apply the target speed captured while paused")
+  }
+
+  /// 暂停/恢复且速度未变化时，QA1673 的 speed=1 归一化不能吞掉原目标速度。
+  @MainActor
+  func testResumeRestoresUnchangedNonDefaultLayerSpeed() {
+    let renderer = PetLayerRenderer()
+    let images = makeFrames(4)
+    let config = PetLayerAnimationConfiguration(frameCount: 4, baseFrameDuration: 0.1)
+    renderer.update(images: images, config: config, isPaused: false, speed: 3.0)
+    XCTAssertEqual(renderer.currentLayerSpeed, 3.0, accuracy: 0.001)
+
+    renderer.update(images: images, config: config, isPaused: true, speed: 3.0)
+    renderer.update(images: images, config: config, isPaused: false, speed: 3.0)
+
+    XCTAssertEqual(
+      renderer.currentLayerSpeed, 3.0, accuracy: 0.001,
+      "resume must restore the actual layer speed even when the target is unchanged")
   }
 
   /// 相同速度重复 update 不重写时间状态（local time 不受干扰）。

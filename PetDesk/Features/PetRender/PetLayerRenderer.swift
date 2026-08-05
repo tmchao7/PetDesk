@@ -53,6 +53,10 @@ final class PetLayerRenderer: NSView {
   var currentLayerLocalTime: TimeInterval {
     animationLayer.convertTime(CACurrentMediaTime(), from: nil)
   }
+  /// 测试接口：CALayer 当前实际速度（区别于播放器记录的目标速度）。
+  var currentLayerSpeed: Double {
+    Double(animationLayer.speed)
+  }
 
   init() {
     super.init(frame: .zero)
@@ -148,6 +152,10 @@ final class PetLayerRenderer: NSView {
     currentSpeed = 1.0
     pendingSpeed = 1.0
     effectiveSpeed = 1.0
+    // 内容重建会清掉旧的 timeOffset；让本次 update 的暂停分支重新执行
+    // QA1673，而不是被旧 isPaused 标志的幂等 guard 短路。
+    isPaused = false
+    isAnimationPaused = false
   }
 
   /// Core Animation requires one key time per value. The final frame's
@@ -180,6 +188,10 @@ final class PetLayerRenderer: NSView {
     guard isPaused else { return }
     let pausedTime = animationLayer.timeOffset
     animationLayer.speed = 1
+    // QA1673 归一化后，播放器的幂等基准也必须同步为 1；否则当
+    // pendingSpeed 等于暂停前速度时，后续 transition 会误判为无需应用，
+    // 实际 layer.speed 会停留在这里的 1.0。
+    currentSpeed = 1.0
     animationLayer.timeOffset = 0
     animationLayer.beginTime = 0
     animationLayer.beginTime =
