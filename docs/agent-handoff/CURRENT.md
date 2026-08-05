@@ -2,17 +2,17 @@
 
 - Status: ready
 - Active owner: unassigned
-- Updated: 2026-08-05T11:47:36+0800
+- Updated: 2026-08-05T12:00:07+0800
 - Branch: `main`
 - Latest implementation commit: `cf2e4f8`
-- Latest session: [codex git push](sessions/2026-08-05-1147-codex-git-push.md)
+- Latest session: [codex GitHub performance research](sessions/2026-08-05-1200-codex-github-performance-research.md)
 
 ## Active Objective
 
 Continue PetDesk. The performance/redundancy review fixes are published on
-`main`; prior mood/energy, Dropover shelf, pose import, AI pose provider, and
-eye-band work remains merged. The next agent can resume the open profiling and
-manual QA items below.
+`main`. The latest research identifies the multi-frame `TimelineView` and
+single-frame crop cache as the primary optimization target; prior mood/energy,
+Dropover shelf, pose import, AI pose provider, and eye-band work remains merged.
 
 ## Repository Snapshot
 
@@ -33,10 +33,12 @@ manual QA items below.
 
 ## Next Actions
 
-1. Repeat Allocations/Energy profiling with Instruments GUI or a working xctrace attachment.
-2. Add UI coverage for Finder drag-in, shelf drag-out/share, and close/position behavior.
-3. Manual QA: multi-monitor, Finder drag flow, share panel, and current 微信/QQ notification behavior.
-4. `main` is pushed and synchronized with `origin/main`; keep `picture.png` untracked.
+1. Cap multi-frame rendering and wire explicit pause propagation; benchmark before/after.
+2. Replace per-frame SwiftUI crop/wrap work with pre-sliced `CALayer` contents animation.
+3. Repeat Allocations/Energy profiling with Instruments GUI or a working xctrace attachment.
+4. Add UI coverage for Finder drag-in, shelf drag-out/share, and close/position behavior.
+5. Manual QA: multi-monitor, Finder drag flow, share panel, and current 微信/QQ notification behavior.
+6. `main` is pushed and synchronized with `origin/main`; keep `picture.png` untracked.
 
 ## Working Rules
 
