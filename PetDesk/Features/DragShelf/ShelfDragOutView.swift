@@ -32,9 +32,6 @@ final class ShelfDragOutView: NSView, NSDraggingSource {
     let url = URL(fileURLWithPath: filePath)
     let item = NSPasteboardItem()
     item.setString(url.absoluteString, forType: .fileURL)
-    let pasteboard = NSPasteboard()
-    pasteboard.clearContents()
-    pasteboard.writeObjects([NSURL(fileURLWithPath: filePath)])
 
     let draggingItem = NSDraggingItem(pasteboardWriter: item)
     beginDraggingSession(with: [draggingItem], event: event, source: self)

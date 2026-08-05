@@ -32,8 +32,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let panel = DragShelfPanel(
       contentRect: NSRect(x: 0, y: 0, width: 300, height: 340)
     )
+    let container = NSView(frame: NSRect(x: 0, y: 0, width: 300, height: 340))
+    container.autoresizingMask = [.width, .height]
     let hosting = NSHostingView(rootView: DragShelfView(environment: environment))
-    panel.contentView = hosting
+    hosting.frame = container.bounds
+    hosting.autoresizingMask = [.width, .height]
+    container.addSubview(hosting)
+    panel.contentView = container
     panel.installDragHandle(contentHeight: 340)
     panel.onFilesDropped = { [weak self] urls in
       self?.environment.addShelfItems(urls)

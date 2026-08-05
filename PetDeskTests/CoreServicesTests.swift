@@ -80,6 +80,27 @@ final class CoreServicesTests: XCTestCase {
     XCTAssertEqual(buffer.values, [2, 3, 4])
   }
 
+  func testDragShelfStoreFiltersMissingPaths() throws {
+    let suiteName = "CoreServicesTests.dragShelfFilter"
+    guard let defaults = UserDefaults(suiteName: suiteName) else {
+      XCTFail("test defaults should be available")
+      return
+    }
+    defer { defaults.removePersistentDomain(forName: suiteName) }
+
+    let existingURL = FileManager.default.temporaryDirectory
+      .appendingPathComponent("PetDesk-DragShelf-\(UUID().uuidString)")
+    defer { try? FileManager.default.removeItem(at: existingURL) }
+    try Data().write(to: existingURL)
+    defaults.set(
+      [existingURL.path, existingURL.path + ".missing"],
+      forKey: "dragShelfItems")
+
+    let store = DragShelfStore(defaults: defaults)
+
+    XCTAssertEqual(store.load(), [existingURL.path])
+  }
+
   func testActivityReminderAcknowledgeBreakResetsAccumulator() {
     var reminder = ActivityReminderAccumulator(
       remindAfter: .seconds(3_600), snoozeFor: .seconds(600))
