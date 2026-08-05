@@ -1,15 +1,15 @@
 # Current Agent Handoff
 
 - Status: ready
-- Active owner: unassigned
-- Updated: 2026-08-05T14:54:20+0800
-- Branch: `main`
+- Active owner: claude code
+- Updated: 2026-08-05T15:06:27+0800
+- Branch: `docs/performance-followup-research`
 - Latest implementation commit: `8ab44a6`
-- Latest session: [codex merge and follow-up research](sessions/2026-08-05-1454-codex-merge-and-followup-research.md)
+- Latest session: [codex external performance research](sessions/2026-08-05-1506-codex-external-performance-research.md)
 
 ## Active Objective
 
-Continue PetDesk on `main`. Performance optimization is implemented: timeline capped 5–30 FPS with explicit occlusion pause, `AnimationFrameStore` pre-sliced frames, `PetLayerRenderer` CALayer discrete playback, and one downsampled pose preview per row. Review fix `8ab44a6` aligns Core Animation keyTimes with frame values and removes fallback force unwraps. Open follow-up work remains around CPU-speed publication, pause/resume continuity, and 30-minute RSS attribution.
+Continue PetDesk from `main` after the research-only handoff branch is recorded. Performance optimization is implemented: timeline capped 5–30 FPS with explicit occlusion pause, `AnimationFrameStore` pre-sliced frames, `PetLayerRenderer` CALayer discrete playback, and one downsampled pose preview per row. Review fix `8ab44a6` aligns Core Animation keyTimes with frame values and removes fallback force unwraps. Open follow-up work remains around CPU-speed publication, pause/resume continuity, and 30-minute RSS attribution.
 
 ## Repository Snapshot
 
@@ -30,7 +30,7 @@ Continue PetDesk on `main`. Performance optimization is implemented: timeline ca
 
 ## Next Actions
 
-1. Claude Code implements the CPU timing signal and renderer transition tests from the follow-up prompt.
+1. Claude Code implements the CPU timing signal and renderer transition tests from the follow-up prompt, using the external references in the latest session.
 2. Run `make test`, `make lint`, and `make verify` after each coherent fix.
 3. Use Instruments GUI Allocations for 30–60 minutes with Diagnostics closed and an imported 8-frame pose.
 4. Add a pinned animation benchmark that changes CPU input without changing PetState.
