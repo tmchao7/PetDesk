@@ -2,14 +2,17 @@
 
 - Status: ready
 - Active owner: unassigned
-- Updated: 2026-08-05T11:40:00+0800
+- Updated: 2026-08-05T11:47:36+0800
 - Branch: `main`
 - Latest implementation commit: `cf2e4f8`
-- Latest session: [codex performance redundancy review](sessions/2026-08-05-1139-codex-performance-redundancy-review.md)
+- Latest session: [codex git push](sessions/2026-08-05-1147-codex-git-push.md)
 
 ## Active Objective
 
-Continue PetDesk. Codex completed a performance/redundancy review on `main`, fixed per-tick pet-stat persistence, Timeline cache state mutation, DragShelf hierarchy/redundancy, and SwiftPM unhandled-file warnings. Prior mood/energy, Dropover shelf, pose import, AI pose provider, and eye-band work remains merged.
+Continue PetDesk. The performance/redundancy review fixes are published on
+`main`; prior mood/energy, Dropover shelf, pose import, AI pose provider, and
+eye-band work remains merged. The next agent can resume the open profiling and
+manual QA items below.
 
 ## Repository Snapshot
 
@@ -33,7 +36,7 @@ Continue PetDesk. Codex completed a performance/redundancy review on `main`, fix
 1. Repeat Allocations/Energy profiling with Instruments GUI or a working xctrace attachment.
 2. Add UI coverage for Finder drag-in, shelf drag-out/share, and close/position behavior.
 3. Manual QA: multi-monitor, Finder drag flow, share panel, and current 微信/QQ notification behavior.
-4. Push `main` after owner approval (local ahead: 7 commits); keep `picture.png` untracked.
+4. `main` is pushed and synchronized with `origin/main`; keep `picture.png` untracked.
 
 ## Working Rules
 
