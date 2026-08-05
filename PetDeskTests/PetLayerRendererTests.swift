@@ -131,6 +131,8 @@ final class PetLayerRendererTests: XCTestCase {
     renderer.update(
       images: makeFrames(4, seed: 99), config: config, isPaused: true, speed: 1.0)
     let before = renderer.currentLayerLocalTime
+    // 需要真实媒体时间流逝来证明“冻结”（无 sleep 时 0 差是平凡的）；
+    // CALayer 时间由系统媒体时钟驱动，注入时钟无法覆盖该语义。
     Thread.sleep(forTimeInterval: 0.03)
     let after = renderer.currentLayerLocalTime
 
@@ -164,7 +166,8 @@ final class PetLayerRendererTests: XCTestCase {
     let config = PetLayerAnimationConfiguration(frameCount: 4, baseFrameDuration: 0.1)
     renderer.update(images: images, config: config, isPaused: false, speed: 0.5)
     // 让动画真正走一小段时间（runloop 不驱动 layer，但 timeOffset/beginTime
-    // 已建立，convertTime 反映媒体时间映射）。
+    // 已建立，convertTime 反映媒体时间映射）；速度切换连续性的验证需要
+    // 切换前后有可观测的真实时间差。
     Thread.sleep(forTimeInterval: 0.05)
 
     let before = renderer.currentLayerLocalTime
@@ -225,6 +228,8 @@ final class PetLayerRendererTests: XCTestCase {
     let images = makeFrames(4)
     let config = PetLayerAnimationConfiguration(frameCount: 4, baseFrameDuration: 0.1)
     renderer.update(images: images, config: config, isPaused: false, speed: 2.0)
+    // 幂等验证需要先让媒体时间前进一段，再确认同速度 update 不重写时间状态
+    // （local time 只随媒体时间自然前进，无跳变）。
     Thread.sleep(forTimeInterval: 0.02)
     let before = renderer.currentLayerLocalTime
     let rebuilds = renderer.animationRebuildCount

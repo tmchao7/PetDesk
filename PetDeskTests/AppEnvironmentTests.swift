@@ -12,7 +12,7 @@ import XCTest
 /// Controllable signal source: the test holds the continuation and emits
 /// events on demand. The stream stays open until the continuation is
 /// finished, so the receiving task does not terminate on its own.
-private final class ControllableSignalSource: PetSignalSource {
+private final class ControllableSignalSource: PetSignalSource, Sendable {
   private struct State {
     var subscriptionCount = 0
     var continuation: AsyncStream<PetEvent>.Continuation?
@@ -723,29 +723,24 @@ final class AppEnvironmentTests: XCTestCase {
     await waitUntil { source.subscriptionCount == 1 }
 
     // 低 CPU：0 → interval 0.2s（5 FPS）→ speed = 0.1/0.2 = 0.5。
-    for _ in 0..<12 {
-      source.emit(.systemMetrics(SystemMetrics(cpuLoad: 0, thermalLevel: .nominal)))
-    }
-    await waitUntil { abs(env.latestCPU - 0) < 0.001 }
+    await emitMetricsAndWait(cpu: 0, env: env, source: source)
     let slowSpeed = env.animationPlaybackSpeed
     XCTAssertEqual(slowSpeed, 0.5, accuracy: 0.001, "low CPU should slow the animation")
 
     // 高 CPU：0.9 → interval 1/30s → speed = 0.1/(1/30) = 3.0。
-    for _ in 0..<12 {
-      source.emit(.systemMetrics(SystemMetrics(cpuLoad: 0.9, thermalLevel: .nominal)))
-    }
-    await waitUntil { abs(env.latestCPU - 0.9) < 0.001 }
+    await emitMetricsAndWait(cpu: 0.9, env: env, source: source)
     let fastSpeed = env.animationPlaybackSpeed
     XCTAssertEqual(fastSpeed, 3.0, accuracy: 0.001, "high CPU should speed the animation")
     XCTAssertNotEqual(slowSpeed, fastSpeed, "CPU-only change must reach the speed signal")
 
     // 状态未变：displayEquals 门控保持——snapshot 对象未发布。
-    // （0.1 与 0.9 都可能落在同一显示状态；此断言验证门控不被速度信号破坏。）
+    // （0 与 0.9 都可能落在同一显示状态；此断言验证门控不被速度信号破坏。）
     env.stop()
     source.finish()
   }
 
   /// 速度信号只在 CPU 采样链路更新：同一 CPU 重复采样不重复发布。
+  /// 用 Combine sink 计数证明“没有发布”，而不是只比较最终值。
   @MainActor
   func testSpeedSignalDoesNotPublishWhenUnchanged() async {
     let source = ControllableSignalSource()
@@ -753,17 +748,45 @@ final class AppEnvironmentTests: XCTestCase {
     env.start()
     await waitUntil { source.subscriptionCount == 1 }
 
-    for _ in 0..<12 {
-      source.emit(.systemMetrics(SystemMetrics(cpuLoad: 0.5, thermalLevel: .nominal)))
-    }
-    await yieldToScheduler()
-    let speedAfterFirst = env.animationPlaybackSpeed
+    // 建立稳定速度（cpu 0.5 → speed 3.0，已触 30 FPS 上限，同值重复不会变）。
+    await emitMetricsAndWait(cpu: 0.5, env: env, source: source)
 
+    // 订阅计数：@Published sink 订阅时立即收到当前值，记录为 baseline。
+    let emissions = ProbeCounter()
+    let cancellable = env.$animationPlaybackSpeed.sink { _ in
+      Task { @MainActor in await emissions.record() }
+    }
+    defer { cancellable.cancel() }
+    await yieldToScheduler()
+    let baseline = await emissions.current
+    XCTAssertGreaterThanOrEqual(baseline, 1, "sink should receive the current value on subscribe")
+
+    // 相同 CPU 重复采样：事件确实被消费（processedEventCount 递增），
+    // 但速度信号不发布（计数不增加）。
+    let processedBefore = env.processedEventCount
     for _ in 0..<12 {
       source.emit(.systemMetrics(SystemMetrics(cpuLoad: 0.5, thermalLevel: .nominal)))
     }
-    await yieldToScheduler()
-    XCTAssertEqual(env.animationPlaybackSpeed, speedAfterFirst)
+    await waitUntil { env.processedEventCount >= processedBefore + 12 }
+    let countAfterRepeat = await emissions.current
+    XCTAssertEqual(
+      countAfterRepeat, baseline,
+      "identical CPU samples must not re-publish the speed signal")
+
+    // 真实速度变化（cpu 0.5 → 0，speed 3.0 → 0.5，未触顶区间的变化）：
+    // 事件被消费且速度发布恰好增加一次。
+    let processedBeforeReal = env.processedEventCount
+    for _ in 0..<12 {
+      source.emit(.systemMetrics(SystemMetrics(cpuLoad: 0, thermalLevel: .nominal)))
+    }
+    await waitUntil { env.processedEventCount >= processedBeforeReal + 12 }
+    XCTAssertEqual(env.animationPlaybackSpeed, 0.5, accuracy: 0.001)
+    let countAfterRealChange = await emissions.current
+    // 10 样本滑动平均逐步下降会经过多个速度台阶（3.0 → … → 0.5），
+    // 每次真实变化都发布——断言“至少发布一次”而非固定次数。
+    XCTAssertGreaterThan(
+      countAfterRealChange, countAfterRepeat,
+      "a real speed change must publish")
 
     env.stop()
     source.finish()
@@ -777,10 +800,7 @@ final class AppEnvironmentTests: XCTestCase {
     env.start()
     await waitUntil { source.subscriptionCount == 1 }
     // 稳定 CPU 输入（cpu 0 未触 30 FPS 上限，倍率变化可观察）。
-    for _ in 0..<12 {
-      source.emit(.systemMetrics(SystemMetrics(cpuLoad: 0, thermalLevel: .nominal)))
-    }
-    await waitUntil { abs(env.latestCPU - 0) < 0.001 }
+    await emitMetricsAndWait(cpu: 0, env: env, source: source)
     let speedBefore = env.animationPlaybackSpeed
     XCTAssertEqual(speedBefore, 0.5, accuracy: 0.001)
 
@@ -853,10 +873,7 @@ final class AppEnvironmentTests: XCTestCase {
     for cpu in cpus {
       for multiplier in multipliers {
         env.animationSpeedMultiplier = multiplier
-        for _ in 0..<12 {
-          source.emit(.systemMetrics(SystemMetrics(cpuLoad: cpu, thermalLevel: .nominal)))
-        }
-        await waitUntil { abs(env.latestCPU - cpu) < 0.001 }
+        await emitMetricsAndWait(cpu: cpu, env: env, source: source)
         let speed = env.animationPlaybackSpeed
         XCTAssertTrue(speed.isFinite && speed > 0, "speed must be finite and positive")
       }
@@ -864,17 +881,11 @@ final class AppEnvironmentTests: XCTestCase {
     // 边界：倍率 4x + CPU 100% → interval 1/30 → speed 3.0；
     // 倍率 0.25x + CPU 0% → interval 0.2 → speed 0.5。
     env.animationSpeedMultiplier = 4.0
-    for _ in 0..<12 {
-      source.emit(.systemMetrics(SystemMetrics(cpuLoad: 1.0, thermalLevel: .nominal)))
-    }
-    await waitUntil { abs(env.latestCPU - 1.0) < 0.001 }
+    await emitMetricsAndWait(cpu: 1.0, env: env, source: source)
     XCTAssertEqual(env.animationPlaybackSpeed, 3.0, accuracy: 0.001)
 
     env.animationSpeedMultiplier = 0.25
-    for _ in 0..<12 {
-      source.emit(.systemMetrics(SystemMetrics(cpuLoad: 0, thermalLevel: .nominal)))
-    }
-    await waitUntil { abs(env.latestCPU - 0) < 0.001 }
+    await emitMetricsAndWait(cpu: 0, env: env, source: source)
     XCTAssertEqual(env.animationPlaybackSpeed, 0.5, accuracy: 0.001)
 
     env.stop()
@@ -1323,9 +1334,40 @@ final class AppEnvironmentTests: XCTestCase {
     env2.stop()
   }
 
+  /// 发送 12 次 systemMetrics 并等待事件被真正消费（processedEventCount 递增）
+  /// 以及 latestCPU 收敛到目标。事件消费确认与 CPU 值解耦：
+  /// 目标为 0 时 latestCPU 初始即 0，仅靠值等待会在事件消费前提前成功。
+  @MainActor
+  private func emitMetricsAndWait(
+    cpu: Double,
+    env: AppEnvironment,
+    source: ControllableSignalSource,
+    times: Int = 12
+  ) async {
+    let processedBefore = env.processedEventCount
+    for _ in 0..<times {
+      source.emit(.systemMetrics(SystemMetrics(cpuLoad: cpu, thermalLevel: .nominal)))
+    }
+    await waitUntil {
+      env.processedEventCount >= processedBefore + times
+    }
+    XCTAssertGreaterThanOrEqual(
+      env.processedEventCount, processedBefore + times,
+      "metrics events were not consumed by the environment (AsyncStream starvation)")
+    // 10 样本滑动平均收敛（CPU 值本身可能因浮点不完全等于目标，用容差）。
+    await waitUntil { abs(env.latestCPU - cpu) < 0.001 }
+    XCTAssertEqual(
+      env.latestCPU, cpu, accuracy: 0.001,
+      "latestCPU did not converge to the emitted value")
+  }
+
+  /// 等待条件成立：@MainActor async 轮询（闭包与调用都在 MainActor，
+  /// 无跨 actor 发送；Task.yield 让事件处理任务执行）。
+  /// 需要事件消费确认的用例用 emitMetricsAndWait（processedEventCount），
+  /// 不要只用固定次数 yield。
   @MainActor
   private func waitUntil(
-    _ condition: () -> Bool,
+    _ condition: @escaping @MainActor () -> Bool,
     file: StaticString = #filePath,
     line: UInt = #line
   ) async {
