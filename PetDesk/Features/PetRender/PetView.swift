@@ -13,6 +13,13 @@ struct PetView: View {
     avatarSize * SpriteSheetSpec.frameHeight / SpriteSheetSpec.frameWidth
   }
   private var cornerRadius: CGFloat { 20 * environment.petScale }
+  /// CALayer 播放用的预切片帧（AnimationFrameStore 按行/帧数缓存复用）。
+  @State private var layerFrameStore = AnimationFrameStore()
+
+  /// 多帧动画的 CGImage 帧列表（供 CALayer 播放器）。
+  private func animationFrames(sheet: CGImage, row: AnimationRow, count: Int) -> [CGImage] {
+    layerFrameStore.preload(sheet: sheet, row: row, frameCount: count).cgImages
+  }
 
   var body: some View {
     ZStack(alignment: .bottomTrailing) {
@@ -38,19 +45,39 @@ struct PetView: View {
       baseState: environment.snapshot.baseState,
       transient: environment.snapshot.transientState
     )
+    let frameCount = environment.multiFrameCount(for: animState.row)
     ZStack {
-      AnimatedAvatarView(
-        image: environment.avatarImage,
-        spritesheet: environment.avatarSpritesheet,
-        animState: animState,
-        displayMode: environment.avatarDisplayMode,
-        avatarSize: avatarSize,
-        multiFrameCount: environment.multiFrameCount(for: animState.row),
-        cpuProvider: { environment.latestCPU },
-        isPaused: environment.isPetAnimationPaused,
-        speedMultiplier: environment.animationSpeedMultiplier
-      )
-      .frame(width: avatarSize, height: avatarHeight)
+      if let spritesheet = environment.avatarSpritesheet, frameCount > 1 {
+        // 多帧动画：CALayer 播放器（离散帧、幂等更新、暂停零工作）。
+        // 帧已由 AnimationFrameStore 预切片，播放期间无 crop 无 NSImage 包装。
+        let frames = animationFrames(sheet: spritesheet, row: animState.row, count: frameCount)
+        PetLayerRendererRepresentable(
+          images: frames,
+          avatarSize: avatarSize,
+          isPaused: environment.isPetAnimationPaused,
+          frameDuration: AnimatedAvatarView.computeInterval(
+            cpu: environment.latestCPU,
+            speedMultiplier: environment.animationSpeedMultiplier
+          )
+        )
+        .frame(width: avatarSize, height: avatarHeight)
+        .accessibilityLabel("Pet avatar")
+        .accessibilityIdentifier("pet.avatar")
+      } else {
+        // 静态头像 / 单帧姿势：低成本 SwiftUI Image 路径。
+        AnimatedAvatarView(
+          image: environment.avatarImage,
+          spritesheet: environment.avatarSpritesheet,
+          animState: animState,
+          displayMode: environment.avatarDisplayMode,
+          avatarSize: avatarSize,
+          multiFrameCount: frameCount,
+          cpuProvider: { environment.latestCPU },
+          isPaused: environment.isPetAnimationPaused,
+          speedMultiplier: environment.animationSpeedMultiplier
+        )
+        .frame(width: avatarSize, height: avatarHeight)
+      }
       OverlayEffectView(
         effects: environment.snapshot.effects,
         transient: environment.snapshot.transientState,
