@@ -170,7 +170,8 @@ final class PetLayerRendererTests: XCTestCase {
     // 暂停期间收到新速度：不得播放。
     renderer.update(images: images, config: config, isPaused: true, speed: 3.0)
     XCTAssertTrue(renderer.isAnimationPaused)
-    XCTAssertEqual(renderer.currentLayerLocalTime, pausedTime, accuracy: 0.01,
+    XCTAssertEqual(
+      renderer.currentLayerLocalTime, pausedTime, accuracy: 0.01,
       "paused layer must not advance while speed changes arrive")
 
     renderer.update(images: images, config: config, isPaused: false, speed: 3.0)
