@@ -1,3 +1,4 @@
+import AppKit
 import CoreGraphics
 import XCTest
 
@@ -7,44 +8,33 @@ final class PetLayerRendererTests: XCTestCase {
   /// 空帧列表必须安全（不创建动画）。
   @MainActor
   func testEmptyFrameListIsSafe() {
-    let config = PetLayerAnimationConfiguration(
-      frameCount: 0,
-      frameDuration: 0.1,
-      isPaused: false
-    )
+    let config = PetLayerAnimationConfiguration(frameCount: 0, baseFrameDuration: 0.1)
     XCTAssertEqual(config.frameCount, 0)
-    XCTAssertFalse(config.isPaused)
   }
 
-  /// 帧时长必须夹紧到 1/30s ~ 0.20s。
+  /// 基准时长必须夹紧到 1/30s ~ 0.20s。
   @MainActor
-  func testFrameDurationIsClamped() {
-    let tooFast = PetLayerAnimationConfiguration(
-      frameCount: 8, frameDuration: 0.001, isPaused: false)
-    XCTAssertEqual(tooFast.frameDuration, 1.0 / 30.0, accuracy: 0.001)
-    let tooSlow = PetLayerAnimationConfiguration(frameCount: 8, frameDuration: 5.0, isPaused: false)
-    XCTAssertEqual(tooSlow.frameDuration, 0.20, accuracy: 0.001)
-    let normal = PetLayerAnimationConfiguration(frameCount: 8, frameDuration: 0.05, isPaused: false)
-    XCTAssertEqual(normal.frameDuration, 0.05, accuracy: 0.001)
+  func testBaseFrameDurationIsClamped() {
+    let tooFast = PetLayerAnimationConfiguration(frameCount: 8, baseFrameDuration: 0.001)
+    XCTAssertEqual(tooFast.baseFrameDuration, 1.0 / 30.0, accuracy: 0.001)
+    let tooSlow = PetLayerAnimationConfiguration(frameCount: 8, baseFrameDuration: 5.0)
+    XCTAssertEqual(tooSlow.baseFrameDuration, 0.20, accuracy: 0.001)
+    let normal = PetLayerAnimationConfiguration(frameCount: 8, baseFrameDuration: 0.05)
+    XCTAssertEqual(normal.baseFrameDuration, 0.05, accuracy: 0.001)
   }
 
-  /// 暂停状态必须被表示，且不创建重复动画。
+  /// 内容配置只描述播放内容：暂停状态不在配置里（避免暂停触发重建）。
   @MainActor
-  func testPauseStateRepresentedWithoutRepeatingAnimation() {
-    let paused = PetLayerAnimationConfiguration(frameCount: 8, frameDuration: 0.1, isPaused: true)
-    XCTAssertTrue(paused.isPaused)
-    // 相同配置相等：幂等更新判定依赖 Equatable。
-    let same = PetLayerAnimationConfiguration(frameCount: 8, frameDuration: 0.1, isPaused: true)
-    XCTAssertEqual(paused, same)
-    let different = PetLayerAnimationConfiguration(
-      frameCount: 8, frameDuration: 0.1, isPaused: false)
-    XCTAssertNotEqual(paused, different)
+  func testConfigExcludesPauseState() {
+    let a = PetLayerAnimationConfiguration(frameCount: 8, baseFrameDuration: 0.1)
+    let b = PetLayerAnimationConfiguration(frameCount: 8, baseFrameDuration: 0.1)
+    XCTAssertEqual(a, b, "pause must not be part of the content config")
   }
 
-  /// 动画总时长 = 帧时长 × 帧数。
+  /// 动画总时长 = 基准时长 × 帧数。
   @MainActor
-  func testTotalDurationIsFrameDurationTimesFrameCount() {
-    let config = PetLayerAnimationConfiguration(frameCount: 8, frameDuration: 0.1, isPaused: false)
+  func testTotalDurationIsBaseFrameDurationTimesFrameCount() {
+    let config = PetLayerAnimationConfiguration(frameCount: 8, baseFrameDuration: 0.1)
     XCTAssertEqual(config.totalDuration, 0.8, accuracy: 0.001)
   }
 
@@ -55,5 +45,126 @@ final class PetLayerRendererTests: XCTestCase {
     XCTAssertEqual(keyTimes.count, 8)
     XCTAssertEqual(keyTimes.first?.doubleValue ?? -1, 0, accuracy: 0.001)
     XCTAssertEqual(keyTimes.last?.doubleValue ?? -1, 0.875, accuracy: 0.001)
+  }
+
+  // MARK: - Renderer 状态转换
+
+  /// pause -> resume 不重建动画，且恢复后保持播放（时间位置不重置）。
+  @MainActor
+  func testPauseResumeDoesNotRebuildAnimation() {
+    let renderer = PetLayerRenderer()
+    let images = makeFrames(4)
+    renderer.update(
+      images: images,
+      config: PetLayerAnimationConfiguration(frameCount: 4, baseFrameDuration: 0.1),
+      isPaused: false,
+      speed: 1.0
+    )
+    let rebuildsAfterInstall = renderer.animationRebuildCount
+    XCTAssertEqual(rebuildsAfterInstall, 1)
+
+    renderer.update(
+      images: images,
+      config: PetLayerAnimationConfiguration(frameCount: 4, baseFrameDuration: 0.1),
+      isPaused: true,
+      speed: 1.0
+    )
+    XCTAssertTrue(renderer.isAnimationPaused)
+
+    renderer.update(
+      images: images,
+      config: PetLayerAnimationConfiguration(frameCount: 4, baseFrameDuration: 0.1),
+      isPaused: false,
+      speed: 1.0
+    )
+    XCTAssertFalse(renderer.isAnimationPaused)
+    XCTAssertEqual(
+      renderer.animationRebuildCount, rebuildsAfterInstall,
+      "pause/resume must not rebuild the CAKeyframeAnimation")
+  }
+
+  /// 重复 pause 幂等：不重复写入 timeOffset（重建计数不变，状态保持暂停）。
+  @MainActor
+  func testRepeatedPauseIsIdempotent() {
+    let renderer = PetLayerRenderer()
+    let images = makeFrames(4)
+    let config = PetLayerAnimationConfiguration(frameCount: 4, baseFrameDuration: 0.1)
+    renderer.update(images: images, config: config, isPaused: true, speed: 1.0)
+    let rebuildsAfterFirstPause = renderer.animationRebuildCount
+
+    // 重复收到 paused=true（例如 window 每帧都发布 pause）不重建、不跳帧。
+    renderer.update(images: images, config: config, isPaused: true, speed: 1.0)
+    XCTAssertTrue(renderer.isAnimationPaused)
+    XCTAssertEqual(renderer.animationRebuildCount, rebuildsAfterFirstPause)
+  }
+
+  /// 暂停期间替换 images：移除旧动画、安装新动画、保持暂停、显示新首帧。
+  @MainActor
+  func testReplacingImagesWhilePausedStaysPaused() {
+    let renderer = PetLayerRenderer()
+    let first = makeFrames(4)
+    let config = PetLayerAnimationConfiguration(frameCount: 4, baseFrameDuration: 0.1)
+    renderer.update(images: first, config: config, isPaused: true, speed: 1.0)
+    XCTAssertTrue(renderer.isAnimationPaused)
+
+    let second = makeFrames(4, seed: 99)
+    renderer.update(images: second, config: config, isPaused: true, speed: 1.0)
+    XCTAssertTrue(
+      renderer.isAnimationPaused,
+      "replacing images while paused must stay paused")
+    XCTAssertEqual(
+      renderer.animationRebuildCount, 2,
+      "content change should rebuild once")
+    XCTAssertTrue(
+      renderer.displayedImages[0] === second[0],
+      "paused content replacement should show the new first frame")
+  }
+
+  /// CPU-only 速度变化不重建动画。
+  @MainActor
+  func testSpeedChangeDoesNotRebuildAnimation() {
+    let renderer = PetLayerRenderer()
+    let images = makeFrames(4)
+    let config = PetLayerAnimationConfiguration(frameCount: 4, baseFrameDuration: 0.1)
+    renderer.update(images: images, config: config, isPaused: false, speed: 0.5)
+    let rebuildsAfterInstall = renderer.animationRebuildCount
+
+    renderer.update(images: images, config: config, isPaused: false, speed: 3.0)
+    XCTAssertEqual(
+      renderer.animationRebuildCount, rebuildsAfterInstall,
+      "CPU-driven speed change must not rebuild the animation")
+  }
+
+  /// clearContents 后重新加入 images 能正常播放。
+  @MainActor
+  func testClearThenReplay() {
+    let renderer = PetLayerRenderer()
+    let images = makeFrames(4)
+    let config = PetLayerAnimationConfiguration(frameCount: 4, baseFrameDuration: 0.1)
+    renderer.update(images: images, config: config, isPaused: false, speed: 1.0)
+    renderer.clearContents()
+    XCTAssertFalse(renderer.isAnimationPaused)
+    XCTAssertEqual(renderer.displayedImages.count, 0)
+
+    renderer.update(images: images, config: config, isPaused: false, speed: 1.0)
+    XCTAssertEqual(renderer.animationRebuildCount, 2)
+    XCTAssertEqual(renderer.displayedImages.count, 4)
+  }
+
+  // MARK: - Helpers
+
+  @MainActor
+  private func makeFrames(_ count: Int, seed: Int = 0) -> [CGImage] {
+    (0..<count).map { i in
+      let ctx = CGContext(
+        data: nil, width: 8, height: 8, bitsPerComponent: 8, bytesPerRow: 0,
+        space: CGColorSpaceCreateDeviceRGB(),
+        bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
+      ctx.setFillColor(
+        CGColor(
+          red: CGFloat(seed + i) / 255, green: 0.5, blue: 0.5, alpha: 1))
+      ctx.fill(CGRect(x: 0, y: 0, width: 8, height: 8))
+      return ctx.makeImage()!
+    }
   }
 }

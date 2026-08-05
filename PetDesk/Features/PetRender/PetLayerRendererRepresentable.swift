@@ -11,7 +11,10 @@ struct PetLayerRendererRepresentable: NSViewRepresentable {
   let images: [CGImage]
   let avatarSize: CGFloat
   let isPaused: Bool
-  let frameDuration: TimeInterval
+  /// 动画内容基准帧间隔（秒）。
+  let baseFrameDuration: TimeInterval
+  /// 播放速度倍率（CPU 驱动，1 Hz 低频发布；通过 layer.speed 生效）。
+  let speed: Double
 
   func makeNSView(context: Context) -> PetLayerRenderer {
     let view = PetLayerRenderer()
@@ -26,9 +29,8 @@ struct PetLayerRendererRepresentable: NSViewRepresentable {
   func updateNSView(_ nsView: PetLayerRenderer, context: Context) {
     let config = PetLayerAnimationConfiguration(
       frameCount: images.count,
-      frameDuration: frameDuration,
-      isPaused: isPaused
+      baseFrameDuration: baseFrameDuration
     )
-    nsView.update(images: images, config: config)
+    nsView.update(images: images, config: config, isPaused: isPaused, speed: speed)
   }
 }

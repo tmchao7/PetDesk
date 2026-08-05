@@ -55,10 +55,8 @@ struct PetView: View {
           images: frames,
           avatarSize: avatarSize,
           isPaused: environment.isPetAnimationPaused,
-          frameDuration: AnimatedAvatarView.computeInterval(
-            cpu: environment.latestCPU,
-            speedMultiplier: environment.animationSpeedMultiplier
-          )
+          baseFrameDuration: environment.animationBaseFrameDuration,
+          speed: environment.animationPlaybackSpeed
         )
         .frame(width: avatarSize, height: avatarHeight)
         .accessibilityLabel("Pet avatar")

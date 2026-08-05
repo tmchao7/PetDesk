@@ -78,6 +78,12 @@ final class AppEnvironment: ObservableObject {
   /// 最新 CPU 读数（0~1）。故意不做 @Published：动画速度读取用，
   /// 不触发视图重算（与 snapshot 发布门控保持一致的性能约束）。
   private(set) var latestCPU: Double = 0
+  /// 动画播放速度信号（低频，每秒随 CPU 采样更新）：
+  /// 在现有每秒 metric 链路发布，CPU 变化但外观不变时渲染器也能收到新速度。
+  /// 基准 0.1s/帧（10 FPS），speed = 0.1 / 实际帧间隔（5 FPS → 0.5，30 FPS → 3.0）。
+  @Published private(set) var animationPlaybackSpeed: Double = 1.0
+  /// 动画基准帧间隔（秒）：renderer 的 CAKeyframeAnimation 时长基准。
+  let animationBaseFrameDuration: TimeInterval = 0.1
   /// 辅助窗口（设置/统计/待办/诊断）可见计数：任一可见时保持 .regular
   /// （Dock 图标 + Cmd-Tab），全部关闭才回 .accessory——避免多窗口同时
   /// 打开时关掉一个就把应用降级导致其余窗口失焦/Dock 图标消失。
@@ -624,6 +630,7 @@ final class AppEnvironment: ObservableObject {
     }
     var reduced = machine.reduce(event, elapsed: eventElapsed(event))
     latestCPU = reduced.averageCPU
+    updateAnimationPlaybackSpeed()
     // 专注钉住：会话完成/取消后状态机 focusActive 解除会回到 CPU/空闲驱动
     // （摸鱼/放松），这里在显示层强制保持专注，直到用户手动切换——与
     // 摸鱼/放松的 manualState 拦截对称（点的是什么状态就是什么状态）。
@@ -684,6 +691,18 @@ final class AppEnvironment: ObservableObject {
     if secondsSincePetStatsFlush >= 30 {
       persistPetStats()
       secondsSincePetStatsFlush = 0
+    }
+  }
+
+  /// 在每秒 CPU 采样链路同步动画播放速度（值变化才发布，1 Hz 低频）。
+  private func updateAnimationPlaybackSpeed() {
+    let interval = AnimatedAvatarView.computeInterval(
+      cpu: latestCPU,
+      speedMultiplier: animationSpeedMultiplier
+    )
+    let speed = animationBaseFrameDuration / interval
+    if speed != animationPlaybackSpeed {
+      animationPlaybackSpeed = speed
     }
   }
 

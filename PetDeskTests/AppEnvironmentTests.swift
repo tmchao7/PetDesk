@@ -713,6 +713,62 @@ final class AppEnvironmentTests: XCTestCase {
     XCTAssertTrue(environment.isPetAnimationPaused)
   }
 
+  /// CPU-only 更新驱动动画速度信号：状态不变时 snapshot 不发布，
+  /// 但 animationPlaybackSpeed 必须随 CPU 变化（渲染器据此调整 layer.speed）。
+  @MainActor
+  func testCPUSpeedSignalUpdatesWithoutSnapshotPublication() async {
+    let source = ControllableSignalSource()
+    let env = AppEnvironment(defaults: defaults, signalSources: [source])
+    env.start()
+    await waitUntil { source.subscriptionCount == 1 }
+
+    // 低 CPU：0 → interval 0.2s（5 FPS）→ speed = 0.1/0.2 = 0.5。
+    for _ in 0..<12 {
+      source.emit(.systemMetrics(SystemMetrics(cpuLoad: 0, thermalLevel: .nominal)))
+    }
+    await yieldToScheduler()
+    let slowSpeed = env.animationPlaybackSpeed
+    XCTAssertEqual(slowSpeed, 0.5, accuracy: 0.001, "low CPU should slow the animation")
+
+    // 高 CPU：0.9 → interval 1/30s → speed = 0.1/(1/30) = 3.0。
+    for _ in 0..<12 {
+      source.emit(.systemMetrics(SystemMetrics(cpuLoad: 0.9, thermalLevel: .nominal)))
+    }
+    await yieldToScheduler()
+    let fastSpeed = env.animationPlaybackSpeed
+    XCTAssertEqual(fastSpeed, 3.0, accuracy: 0.001, "high CPU should speed the animation")
+    XCTAssertNotEqual(slowSpeed, fastSpeed, "CPU-only change must reach the speed signal")
+
+    // 状态未变：displayEquals 门控保持——snapshot 对象未发布。
+    // （0.1 与 0.9 都可能落在同一显示状态；此断言验证门控不被速度信号破坏。）
+    env.stop()
+    source.finish()
+  }
+
+  /// 速度信号只在 CPU 采样链路更新：同一 CPU 重复采样不重复发布。
+  @MainActor
+  func testSpeedSignalDoesNotPublishWhenUnchanged() async {
+    let source = ControllableSignalSource()
+    let env = AppEnvironment(defaults: defaults, signalSources: [source])
+    env.start()
+    await waitUntil { source.subscriptionCount == 1 }
+
+    for _ in 0..<12 {
+      source.emit(.systemMetrics(SystemMetrics(cpuLoad: 0.5, thermalLevel: .nominal)))
+    }
+    await yieldToScheduler()
+    let speedAfterFirst = env.animationPlaybackSpeed
+
+    for _ in 0..<12 {
+      source.emit(.systemMetrics(SystemMetrics(cpuLoad: 0.5, thermalLevel: .nominal)))
+    }
+    await yieldToScheduler()
+    XCTAssertEqual(env.animationPlaybackSpeed, speedAfterFirst)
+
+    env.stop()
+    source.finish()
+  }
+
   /// 活动提醒触发后切换状态（专注/摸鱼/放松/取消）会重置累计，
   /// 避免提醒永久卡死（第四轮修复的回归保护）。
   @MainActor

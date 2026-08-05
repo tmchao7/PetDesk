@@ -6,35 +6,41 @@ import QuartzCore
   import PetDeskCore
 #endif
 
-/// CALayer 离散帧动画的纯配置值（可测试、可比较）：
-/// 相同配置的更新必须幂等——不重建动画。
+/// CALayer 离散帧动画的动画内容配置（可测试、可比较）：
+/// 只描述“播放什么”（帧数 + 基准时长），不含暂停/速度状态——
+/// 暂停与速度是播放器状态，不能进入内容相等判定（否则每次暂停/恢复
+/// 或 CPU 速度变化都会重建动画）。
 struct PetLayerAnimationConfiguration: Equatable {
   let frameCount: Int
-  let frameDuration: TimeInterval
-  let isPaused: Bool
+  /// 动画内容基准帧间隔（秒）：keyframe 动画时长 = frameCount × baseFrameDuration。
+  let baseFrameDuration: TimeInterval
 
-  init(frameCount: Int, frameDuration: TimeInterval, isPaused: Bool) {
+  init(frameCount: Int, baseFrameDuration: TimeInterval) {
     self.frameCount = max(0, frameCount)
-    // 帧时长夹紧到 1/30s ~ 0.20s（30 FPS 上限、5 FPS 下限）。
-    self.frameDuration = min(0.20, max(1.0 / 30.0, frameDuration))
-    self.isPaused = isPaused
+    // 基准时长夹紧到 1/30s ~ 0.20s。
+    self.baseFrameDuration = min(0.20, max(1.0 / 30.0, baseFrameDuration))
   }
 
   var totalDuration: TimeInterval {
-    frameDuration * Double(max(0, frameCount))
+    baseFrameDuration * Double(max(0, frameCount))
   }
 }
 
-/// AppKit 视图 + CALayer 离散帧动画播放器。
-/// 预切片好的 CGImage 帧通过 `update` 一次性注入；
-/// CAKeyframeAnimation 只在该行帧/时长/暂停状态变化时重建。
+/// AppKit 视图 + CALayer 离散帧动画播放器（RunCatNeo 风格）：
+/// - CAKeyframeAnimation 内容固定（帧列表 + 基准时长），播放速度通过
+///   layer.speed 独立调整——CPU 变化不重建动画、不重置到第一帧。
+/// - 暂停/恢复按 Apple QA1673 标准公式，作为状态转换只执行一次（幂等）。
 @MainActor
 final class PetLayerRenderer: NSView {
   private let animationLayer = CALayer()
   private var currentImages: [CGImage] = []
   private var currentConfig: PetLayerAnimationConfiguration?
-  private var needsAnimationUpdate = false
+  private var isPaused = false
 
+  /// 测试接口：动画对象重建次数（内容变化才递增）。
+  private(set) var animationRebuildCount = 0
+  /// 测试接口：当前是否处于暂停状态。
+  private(set) var isAnimationPaused = false
   /// 当前播放的帧列表（测试可读）。
   var displayedImages: [CGImage] { currentImages }
 
@@ -59,29 +65,43 @@ final class PetLayerRenderer: NSView {
     animationLayer.frame = bounds
   }
 
-  /// 更新播放内容。幂等：帧列表、时长、暂停状态都未变时不重建动画。
-  func update(images: [CGImage], config: PetLayerAnimationConfiguration) {
+  /// 更新播放内容与状态。
+  /// - Parameters:
+  ///   - images: 预切片帧（内容变化时重建动画）。
+  ///   - config: 动画内容（帧数 + 基准时长）。
+  ///   - isPaused: 暂停状态（转换幂等；不触发动画重建）。
+  ///   - speed: 播放速度倍率（1.0 = 基准帧率；通过 layer.speed 调整，不重建动画）。
+  func update(
+    images: [CGImage],
+    config: PetLayerAnimationConfiguration,
+    isPaused: Bool,
+    speed: Double = 1.0
+  ) {
     let imagesChanged =
       images.count != currentImages.count
       || !images.elementsEqual(currentImages, by: { $0 === $1 })
-    let configChanged = currentConfig != config
+    let contentChanged = currentConfig != config
 
-    currentImages = images
-    currentConfig = config
-    needsAnimationUpdate = imagesChanged || configChanged
-
-    guard !images.isEmpty else {
-      removeAnimation()
-      return
+    // 内容变化：移除旧动画、安装新动画（暂停期间保持暂停，显示新首帧）。
+    if imagesChanged || contentChanged {
+      currentImages = images
+      currentConfig = config
+      if images.isEmpty {
+        removeAnimation()
+        return
+      }
+      installAnimation(images: images, config: config)
+      // 内容变化后明确设置初始帧（暂停时不播放，contents 显示首帧）。
+      animationLayer.contents = images.first
     }
 
-    animationLayer.contents = images.first
-    if config.isPaused {
-      pauseLayer()
-    } else if needsAnimationUpdate {
-      startAnimation(images: images, config: config)
-    } else if animationLayer.speed == 0 {
-      resumeLayer()
+    // 暂停/恢复是状态转换，不是内容变化：QA1673 公式，只执行一次。
+    if isPaused {
+      pauseLayerIfNeeded()
+    } else {
+      resumeLayerIfNeeded()
+      // 非暂停时用 layer.speed 表达播放速度（RunCatNeo 风格）。
+      animationLayer.speed = Float(max(0.1, speed))
     }
   }
 
@@ -90,12 +110,14 @@ final class PetLayerRenderer: NSView {
     removeAnimation()
     currentImages = []
     currentConfig = nil
-    animationLayer.contents = nil
+    isPaused = false
+    isAnimationPaused = false
   }
 
   // MARK: - Private
 
-  private func startAnimation(images: [CGImage], config: PetLayerAnimationConfiguration) {
+  /// 安装（或重建）离散帧动画；暂停状态由调用方在安装后保持。
+  private func installAnimation(images: [CGImage], config: PetLayerAnimationConfiguration) {
     let animation = CAKeyframeAnimation(keyPath: "contents")
     animation.values = images
     animation.keyTimes = Self.keyTimes(for: images.count)
@@ -105,7 +127,8 @@ final class PetLayerRenderer: NSView {
     animation.isRemovedOnCompletion = false
     animationLayer.removeAnimation(forKey: "petFrameAnimation")
     animationLayer.add(animation, forKey: "petFrameAnimation")
-    animationLayer.speed = 1
+    animationRebuildCount += 1
+    // 内容已重置：清掉旧暂停偏移，从第 0 帧起播。
     animationLayer.timeOffset = 0
     animationLayer.beginTime = 0
   }
@@ -120,20 +143,31 @@ final class PetLayerRenderer: NSView {
     }
   }
 
-  private func pauseLayer() {
+  /// QA1673 暂停：speed = 0，timeOffset = 当前层时间。
+  /// 幂等：已暂停时不再重写 timeOffset。
+  private func pauseLayerIfNeeded() {
+    guard !isPaused else { return }
+    isPaused = true
+    isAnimationPaused = true
     guard animationLayer.animation(forKey: "petFrameAnimation") != nil else { return }
     let pausedTime = animationLayer.convertTime(CACurrentMediaTime(), from: nil)
     animationLayer.speed = 0
     animationLayer.timeOffset = pausedTime
   }
 
-  private func resumeLayer() {
+  /// QA1673 恢复：pausedTime = timeOffset；speed = 1；timeOffset = 0；
+  /// beginTime = 0；beginTime = 当前层时间 - pausedTime。
+  /// 幂等：未暂停时直接返回。
+  private func resumeLayerIfNeeded() {
+    guard isPaused else { return }
     let pausedTime = animationLayer.timeOffset
     animationLayer.speed = 1
     animationLayer.timeOffset = 0
     animationLayer.beginTime = 0
     animationLayer.beginTime =
       animationLayer.convertTime(CACurrentMediaTime(), from: nil) - pausedTime
+    isPaused = false
+    isAnimationPaused = false
   }
 
   private func removeAnimation() {
@@ -142,5 +176,7 @@ final class PetLayerRenderer: NSView {
     animationLayer.speed = 1
     animationLayer.timeOffset = 0
     animationLayer.beginTime = 0
+    isPaused = false
+    isAnimationPaused = false
   }
 }
