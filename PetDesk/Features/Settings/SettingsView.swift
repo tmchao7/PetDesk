@@ -65,6 +65,25 @@ struct SettingsView: View {
           Text("大").tag(1.25)
         }
         .pickerStyle(.segmented)
+
+        // 动画速度：CPU 负载变化时精灵动作的快慢倍率。
+        VStack(alignment: .leading, spacing: 4) {
+          HStack {
+            Text("动画速度")
+            Spacer()
+            Text("\(environment.animationSpeedMultiplier, specifier: "%.1f")×")
+              .monospacedDigit()
+              .foregroundStyle(.secondary)
+          }
+          Slider(
+            value: $environment.animationSpeedMultiplier,
+            in: 0.25...4.0,
+            step: 0.25
+          )
+          Text("CPU 越高精灵动得越快；调大倍率让动作更灵敏。")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        }
       }
 
       Section("统计") {

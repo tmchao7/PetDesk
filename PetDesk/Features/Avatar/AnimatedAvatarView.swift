@@ -134,10 +134,16 @@ struct AnimatedAvatarView: View {
   /// 多帧动画当前帧索引：从动画起点起按 CPU 驱动间隔推进（纯函数）。
   /// - Parameter date: TimelineView 提供的当前时间。
   func frameIndex(at date: Date) -> Int {
-    let interval = Self.computeInterval(cpu: cpuProvider())
+    let interval = Self.computeInterval(
+      cpu: cpuProvider(),
+      speedMultiplier: speedMultiplier
+    )
     let elapsed = max(0, date.timeIntervalSince(animationStart))
     return Self.frameIndex(elapsed: elapsed, interval: interval, frameCount: multiFrameCount)
   }
+
+  /// 用户可调动画速度倍率（0.25× ~ 4.0×），由 AppEnvironment 注入。
+  var speedMultiplier: Double = 1.0
 
   /// 帧索引推导（纯函数，可测试）：elapsed 每过一个 interval 推进一帧，
   /// 超过 frameCount 循环回绕。
@@ -157,8 +163,11 @@ struct AnimatedAvatarView: View {
 
   /// RunCat 风格 CPU→帧间隔映射：0% CPU ≈ 200ms/帧（5 FPS），
   /// 100% CPU ≈ 10ms/帧（100 FPS），非线性加速。
-  static func computeInterval(cpu: Double) -> TimeInterval {
+  /// - Parameter speedMultiplier: 用户可调倍率（>0）；越大动画越快。
+  static func computeInterval(cpu: Double, speedMultiplier: Double = 1.0) -> TimeInterval {
     let cpuPercent = max(0, min(1, cpu)) * 100
-    return max(0.01, min(0.20, 0.20 / max(1.0, min(20.0, cpuPercent / 5.0))))
+    let base = max(0.01, min(0.20, 0.20 / max(1.0, min(20.0, cpuPercent / 5.0))))
+    let multiplier = max(0.1, speedMultiplier)
+    return base / multiplier
   }
 }

@@ -46,7 +46,8 @@ struct PetView: View {
         displayMode: environment.avatarDisplayMode,
         avatarSize: avatarSize,
         multiFrameCount: environment.multiFrameCount(for: animState.row),
-        cpuProvider: { environment.latestCPU }
+        cpuProvider: { environment.latestCPU },
+        speedMultiplier: environment.animationSpeedMultiplier
       )
       .frame(width: avatarSize, height: avatarHeight)
       OverlayEffectView(

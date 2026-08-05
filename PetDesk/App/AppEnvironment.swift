@@ -50,6 +50,10 @@ final class AppEnvironment: ObservableObject {
   @Published var petScale: Double {
     didSet { defaults.set(petScale, forKey: Keys.petScale) }
   }
+  /// 动画速度倍率（0.25× ~ 4.0×），用户可调，乘到 CPU→帧间隔映射上。
+  @Published var animationSpeedMultiplier: Double {
+    didSet { defaults.set(animationSpeedMultiplier, forKey: Keys.animationSpeedMultiplier) }
+  }
   /// 宠物窗口不可见或被遮挡时为 true，视图据此暂停帧动画与 Timeline 驱动。
   @Published private(set) var isPetAnimationPaused = true
   /// 最新 CPU 读数（0~1）。故意不做 @Published：动画速度读取用，
@@ -117,6 +121,7 @@ final class AppEnvironment: ObservableObject {
     static let relaxReminderMessage = "relaxReminderMessage"
     static let reminderDisplaySeconds = "reminderDisplaySeconds"
     static let petScale = "petScale"
+    static let animationSpeedMultiplier = "animationSpeedMultiplier"
   }
 
   private let defaults: UserDefaults
@@ -176,6 +181,8 @@ final class AppEnvironment: ObservableObject {
       defaults.integer(forKey: Keys.reminderDisplaySeconds))
     let storedScale = defaults.double(forKey: Keys.petScale)
     self.petScale = storedScale > 0 ? storedScale : 1.0
+    let storedSpeed = defaults.double(forKey: Keys.animationSpeedMultiplier)
+    self.animationSpeedMultiplier = storedSpeed > 0 ? storedSpeed : 1.0
     let notificationMonitor = AccessibilityNotificationPulseMonitor()
     self.notificationCapability = notificationMonitor.capability
     self.signalSources = [SystemLoadMonitor(), UserIdleMonitor(), notificationMonitor]
@@ -218,6 +225,8 @@ final class AppEnvironment: ObservableObject {
       defaults.integer(forKey: Keys.reminderDisplaySeconds))
     let storedScale = defaults.double(forKey: Keys.petScale)
     self.petScale = storedScale > 0 ? storedScale : 1.0
+    let storedSpeed = defaults.double(forKey: Keys.animationSpeedMultiplier)
+    self.animationSpeedMultiplier = storedSpeed > 0 ? storedSpeed : 1.0
     self.notificationCapability = notificationCapability
     self.signalSources = signalSources
     self.avatarRepository = avatarRepository
