@@ -15,8 +15,15 @@ let package = Package(
             name: "PetDeskCore",
             path: "PetDesk",
             exclude: [
-                // 仅文件级 exclude 生效（sources 明确列出目录）；目录级条目
-                // 是 no-op，已移除。
+                // App target files are intentionally compiled by PetDeskAppCheck,
+                // not by the dependency-free PetDeskCore target.
+                "App",
+                "Features/PetRender",
+                "Features/PetWindow",
+                "Features/Settings",
+                "AppIcon.icns",
+                // Included feature directories may still contain app-only files;
+                // keep their AppKit/SwiftUI counterparts out of Core explicitly.
                 "Features/Todo/TodoView.swift",
                 "Features/UsageStats/StatsView.swift",
                 "Features/Avatar/AnimatedAvatarView.swift",
@@ -47,6 +54,7 @@ let package = Package(
             dependencies: ["PetDeskCore"],
             path: "PetDesk",
             exclude: [
+                "AppIcon.icns",
                 "Features/Avatar/AvatarCropper.swift",
                 "Features/Avatar/AvatarDisplayMode.swift",
                 "Features/Avatar/AvatarImageLoader.swift",
