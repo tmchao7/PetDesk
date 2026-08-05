@@ -670,18 +670,45 @@ final class AppEnvironmentTests: XCTestCase {
     XCTAssertEqual(AnimatedAvatarView.frameIndex(elapsed: 1, interval: 0, frameCount: 4), 0)
   }
 
-  /// RunCat 风格 CPU→帧间隔映射：0% CPU ≈ 200ms，50% ≈ 20ms，100% ≈ 10ms。
+  /// RunCat 风格 CPU→帧间隔映射，v1 优化后夹紧到 5~30 FPS：
+  /// 0% CPU ≈ 200ms（5 FPS），100% CPU ≈ 33.3ms（30 FPS）。
   @MainActor
   func testCPUSpeedMapping() {
     let idle = AnimatedAvatarView.computeInterval(cpu: 0)
     XCTAssertEqual(idle, 0.20, accuracy: 0.001, "0% CPU should be the slowest (200ms)")
+    // 50% CPU 的原始映射 20ms 低于 30 FPS 下限，应被夹紧到 33.3ms。
     let half = AnimatedAvatarView.computeInterval(cpu: 0.5)
-    XCTAssertEqual(half, 0.02, accuracy: 0.001, "50% CPU should be 20ms")
+    XCTAssertEqual(half, 1.0 / 30.0, accuracy: 0.001, "50% CPU should clamp to the 30 FPS cap")
     let full = AnimatedAvatarView.computeInterval(cpu: 1.0)
-    XCTAssertEqual(full, 0.01, accuracy: 0.001, "100% CPU should be the fastest (10ms)")
+    XCTAssertEqual(full, 1.0 / 30.0, accuracy: 0.001, "100% CPU should clamp to the 30 FPS cap")
     // 越界输入应被夹紧。
     XCTAssertEqual(AnimatedAvatarView.computeInterval(cpu: -1), 0.20, accuracy: 0.001)
-    XCTAssertEqual(AnimatedAvatarView.computeInterval(cpu: 2), 0.01, accuracy: 0.001)
+    XCTAssertEqual(AnimatedAvatarView.computeInterval(cpu: 2), 1.0 / 30.0, accuracy: 0.001)
+  }
+
+  /// 动画间隔始终限制在 5~30 FPS（0.20s 到 1/30s），
+  /// 且用户倍率夹紧后不越出该范围。
+  @MainActor
+  func testAnimationIntervalIsBoundedToFiveThroughThirtyFPS() {
+    XCTAssertEqual(AnimatedAvatarView.computeInterval(cpu: 0), 0.20, accuracy: 0.001)
+    XCTAssertEqual(AnimatedAvatarView.computeInterval(cpu: 1), 1.0 / 30.0, accuracy: 0.001)
+    // 倍率放大/缩小后仍被夹紧在范围内。
+    let fast = AnimatedAvatarView.computeInterval(cpu: 1, speedMultiplier: 4)
+    XCTAssertEqual(fast, 1.0 / 30.0, accuracy: 0.001)
+    let slow = AnimatedAvatarView.computeInterval(cpu: 0, speedMultiplier: 0.25)
+    XCTAssertEqual(slow, 0.20, accuracy: 0.001)
+  }
+
+  /// 动画暂停标志默认开启，随窗口可见性切换。
+  @MainActor
+  func testAnimationPauseFlagStartsPausedAndTracksWindowVisibility() {
+    let defaults = UserDefaults(suiteName: "pause-test")!
+    let environment = AppEnvironment(defaults: defaults, signalSources: [])
+    XCTAssertTrue(environment.isPetAnimationPaused)
+    environment.updatePetAnimationPaused(false)
+    XCTAssertFalse(environment.isPetAnimationPaused)
+    environment.updatePetAnimationPaused(true)
+    XCTAssertTrue(environment.isPetAnimationPaused)
   }
 
   /// 活动提醒触发后切换状态（专注/摸鱼/放松/取消）会重置累计，

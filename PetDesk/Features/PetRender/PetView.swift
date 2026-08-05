@@ -47,6 +47,7 @@ struct PetView: View {
         avatarSize: avatarSize,
         multiFrameCount: environment.multiFrameCount(for: animState.row),
         cpuProvider: { environment.latestCPU },
+        isPaused: environment.isPetAnimationPaused,
         speedMultiplier: environment.animationSpeedMultiplier
       )
       .frame(width: avatarSize, height: avatarHeight)

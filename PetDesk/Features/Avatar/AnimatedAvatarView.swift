@@ -21,6 +21,8 @@ struct AnimatedAvatarView: View {
   let multiFrameCount: Int
   /// 读取最新 CPU（0~1）：动画速度用；闭包读取不触发 SwiftUI 重算。
   let cpuProvider: () -> Double
+  /// 窗口隐藏/遮挡时为 true：暂停动画（不实例化 TimelineView，显示静态帧）。
+  var isPaused: Bool = false
 
   /// 帧缓存：裁剪是 O(1) 但 NSImage 包装/释放有分配流量，状态切换时复用。
   /// 引用对象的属性不会在 body 求值期间触发 SwiftUI 状态发布；直接写
@@ -43,11 +45,16 @@ struct AnimatedAvatarView: View {
   var body: some View {
     Group {
       if let spritesheet {
-        if multiFrameCount > 1 {
-          // 多帧动画：TimelineView 按 display-link 周期重算 body，
-          // 帧索引 = elapsed / CPU 驱动间隔（纯函数，无 Timer/runloop 依赖）；
-          // 窗口遮挡时 SwiftUI 自动暂停 schedule，零额外唤醒。
-          TimelineView(.periodic(from: .now, by: 0.01)) { context in
+        if multiFrameCount > 1, !isPaused {
+          // 多帧动画：TimelineView 按 CPU 驱动间隔（5~30 FPS）周期重算 body，
+          // 帧索引 = elapsed / interval（纯函数，无 Timer/runloop 依赖）。
+          // 窗口隐藏/遮挡时 isPaused 为 true：不实例化 TimelineView，
+          // 显示静态帧，零动画工作。
+          let interval = Self.computeInterval(
+            cpu: cpuProvider(),
+            speedMultiplier: speedMultiplier
+          )
+          TimelineView(.periodic(from: .now, by: interval)) { context in
             spriteView(spritesheet, frameIndex: frameIndex(at: context.date))
           }
         } else {
@@ -161,14 +168,15 @@ struct AnimatedAvatarView: View {
     }
   }
 
-  /// RunCat 风格 CPU→帧间隔映射：0% CPU ≈ 200ms/帧（5 FPS），
-  /// 100% CPU ≈ 10ms/帧（100 FPS），非线性加速。
+  /// RunCat 风格 CPU→帧间隔映射，v1 优化后夹紧到 5~30 FPS：
+  /// 0% CPU ≈ 200ms/帧（5 FPS），100% CPU ≈ 33.3ms/帧（30 FPS），非线性加速。
+  /// 上限 30 FPS 防止 CPU 升高形成动画正反馈；用户倍率夹紧后仍不越界。
   /// - Parameter speedMultiplier: 用户可调倍率（>0）；越大动画越快。
   static func computeInterval(cpu: Double, speedMultiplier: Double = 1.0) -> TimeInterval {
     let cpuPercent = max(0, min(1, cpu)) * 100
-    let base = max(0.01, min(0.20, 0.20 / max(1.0, min(20.0, cpuPercent / 5.0))))
+    let base = max(1.0 / 30.0, min(0.20, 0.20 / max(1.0, min(20.0, cpuPercent / 5.0))))
     let multiplier = max(0.1, speedMultiplier)
-    return base / multiplier
+    return max(1.0 / 30.0, min(0.20, base / multiplier))
   }
 
   private final class FrameCache {
