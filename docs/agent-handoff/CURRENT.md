@@ -2,17 +2,18 @@
 
 - Status: ready
 - Active owner: unassigned
-- Updated: 2026-08-05T12:00:07+0800
-- Branch: `main`
+- Updated: 2026-08-05T12:46:02+0800
+- Branch: `docs/performance-optimization-plan`
 - Latest implementation commit: `cf2e4f8`
-- Latest session: [codex GitHub performance research](sessions/2026-08-05-1200-codex-github-performance-research.md)
+- Latest session: [codex performance optimization plan](sessions/2026-08-05-1245-codex-performance-optimization-plan.md)
 
 ## Active Objective
 
 Continue PetDesk. The performance/redundancy review fixes are published on
-`main`. The latest research identifies the multi-frame `TimelineView` and
-single-frame crop cache as the primary optimization target; prior mood/energy,
-Dropover shelf, pose import, AI pose provider, and eye-band work remains merged.
+`main`. A staged implementation plan now covers Release baselines, bounded
+Timeline fallback, explicit pause propagation, pre-sliced frames, native
+`CALayer` playback, and downsampled pose previews. Prior mood/energy, Dropover
+shelf, pose import, AI pose provider, and eye-band work remains merged.
 
 ## Repository Snapshot
 
@@ -33,12 +34,12 @@ Dropover shelf, pose import, AI pose provider, and eye-band work remains merged.
 
 ## Next Actions
 
-1. Cap multi-frame rendering and wire explicit pause propagation; benchmark before/after.
-2. Replace per-frame SwiftUI crop/wrap work with pre-sliced `CALayer` contents animation.
-3. Repeat Allocations/Energy profiling with Instruments GUI or a working xctrace attachment.
-4. Add UI coverage for Finder drag-in, shelf drag-out/share, and close/position behavior.
-5. Manual QA: multi-monitor, Finder drag flow, share panel, and current 微信/QQ notification behavior.
-6. `main` is pushed and synchronized with `origin/main`; keep `picture.png` untracked.
+1. Claude Code reads `docs/superpowers/plans/2026-08-05-petdesk-performance-optimization.md` and the latest session before implementation.
+2. Establish comparable Release measurements for static, one-frame, and eight-frame scenarios.
+3. Implement bounded Timeline/pause, frame preloading, `CALayer` playback, and preview memory reduction as separate commits.
+4. Repeat Allocations/Energy profiling with Instruments GUI or a working xctrace attachment.
+5. Complete architecture/debugging/testing documentation and create the Claude Code handoff session.
+6. Keep `picture.png` untracked; do not edit generated `PetDesk.xcodeproj`.
 
 ## Working Rules
 
