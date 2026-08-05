@@ -41,7 +41,23 @@ The spritesheet spec uses a top-left origin (row 0 at the top). Empirically (202
 
 ## Animation Pause
 
-The pet is in static mode (v1): no frame timer or 30 fps Timeline is running; the pet shows the current state row's base frame. `isPetAnimationPaused` (window hidden/occluded) remains wired for when animation is re-enabled. To debug CPU usage, hide the pet and confirm `isPetAnimationPaused` flips in Diagnostics state.
+Multi-frame rows (frameCount > 1) play through `PetLayerRenderer` (discrete `CAKeyframeAnimation` on `contents`); the `TimelineView(.periodic(by: interval))` path in `AnimatedAvatarView` is only the fallback. Both honor `AppEnvironment.isPetAnimationPaused` (window hidden/occluded): no TimelineView is instantiated, and the layer is frozen via `speed = 0` + `timeOffset`. To debug CPU usage, hide the pet and confirm `isPetAnimationPaused` flips in Diagnostics state — a running layer animation or timeline while hidden means the pause flag is not reaching the renderer.
+
+Known CALayer pitfalls:
+- `CAKeyframeAnimation` with `contents` requires preloaded `CGImage` values; do not crop or wrap `NSImage` during playback (use `AnimationFrameStore`).
+- Pause/resume must use the standard layer formula (`speed = 0; timeOffset = convertTime(now)` → `speed = 1; timeOffset = 0; beginTime = convertTime(now) - pausedTime`); resuming by restarting the animation causes a visible jump.
+- `PetLayerRendererRepresentable` sets `pet.avatar` accessibility at the NSView level — SwiftUI accessibility modifiers do not reach `NSViewRepresentable` (XCUITest depends on it).
+
+## Release Performance Baselines
+
+```bash
+make generate
+xcodebuild -project PetDesk.xcodeproj -scheme PetDesk -configuration Release \
+  -derivedDataPath /tmp/PetDeskDerived build CODE_SIGNING_ALLOWED=NO
+scripts/measure-petdesk.sh "/tmp/PetDeskDerived/Build/Products/Release/PetDesk.app" 600 15
+```
+
+Time Profiler (available): `xcrun xctrace record --template 'Time Profiler' --launch <app> --time-limit 60s --output /tmp/pet.trace`. Allocations/Energy Log templates fail to attach under Xcode 26.6 `xctrace` — record the exact error, fall back to `ps` RSS samples, and use the Instruments GUI when available. Baselines and results live in `docs/performance/`.
 
 ## Per-Pose Import (专注/摸鱼/休息)
 

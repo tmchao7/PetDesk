@@ -2,44 +2,37 @@
 
 - Status: ready
 - Active owner: unassigned
-- Updated: 2026-08-05T12:46:02+0800
-- Branch: `docs/performance-optimization-plan`
-- Latest implementation commit: `cf2e4f8`
-- Latest session: [codex performance optimization plan](sessions/2026-08-05-1245-codex-performance-optimization-plan.md)
+- Updated: 2026-08-05T13:45:00+0800
+- Branch: `feat/performance-optimization`
+- Latest implementation commit: `5e11bd9`
+- Latest session: [claudecode performance-optimization](sessions/2026-08-05-1344-claudecode-performance-optimization.md)
 
 ## Active Objective
 
-Continue PetDesk. The performance/redundancy review fixes are published on
-`main`. A staged implementation plan now covers Release baselines, bounded
-Timeline fallback, explicit pause propagation, pre-sliced frames, native
-`CALayer` playback, and downsampled pose previews. Prior mood/energy, Dropover
-shelf, pose import, AI pose provider, and eye-band work remains merged.
+Continue PetDesk. Performance optimization implemented on `feat/performance-optimization` (5 commits): timeline capped 5–30 FPS with explicit occlusion pause, `AnimationFrameStore` pre-sliced frames, `PetLayerRenderer` CALayer discrete playback (idempotent), and one downsampled pose preview per row. Optimized Release static CPU 9.61% → 1.09% (↓89%). Docs + re-measurement + handoff recorded.
 
 ## Repository Snapshot
 
-- PetDesk on `main` (multiple feature branches exist and are merged or pending).
-- Shipped features: todo, usage stats, pet size + animation speed, bubble quick actions (专注/摸鱼/放松), avatar editor, spritesheet pet (Codex-level programmatic + per-row pose import + multi-frame CPU-paced animation), GPT Image 2 pose provider (env-configured, off by default), **mood/energy system**, **Dropover-style drag shelf** (drag files to pet → shelf → system share).
-- Docs: architecture/overview.md, product spec, prompts/ (豆包), and agent-handoff chain are current through this session.
+- PetDesk on `main`; optimization branch `feat/performance-optimization` ahead of `docs/performance-optimization-plan`.
+- Shipped: todo, usage stats, pet size + animation speed, bubble quick actions, avatar editor, spritesheet pet (programmatic + pose import + multi-frame), AI pose provider (off by default), mood/energy, drag shelf, **performance optimization** (frame cap/pause/preload/CALayer/preview memory).
+- Docs: architecture, runbook, test-plan updated with renderer boundary and performance scenarios; baselines + results in `docs/performance/`.
 
 ## Latest Verification
 
-- `make verify`: TEST SUCCEEDED after each review commit and final state (93 unit tests, 7 UI tests; Debug/Release builds).
+- `make verify`: TEST SUCCEEDED after each task and final gate (53 AppEnvironment tests, 6 AnimationFrameStore tests, 4 PetLayerRenderer tests, 7 UI tests).
 - `make lint`: passed.
-- `swift build --product PetDeskAppCheck`: passed with no unhandled-file warnings.
-- `xcrun xctrace` Time Profiler: completed 600.716 seconds; independent RSS/CPU sample was approximately 131.7 MB / 9.3% CPU.
+- Re-measured optimized Release: static 1.09% CPU / 120MB RSS, single 0.72%, eight-working 0.83% (60s each).
 
 ## Blockers
 
-- Allocations template failed to attach in Xcode 26.6; Energy Log template is unavailable from `xctrace`. RSS remains above the ~100 MB target and needs allocation attribution.
+- None for code. Allocations/Energy templates unavailable under `xctrace` (use Instruments GUI); real 8-frame animation baseline and 30-minute stability measurement pending owner via Settings import path.
 
 ## Next Actions
 
-1. Claude Code reads `docs/superpowers/plans/2026-08-05-petdesk-performance-optimization.md` and the latest session before implementation.
-2. Establish comparable Release measurements for static, one-frame, and eight-frame scenarios.
-3. Implement bounded Timeline/pause, frame preloading, `CALayer` playback, and preview memory reduction as separate commits.
-4. Repeat Allocations/Energy profiling with Instruments GUI or a working xctrace attachment.
-5. Complete architecture/debugging/testing documentation and create the Claude Code handoff session.
-6. Keep `picture.png` untracked; do not edit generated `PetDesk.xcodeproj`.
+1. Owner: import 8-frame pose via Settings → re-run `scripts/measure-petdesk.sh` for real animation baseline; 30-min stability check.
+2. Merge `feat/performance-optimization` after owner approval (branch ahead of `docs/performance-optimization-plan`).
+3. Commit Task 7 docs (`docs(performance): document optimization results and handoff`).
+4. Create a new session record, update this file, run `make handoff-check`, commit handoff.
 
 ## Working Rules
 
