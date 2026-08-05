@@ -7,6 +7,23 @@ struct DragShelfView: View {
 
   var body: some View {
     VStack(alignment: .leading, spacing: 8) {
+      // 顶部把手区（与 DragShelfPanel.dragHandleHeight 对应）：
+      // 视觉提示 + 右侧关闭按钮。
+      HStack {
+        Spacer()
+        Button {
+          environment.shelfPanel?.dismissShelf()
+        } label: {
+          Image(systemName: "xmark.circle.fill")
+            .font(.system(size: 13))
+            .foregroundStyle(.secondary)
+        }
+        .buttonStyle(.plain)
+        .help("关闭托盘（⌘W）")
+        .keyboardShortcut("w", modifiers: .command)
+      }
+      .frame(height: DragShelfPanel.dragHandleHeight)
+
       HStack {
         Label("暂存托盘", systemImage: "tray.full.fill")
           .font(.headline)
