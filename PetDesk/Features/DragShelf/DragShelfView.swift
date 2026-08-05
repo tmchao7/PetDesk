@@ -83,6 +83,15 @@ struct DragShelfView: View {
         .controlSize(.small)
         .disabled(environment.shelfItems.isEmpty)
       }
+
+      // 拖出方式：复制 / 移动。
+      // 微信/QQ/邮件等外部 app 只接受复制（系统机制）；移动对 Finder 生效。
+      Picker("拖出方式", selection: $environment.shelfDragOutMode) {
+        Text("复制").tag(ShelfDragOutMode.copy)
+        Text("移动").tag(ShelfDragOutMode.move)
+      }
+      .pickerStyle(.segmented)
+      .controlSize(.small)
     }
     .padding(12)
     .frame(width: 300, height: 340)
@@ -120,9 +129,11 @@ struct DragShelfView: View {
     .padding(.horizontal, 8)
     .padding(.vertical, 5)
     .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 6))
-    .onDrag {
-      NSItemProvider(contentsOf: URL(fileURLWithPath: path)) ?? NSItemProvider()
-    }
+    // AppKit 拖出源：按用户选择的复制/移动模式控制拖拽操作
+    //（SwiftUI .onDrag 固定为复制，无法切换移动）。
+    .background(
+      DragOutRepresentable(path: path, mode: environment.shelfDragOutMode)
+    )
     .contextMenu {
       Button("复制路径") {
         NSPasteboard.general.clearContents()
@@ -146,5 +157,23 @@ struct DragShelfView: View {
     let pasteboard = NSPasteboard.general
     pasteboard.clearContents()
     pasteboard.writeObjects(urls as [NSURL])
+  }
+}
+
+/// 把 AppKit 拖出源（ShelfDragOutView）嵌入 SwiftUI 文件行。
+private struct DragOutRepresentable: NSViewRepresentable {
+  let path: String
+  let mode: ShelfDragOutMode
+
+  func makeNSView(context: Context) -> ShelfDragOutView {
+    let view = ShelfDragOutView()
+    view.filePath = path
+    view.mode = mode
+    return view
+  }
+
+  func updateNSView(_ nsView: ShelfDragOutView, context: Context) {
+    nsView.filePath = path
+    nsView.mode = mode
   }
 }

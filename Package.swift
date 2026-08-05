@@ -22,6 +22,7 @@ let package = Package(
                 "Features/Avatar/AnimatedAvatarView.swift",
                 "Features/DragShelf/DragShelfPanel.swift",
                 "Features/DragShelf/DragShelfView.swift",
+                "Features/DragShelf/ShelfDragOutView.swift",
             ],
             sources: [
                 "Features/Avatar",
@@ -79,6 +80,7 @@ let package = Package(
                 "Features/Avatar/AnimatedAvatarView.swift",
                 "Features/DragShelf/DragShelfPanel.swift",
                 "Features/DragShelf/DragShelfView.swift",
+                "Features/DragShelf/ShelfDragOutView.swift",
             ]
         ),
     ]
