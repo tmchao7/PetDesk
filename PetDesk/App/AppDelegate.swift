@@ -34,7 +34,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     )
     let hosting = NSHostingView(rootView: DragShelfView(environment: environment))
     panel.contentView = hosting
-    panel.installDragHandle()
+    panel.installDragHandle(contentHeight: 340)
     panel.onFilesDropped = { [weak self] urls in
       self?.environment.addShelfItems(urls)
       self?.showShelf()

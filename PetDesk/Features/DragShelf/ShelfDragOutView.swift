@@ -28,11 +28,13 @@ final class ShelfDragOutView: NSView, NSDraggingSource {
     guard !isDragging, let filePath else { return }
     isDragging = true
 
+    // .fileURL pasteboard 需要 file:// URL 字符串；裸路径无法被 Finder 识别。
+    let url = URL(fileURLWithPath: filePath)
     let item = NSPasteboardItem()
-    item.setString(filePath, forType: .fileURL)
+    item.setString(url.absoluteString, forType: .fileURL)
     let pasteboard = NSPasteboard()
     pasteboard.clearContents()
-    pasteboard.writeObjects([item])
+    pasteboard.writeObjects([NSURL(fileURLWithPath: filePath)])
 
     let draggingItem = NSDraggingItem(pasteboardWriter: item)
     beginDraggingSession(with: [draggingItem], event: event, source: self)

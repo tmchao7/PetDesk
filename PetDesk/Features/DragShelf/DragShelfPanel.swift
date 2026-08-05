@@ -43,18 +43,23 @@ final class DragShelfPanel: NSPanel, NSDraggingDestination, NSDraggingSource {
   }
 
   /// 安装顶部拖拽把手（在设置 contentView 后调用）。
-  func installDragHandle() {
+  /// - Parameter contentHeight: 内容区高度（初始 contentRect 高度）。
+  ///   不要用 contentView.bounds.height——安装时 hosting view 可能尚未布局
+  ///   （bounds 为 0），会把把手定位到窗口外。
+  func installDragHandle(contentHeight: CGFloat) {
     guard let contentView else { return }
     let handle = ShelfDragHandleView(
       frame: NSRect(
         x: 0,
-        y: contentView.bounds.height - Self.dragHandleHeight,
+        y: contentHeight - Self.dragHandleHeight,
         width: contentView.bounds.width,
         height: Self.dragHandleHeight
       )
     )
     handle.panel = self
     contentView.addSubview(handle)
+    // 布局完成后把手宽度跟随内容区（高度固定顶部）。
+    handle.autoresizingMask = [.width]
   }
 
   // MARK: - NSDraggingDestination

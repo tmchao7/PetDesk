@@ -145,11 +145,11 @@ struct DragShelfView: View {
   private func shareAll() {
     let urls = environment.shelfItems.map { URL(fileURLWithPath: $0) }
     let picker = NSSharingServicePicker(items: urls)
-    if let window = NSApp.keyWindow {
-      picker.show(
-        relativeTo: NSRect(x: window.frame.midX, y: window.frame.minY + 40, width: 1, height: 1),
-        of: window.contentView!, preferredEdge: .minY)
-    }
+    guard let window = NSApp.keyWindow, let contentView = window.contentView else { return }
+    picker.show(
+      relativeTo: NSRect(x: window.frame.midX, y: window.frame.minY + 40, width: 1, height: 1),
+      of: contentView,
+      preferredEdge: .minY)
   }
 
   private func copyAll() {
