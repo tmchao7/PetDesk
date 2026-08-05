@@ -1,40 +1,38 @@
 # Current Agent Handoff
 
 - Status: ready
-- Active owner: claude code
-- Updated: 2026-08-05T15:06:27+0800
-- Branch: `docs/performance-followup-research`
-- Latest implementation commit: `8ab44a6`
-- Latest session: [codex external performance research](sessions/2026-08-05-1506-codex-external-performance-research.md)
+- Active owner: unassigned
+- Updated: 2026-08-05T15:20:00+0800
+- Branch: `fix/animation-speed-and-pause`
+- Latest implementation commit: `3f3294f`
+- Latest session: [claudecode animation-speed-and-pause-fix](sessions/2026-08-05-1520-claudecode-animation-speed-and-pause-fix.md)
 
 ## Active Objective
 
-Continue PetDesk from `main` after the research-only handoff branch is recorded. Performance optimization is implemented: timeline capped 5–30 FPS with explicit occlusion pause, `AnimationFrameStore` pre-sliced frames, `PetLayerRenderer` CALayer discrete playback, and one downsampled pose preview per row. Review fix `8ab44a6` aligns Core Animation keyTimes with frame values and removes fallback force unwraps. Open follow-up work remains around CPU-speed publication, pause/resume continuity, and 30-minute RSS attribution.
+Continue PetDesk. Fix relay complete: CPU-driven animation speed now publishes as a separate low-frequency signal (1 Hz, displayEquals gating untouched), and CALayer pause/resume follows Apple QA1673 with idempotent transitions (no rebuild, no frame-0 reset; replacing images while paused stays paused). All tests pass. RSS rise remains unattributed (Allocations template unavailable under xctrace; Instruments GUI session pending owner).
 
 ## Repository Snapshot
 
-- PetDesk on `main`; `main` now includes the performance review fix and handoff commits. `origin/main` is two commits behind and has not been pushed.
-- Shipped: todo, usage stats, pet size + animation speed, bubble quick actions, avatar editor, spritesheet pet (programmatic + pose import + multi-frame), AI pose provider (off by default), mood/energy, drag shelf, **performance optimization** (frame cap/pause/preload/CALayer/preview memory).
-- Docs: architecture, runbook, test-plan updated with renderer boundary and performance scenarios; baselines + results in `docs/performance/`.
+- PetDesk on `main`; fix branch `fix/animation-speed-and-pause` has 1 commit on top of the research branch.
+- Shipped: todo, usage stats, pet size + animation speed, bubble quick actions, avatar editor, spritesheet pet, AI pose provider (off), mood/energy, drag shelf, performance optimization (frame cap/pause/preload/CALayer/preview memory), **CPU-driven layer speed + QA1673 pause/resume**.
+- Docs: architecture, runbook, test-plan, performance baselines/results current through this fix.
 
 ## Latest Verification
 
-- `make verify`: TEST SUCCEEDED after the review fix (106 unit tests, 7 UI tests, Debug/Release builds, CoreChecks).
+- `make verify`: TEST SUCCEEDED (unit + 7 UI tests, Debug/Release, CoreChecks).
 - `make lint`: passed.
-- Review focused renderer test: 5 tests passed.
-- Optimized Release measurements remain static 1.09% CPU, single 0.72%, eight-frame 0.92% for 60s; the recorded 30-minute run averaged 2.06% CPU and RSS climbed 120→131MB.
+- Focused renderer + speed-signal tests: 12 passed.
+- xctrace Allocations: template exists but attach fails ("Failed to attach to target process"); RSS 120→131MB unattributed, not labeled a leak.
 
 ## Blockers
 
-- Allocations/Energy templates remain unavailable under `xctrace`; RSS growth is not attributed. CPU-paced CALayer speed is not currently proven because CPU-only changes are publication-gated, and `--demo-state focusing` filters later system-metric events.
+- None for code. RSS attribution requires an Instruments GUI Allocations session (30–60 min, Diagnostics closed, real 8-frame pose) — owner action.
 
 ## Next Actions
 
-1. Claude Code implements the CPU timing signal and renderer transition tests from the follow-up prompt, using the external references in the latest session.
-2. Run `make test`, `make lint`, and `make verify` after each coherent fix.
-3. Use Instruments GUI Allocations for 30–60 minutes with Diagnostics closed and an imported 8-frame pose.
-4. Add a pinned animation benchmark that changes CPU input without changing PetState.
-5. Review redundant Package.swift entries and stale 100 FPS documentation.
+1. Owner: Instruments GUI Allocations 30–60 min for RSS attribution.
+2. Merge `fix/animation-speed-and-pause` after owner approval.
+3. Update CURRENT.md (already points here), run `make handoff-check`, commit handoff.
 
 ## Working Rules
 
