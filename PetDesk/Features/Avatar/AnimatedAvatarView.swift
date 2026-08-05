@@ -50,7 +50,7 @@ struct AnimatedAvatarView: View {
 
   var body: some View {
     Group {
-      if let spritesheet {
+      if spritesheet != nil {
         if multiFrameCount > 1, !isPaused {
           // 多帧动画：TimelineView 按 CPU 驱动间隔（5~30 FPS）周期重算 body，
           // 帧索引 = elapsed / interval（纯函数，无 Timer/runloop 依赖）。
@@ -100,14 +100,20 @@ struct AnimatedAvatarView: View {
 
   /// 无精灵帧时的兜底（不触发 crop）。
   private var imagePlaceholder: NSImage {
-    let ctx = CGContext(
-      data: nil, width: 1, height: 1, bitsPerComponent: 8, bytesPerRow: 0,
-      space: CGColorSpaceCreateDeviceRGB(),
-      bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
-    let cg = ctx.makeImage()!
+    let size = NSSize(width: SpriteSheetSpec.frameWidth, height: SpriteSheetSpec.frameHeight)
+    guard
+      let ctx = CGContext(
+        data: nil, width: 1, height: 1, bitsPerComponent: 8, bytesPerRow: 0,
+        space: CGColorSpaceCreateDeviceRGB(),
+        bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+      ),
+      let cg = ctx.makeImage()
+    else {
+      return NSImage(size: size)
+    }
     return NSImage(
       cgImage: cg,
-      size: NSSize(width: SpriteSheetSpec.frameWidth, height: SpriteSheetSpec.frameHeight)
+      size: size
     )
   }
 

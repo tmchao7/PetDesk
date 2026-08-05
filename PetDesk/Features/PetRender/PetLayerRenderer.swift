@@ -98,9 +98,7 @@ final class PetLayerRenderer: NSView {
   private func startAnimation(images: [CGImage], config: PetLayerAnimationConfiguration) {
     let animation = CAKeyframeAnimation(keyPath: "contents")
     animation.values = images
-    animation.keyTimes = (0...images.count).map {
-      NSNumber(value: Double($0) / Double(images.count))
-    }
+    animation.keyTimes = Self.keyTimes(for: images.count)
     animation.duration = config.totalDuration
     animation.repeatCount = .greatestFiniteMagnitude
     animation.calculationMode = .discrete
@@ -110,6 +108,16 @@ final class PetLayerRenderer: NSView {
     animationLayer.speed = 1
     animationLayer.timeOffset = 0
     animationLayer.beginTime = 0
+  }
+
+  /// Core Animation requires one key time per value. The final frame's
+  /// interval ends at the repeat boundary, so no extra key time at 1.0 is
+  /// needed for a repeating discrete animation.
+  static func keyTimes(for frameCount: Int) -> [NSNumber] {
+    guard frameCount > 0 else { return [] }
+    return (0..<frameCount).map {
+      NSNumber(value: Double($0) / Double(frameCount))
+    }
   }
 
   private func pauseLayer() {

@@ -47,4 +47,13 @@ final class PetLayerRendererTests: XCTestCase {
     let config = PetLayerAnimationConfiguration(frameCount: 8, frameDuration: 0.1, isPaused: false)
     XCTAssertEqual(config.totalDuration, 0.8, accuracy: 0.001)
   }
+
+  /// CAKeyframeAnimation requires keyTimes and values to have identical counts.
+  @MainActor
+  func testKeyTimesMatchFrameCount() {
+    let keyTimes = PetLayerRenderer.keyTimes(for: 8)
+    XCTAssertEqual(keyTimes.count, 8)
+    XCTAssertEqual(keyTimes.first?.doubleValue ?? -1, 0, accuracy: 0.001)
+    XCTAssertEqual(keyTimes.last?.doubleValue ?? -1, 0.875, accuracy: 0.001)
+  }
 }
