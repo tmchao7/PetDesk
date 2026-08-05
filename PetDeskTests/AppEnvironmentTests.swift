@@ -726,7 +726,7 @@ final class AppEnvironmentTests: XCTestCase {
     for _ in 0..<12 {
       source.emit(.systemMetrics(SystemMetrics(cpuLoad: 0, thermalLevel: .nominal)))
     }
-    await yieldToScheduler()
+    await waitUntil { abs(env.latestCPU - 0) < 0.001 }
     let slowSpeed = env.animationPlaybackSpeed
     XCTAssertEqual(slowSpeed, 0.5, accuracy: 0.001, "low CPU should slow the animation")
 
@@ -734,7 +734,7 @@ final class AppEnvironmentTests: XCTestCase {
     for _ in 0..<12 {
       source.emit(.systemMetrics(SystemMetrics(cpuLoad: 0.9, thermalLevel: .nominal)))
     }
-    await yieldToScheduler()
+    await waitUntil { abs(env.latestCPU - 0.9) < 0.001 }
     let fastSpeed = env.animationPlaybackSpeed
     XCTAssertEqual(fastSpeed, 3.0, accuracy: 0.001, "high CPU should speed the animation")
     XCTAssertNotEqual(slowSpeed, fastSpeed, "CPU-only change must reach the speed signal")
@@ -764,6 +764,118 @@ final class AppEnvironmentTests: XCTestCase {
     }
     await yieldToScheduler()
     XCTAssertEqual(env.animationPlaybackSpeed, speedAfterFirst)
+
+    env.stop()
+    source.finish()
+  }
+
+  /// 修改 animationSpeedMultiplier 会发布新的播放速度（Combine 订阅计数）。
+  @MainActor
+  func testSpeedMultiplierChangePublishesSpeedSignal() async {
+    let source = ControllableSignalSource()
+    let env = AppEnvironment(defaults: defaults, signalSources: [source])
+    env.start()
+    await waitUntil { source.subscriptionCount == 1 }
+    // 稳定 CPU 输入（cpu 0 未触 30 FPS 上限，倍率变化可观察）。
+    for _ in 0..<12 {
+      source.emit(.systemMetrics(SystemMetrics(cpuLoad: 0, thermalLevel: .nominal)))
+    }
+    await waitUntil { abs(env.latestCPU - 0) < 0.001 }
+    let speedBefore = env.animationPlaybackSpeed
+    XCTAssertEqual(speedBefore, 0.5, accuracy: 0.001)
+
+    // 订阅速度信号，统计发布次数。
+    let emissions = ProbeCounter()
+    let cancellable = env.$animationPlaybackSpeed.sink { _ in
+      Task { @MainActor in await emissions.record() }
+    }
+    defer { cancellable.cancel() }
+
+    env.animationSpeedMultiplier = 2.0
+    await yieldToScheduler()
+    XCTAssertNotEqual(
+      env.animationPlaybackSpeed, speedBefore, "multiplier change must refresh the speed signal")
+    let countAfterChange = await emissions.current
+    XCTAssertGreaterThan(countAfterChange, 0, "a real speed change must publish at least once")
+
+    // 相同倍率重复设置：不得重复发布。
+    env.animationSpeedMultiplier = 2.0
+    await yieldToScheduler()
+    let countAfterRepeat = await emissions.current
+    XCTAssertEqual(countAfterRepeat, countAfterChange, "identical multiplier must not re-publish")
+
+    env.stop()
+    source.finish()
+  }
+
+  /// 手动状态（摸鱼/放松）下修改倍率：CPU 基础状态保持，但播放速度必须刷新。
+  @MainActor
+  func testSpeedMultiplierChangePublishesInManualState() async {
+    let source = ControllableSignalSource()
+    let env = AppEnvironment(defaults: defaults, signalSources: [source])
+    env.start()
+    await waitUntil { source.subscriptionCount == 1 }
+
+    // 进入手动摸鱼状态：后续 systemMetrics 被拦截。
+    env.slackOff()
+    XCTAssertEqual(env.snapshot.baseState, .drinkingTea)
+
+    // 拦截后 CPU 指标不再更新速度信号；倍率变化必须独立刷新。
+    let emissions = ProbeCounter()
+    let cancellable = env.$animationPlaybackSpeed.sink { _ in
+      Task { @MainActor in await emissions.record() }
+    }
+    defer { cancellable.cancel() }
+
+    let speedBefore = env.animationPlaybackSpeed
+    env.animationSpeedMultiplier = 0.5
+    await yieldToScheduler()
+    XCTAssertNotEqual(
+      env.animationPlaybackSpeed, speedBefore,
+      "manual state must still refresh the speed signal on multiplier change")
+    let countAfterChange = await emissions.current
+    XCTAssertGreaterThan(countAfterChange, 0, "manual-state multiplier change must publish")
+
+    env.stop()
+    source.finish()
+  }
+
+  /// CPU 0/20/60/80/100% 与倍率边界下，速度信号为有限离散值（无浮点抖动）。
+  @MainActor
+  func testSpeedSignalDiscreteValuesAcrossCPUAndMultiplierBounds() async {
+    let source = ControllableSignalSource()
+    let env = AppEnvironment(defaults: defaults, signalSources: [source])
+    env.start()
+    await waitUntil { source.subscriptionCount == 1 }
+
+    let cpus: [Double] = [0, 0.2, 0.6, 0.8, 1.0]
+    let multipliers: [Double] = [0.25, 1.0, 4.0]
+    for cpu in cpus {
+      for multiplier in multipliers {
+        env.animationSpeedMultiplier = multiplier
+        for _ in 0..<12 {
+          source.emit(.systemMetrics(SystemMetrics(cpuLoad: cpu, thermalLevel: .nominal)))
+        }
+        await waitUntil { abs(env.latestCPU - cpu) < 0.001 }
+        let speed = env.animationPlaybackSpeed
+        XCTAssertTrue(speed.isFinite && speed > 0, "speed must be finite and positive")
+      }
+    }
+    // 边界：倍率 4x + CPU 100% → interval 1/30 → speed 3.0；
+    // 倍率 0.25x + CPU 0% → interval 0.2 → speed 0.5。
+    env.animationSpeedMultiplier = 4.0
+    for _ in 0..<12 {
+      source.emit(.systemMetrics(SystemMetrics(cpuLoad: 1.0, thermalLevel: .nominal)))
+    }
+    await waitUntil { abs(env.latestCPU - 1.0) < 0.001 }
+    XCTAssertEqual(env.animationPlaybackSpeed, 3.0, accuracy: 0.001)
+
+    env.animationSpeedMultiplier = 0.25
+    for _ in 0..<12 {
+      source.emit(.systemMetrics(SystemMetrics(cpuLoad: 0, thermalLevel: .nominal)))
+    }
+    await waitUntil { abs(env.latestCPU - 0) < 0.001 }
+    XCTAssertEqual(env.animationPlaybackSpeed, 0.5, accuracy: 0.001)
 
     env.stop()
     source.finish()

@@ -135,6 +135,89 @@ final class PetLayerRendererTests: XCTestCase {
       "CPU-driven speed change must not rebuild the animation")
   }
 
+  /// 速度切换（0.5x -> 3.0x）保持动画 local time 连续：时间保持转换
+  /// 不得因 speed 改变导致当前帧位置跳变。
+  @MainActor
+  func testSpeedChangePreservesLocalTimeContinuity() {
+    let renderer = PetLayerRenderer()
+    let images = makeFrames(4)
+    let config = PetLayerAnimationConfiguration(frameCount: 4, baseFrameDuration: 0.1)
+    renderer.update(images: images, config: config, isPaused: false, speed: 0.5)
+    // 让动画真正走一小段时间（runloop 不驱动 layer，但 timeOffset/beginTime
+    // 已建立，convertTime 反映媒体时间映射）。
+    Thread.sleep(forTimeInterval: 0.05)
+
+    let before = renderer.currentLayerLocalTime
+    renderer.update(images: images, config: config, isPaused: false, speed: 3.0)
+    let after = renderer.currentLayerLocalTime
+
+    XCTAssertEqual(
+      abs(after - before) < 0.1, true,
+      "speed change must preserve local time (jump was \(after - before))")
+    XCTAssertEqual(renderer.effectiveSpeed, 3.0, accuracy: 0.001)
+  }
+
+  /// pause -> speed change -> resume：resume 后应用目标速度，位置连续。
+  @MainActor
+  func testPauseSpeedChangeResumeAppliesTargetSpeed() {
+    let renderer = PetLayerRenderer()
+    let images = makeFrames(4)
+    let config = PetLayerAnimationConfiguration(frameCount: 4, baseFrameDuration: 0.1)
+    renderer.update(images: images, config: config, isPaused: false, speed: 1.0)
+
+    renderer.update(images: images, config: config, isPaused: true, speed: 1.0)
+    let pausedTime = renderer.currentLayerLocalTime
+    // 暂停期间收到新速度：不得播放。
+    renderer.update(images: images, config: config, isPaused: true, speed: 3.0)
+    XCTAssertTrue(renderer.isAnimationPaused)
+    XCTAssertEqual(renderer.currentLayerLocalTime, pausedTime, accuracy: 0.01,
+      "paused layer must not advance while speed changes arrive")
+
+    renderer.update(images: images, config: config, isPaused: false, speed: 3.0)
+    XCTAssertFalse(renderer.isAnimationPaused)
+    XCTAssertEqual(
+      renderer.effectiveSpeed, 3.0, accuracy: 0.001,
+      "resume must apply the target speed captured while paused")
+  }
+
+  /// 相同速度重复 update 不重写时间状态（local time 不受干扰）。
+  @MainActor
+  func testIdenticalSpeedDoesNotRewriteTime() {
+    let renderer = PetLayerRenderer()
+    let images = makeFrames(4)
+    let config = PetLayerAnimationConfiguration(frameCount: 4, baseFrameDuration: 0.1)
+    renderer.update(images: images, config: config, isPaused: false, speed: 2.0)
+    Thread.sleep(forTimeInterval: 0.02)
+    let before = renderer.currentLayerLocalTime
+    let rebuilds = renderer.animationRebuildCount
+
+    renderer.update(images: images, config: config, isPaused: false, speed: 2.0)
+    XCTAssertEqual(renderer.animationRebuildCount, rebuilds)
+    // 时间保持转换幂等：相同速度不重设 timeOffset/beginTime，
+    // local time 只随媒体时间自然前进（不跳变）。
+    let after = renderer.currentLayerLocalTime
+    XCTAssertGreaterThan(after, before, "media time should still advance")
+    XCTAssertLessThan(after - before, 1.0, "no jump from identical speed update")
+  }
+
+  /// 空 images -> pause -> 重新加载 images：状态完全重置后正常播放。
+  @MainActor
+  func testEmptyImagesThenPauseThenReload() {
+    let renderer = PetLayerRenderer()
+    let config = PetLayerAnimationConfiguration(frameCount: 4, baseFrameDuration: 0.1)
+    renderer.update(images: [], config: config, isPaused: false, speed: 2.0)
+    XCTAssertFalse(renderer.isAnimationPaused)
+
+    renderer.update(images: [], config: config, isPaused: true, speed: 2.0)
+    XCTAssertFalse(renderer.isAnimationPaused, "no animation to pause")
+
+    let images = makeFrames(4)
+    renderer.update(images: images, config: config, isPaused: false, speed: 1.0)
+    XCTAssertFalse(renderer.isAnimationPaused)
+    XCTAssertEqual(renderer.effectiveSpeed, 1.0, accuracy: 0.001)
+    XCTAssertEqual(renderer.displayedImages.count, 4)
+  }
+
   /// clearContents 后重新加入 images 能正常播放。
   @MainActor
   func testClearThenReplay() {

@@ -51,8 +51,12 @@ final class AppEnvironment: ObservableObject {
     didSet { defaults.set(petScale, forKey: Keys.petScale) }
   }
   /// 动画速度倍率（0.25× ~ 4.0×），用户可调，乘到 CPU→帧间隔映射上。
+  /// 倍率变化立即刷新独立速度信号（手动状态拦截 CPU 指标时也生效）。
   @Published var animationSpeedMultiplier: Double {
-    didSet { defaults.set(animationSpeedMultiplier, forKey: Keys.animationSpeedMultiplier) }
+    didSet {
+      defaults.set(animationSpeedMultiplier, forKey: Keys.animationSpeedMultiplier)
+      updateAnimationPlaybackSpeed()
+    }
   }
   /// 心情（0-100）：专注下降、摸鱼上升、互动恢复。
   @Published private(set) var petMood: Double
@@ -210,7 +214,15 @@ final class AppEnvironment: ObservableObject {
     let storedScale = defaults.double(forKey: Keys.petScale)
     self.petScale = storedScale > 0 ? storedScale : 1.0
     let storedSpeed = defaults.double(forKey: Keys.animationSpeedMultiplier)
-    self.animationSpeedMultiplier = storedSpeed > 0 ? storedSpeed : 1.0
+    let restoredMultiplier = storedSpeed > 0 ? storedSpeed : 1.0
+    self.animationSpeedMultiplier = restoredMultiplier
+    // init 期间 didSet 不触发：恢复倍率后显式同步速度信号（基准 CPU 0，
+    // 基准帧间隔与属性默认一致）。
+    self.animationPlaybackSpeed = Self.playbackSpeed(
+      cpu: 0,
+      multiplier: restoredMultiplier,
+      baseFrameDuration: 0.1
+    )
     self.petMood = Self.storedStat(defaults, key: Keys.petMood, fallback: 70)
     self.petEnergy = Self.storedStat(defaults, key: Keys.petEnergy, fallback: 80)
     self.shelfDragOutMode =
@@ -259,7 +271,15 @@ final class AppEnvironment: ObservableObject {
     let storedScale = defaults.double(forKey: Keys.petScale)
     self.petScale = storedScale > 0 ? storedScale : 1.0
     let storedSpeed = defaults.double(forKey: Keys.animationSpeedMultiplier)
-    self.animationSpeedMultiplier = storedSpeed > 0 ? storedSpeed : 1.0
+    let restoredMultiplier = storedSpeed > 0 ? storedSpeed : 1.0
+    self.animationSpeedMultiplier = restoredMultiplier
+    // init 期间 didSet 不触发：恢复倍率后显式同步速度信号（基准 CPU 0，
+    // 基准帧间隔与属性默认一致）。
+    self.animationPlaybackSpeed = Self.playbackSpeed(
+      cpu: 0,
+      multiplier: restoredMultiplier,
+      baseFrameDuration: 0.1
+    )
     self.petMood = Self.storedStat(defaults, key: Keys.petMood, fallback: 70)
     self.petEnergy = Self.storedStat(defaults, key: Keys.petEnergy, fallback: 80)
     self.shelfDragOutMode =
@@ -696,14 +716,29 @@ final class AppEnvironment: ObservableObject {
 
   /// 在每秒 CPU 采样链路同步动画播放速度（值变化才发布，1 Hz 低频）。
   private func updateAnimationPlaybackSpeed() {
-    let interval = AnimatedAvatarView.computeInterval(
+    let speed = Self.playbackSpeed(
       cpu: latestCPU,
-      speedMultiplier: animationSpeedMultiplier
+      multiplier: animationSpeedMultiplier,
+      baseFrameDuration: animationBaseFrameDuration
     )
-    let speed = animationBaseFrameDuration / interval
     if speed != animationPlaybackSpeed {
       animationPlaybackSpeed = speed
     }
+  }
+
+  /// 播放速度纯函数：base / computeInterval(cpu, multiplier)。
+  /// 输入为有限离散集（CPU 采样 0~1、倍率 UI 步进），输出离散、无浮点抖动
+  /// 依赖——相同输入恒等，精确比较安全。
+  private static func playbackSpeed(
+    cpu: Double,
+    multiplier: Double,
+    baseFrameDuration: TimeInterval
+  ) -> Double {
+    let interval = AnimatedAvatarView.computeInterval(
+      cpu: cpu,
+      speedMultiplier: multiplier
+    )
+    return baseFrameDuration / interval
   }
 
   /// 互动恢复：点击宠物（限频 10 秒一次）或拖入文件，心情回升。

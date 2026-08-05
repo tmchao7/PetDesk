@@ -36,6 +36,10 @@ final class PetLayerRenderer: NSView {
   private var currentImages: [CGImage] = []
   private var currentConfig: PetLayerAnimationConfiguration?
   private var isPaused = false
+  /// 当前已生效的播放速度（幂等判定：相同速度不重写时间状态）。
+  private var currentSpeed: Double = 1.0
+  /// 暂停期间收到的目标速度（恢复后应用）。
+  private var pendingSpeed: Double = 1.0
 
   /// 测试接口：动画对象重建次数（内容变化才递增）。
   private(set) var animationRebuildCount = 0
@@ -43,6 +47,12 @@ final class PetLayerRenderer: NSView {
   private(set) var isAnimationPaused = false
   /// 当前播放的帧列表（测试可读）。
   var displayedImages: [CGImage] { currentImages }
+  /// 测试接口：当前生效的播放速度倍率。
+  private(set) var effectiveSpeed: Double = 1.0
+  /// 测试接口：当前动画 local time（时间连续性断言用）。
+  var currentLayerLocalTime: TimeInterval {
+    animationLayer.convertTime(CACurrentMediaTime(), from: nil)
+  }
 
   init() {
     super.init(frame: .zero)
@@ -97,11 +107,14 @@ final class PetLayerRenderer: NSView {
 
     // 暂停/恢复是状态转换，不是内容变化：QA1673 公式，只执行一次。
     if isPaused {
+      // 暂停期间记录目标速度，恢复后应用；不得让 speed 参数触发播放。
+      pendingSpeed = max(0.1, speed)
       pauseLayerIfNeeded()
     } else {
       resumeLayerIfNeeded()
-      // 非暂停时用 layer.speed 表达播放速度（RunCatNeo 风格）。
-      animationLayer.speed = Float(max(0.1, speed))
+      // 速度变化通过时间保持转换应用（RunCatNeo 风格），
+      // 直接赋 layer.speed 会改变时间映射导致跳帧。
+      applySpeedTransition(to: max(0.1, speed))
     }
   }
 
@@ -128,9 +141,13 @@ final class PetLayerRenderer: NSView {
     animationLayer.removeAnimation(forKey: "petFrameAnimation")
     animationLayer.add(animation, forKey: "petFrameAnimation")
     animationRebuildCount += 1
-    // 内容已重置：清掉旧暂停偏移，从第 0 帧起播。
+    // 内容已重置：清掉旧暂停偏移，从第 0 帧以基准速度起播。
     animationLayer.timeOffset = 0
     animationLayer.beginTime = 0
+    animationLayer.speed = 1
+    currentSpeed = 1.0
+    pendingSpeed = 1.0
+    effectiveSpeed = 1.0
   }
 
   /// Core Animation requires one key time per value. The final frame's
@@ -144,12 +161,12 @@ final class PetLayerRenderer: NSView {
   }
 
   /// QA1673 暂停：speed = 0，timeOffset = 当前层时间。
-  /// 幂等：已暂停时不再重写 timeOffset。
+  /// 幂等：已暂停时不再重写 timeOffset；无动画时保持未暂停（无可暂停内容）。
   private func pauseLayerIfNeeded() {
     guard !isPaused else { return }
+    guard animationLayer.animation(forKey: "petFrameAnimation") != nil else { return }
     isPaused = true
     isAnimationPaused = true
-    guard animationLayer.animation(forKey: "petFrameAnimation") != nil else { return }
     let pausedTime = animationLayer.convertTime(CACurrentMediaTime(), from: nil)
     animationLayer.speed = 0
     animationLayer.timeOffset = pausedTime
@@ -157,6 +174,7 @@ final class PetLayerRenderer: NSView {
 
   /// QA1673 恢复：pausedTime = timeOffset；speed = 1；timeOffset = 0；
   /// beginTime = 0；beginTime = 当前层时间 - pausedTime。
+  /// 恢复后应用暂停期间记录的目标速度（时间保持转换，不跳帧）。
   /// 幂等：未暂停时直接返回。
   private func resumeLayerIfNeeded() {
     guard isPaused else { return }
@@ -168,6 +186,31 @@ final class PetLayerRenderer: NSView {
       animationLayer.convertTime(CACurrentMediaTime(), from: nil) - pausedTime
     isPaused = false
     isAnimationPaused = false
+    // 恢复后应用目标速度：从 speed=1 经时间保持转换到目标，位置连续。
+    let target = max(0.1, pendingSpeed)
+    applySpeedTransition(to: target)
+    currentSpeed = target
+    effectiveSpeed = target
+  }
+
+  /// 时间保持的速度切换：捕获当前动画 local time，围绕过渡重设
+  /// timeOffset/beginTime，再应用目标 speed——避免直接改 layer.speed
+  /// 导致时间映射缩放造成跳帧。相同目标速度幂等（不重写时间状态）。
+  private func applySpeedTransition(to targetSpeed: Double) {
+    let clamped = max(0.1, targetSpeed)
+    guard clamped != currentSpeed else { return }
+    guard animationLayer.animation(forKey: "petFrameAnimation") != nil else {
+      animationLayer.speed = Float(clamped)
+      currentSpeed = clamped
+      return
+    }
+    let now = CACurrentMediaTime()
+    let currentLocalTime = animationLayer.convertTime(now, from: nil)
+    animationLayer.timeOffset = currentLocalTime
+    animationLayer.beginTime = now
+    animationLayer.speed = Float(clamped)
+    currentSpeed = clamped
+    effectiveSpeed = clamped
   }
 
   private func removeAnimation() {
@@ -178,5 +221,8 @@ final class PetLayerRenderer: NSView {
     animationLayer.beginTime = 0
     isPaused = false
     isAnimationPaused = false
+    currentSpeed = 1.0
+    pendingSpeed = 1.0
+    effectiveSpeed = 1.0
   }
 }
