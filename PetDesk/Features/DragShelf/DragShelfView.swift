@@ -1,9 +1,11 @@
 import AppKit
 import SwiftUI
 
-/// 拖拽缓存托盘 UI：文件列表 + 拖出 / 分享 / 删除 / 清空 / 复制。
+/// 拖拽缓存托盘 UI：文件列表 + 多选 / 拖出 / 分享 / 删除 / 清空 / 复制。
 struct DragShelfView: View {
   @ObservedObject var environment: AppEnvironment
+  /// 文件多选状态（单击单选 / Command 切换 / Shift 连选）。面板常驻，选择跨开关保留。
+  @StateObject private var selection = ShelfSelection()
 
   var body: some View {
     VStack(alignment: .leading, spacing: 8) {
@@ -38,6 +40,7 @@ struct DragShelfView: View {
 
         Button {
           environment.clearShelf()
+          selection.clear()
         } label: {
           Image(systemName: "trash")
         }
@@ -66,8 +69,17 @@ struct DragShelfView: View {
             ForEach(environment.shelfItems, id: \.self) { path in
               ShelfRowRepresentable(
                 path: path,
-                mode: environment.shelfDragOutMode,
-                onRemove: { environment.removeShelfItem(path) }
+                onRemove: {
+                  environment.removeShelfItem(path)
+                  selection.remove([path])
+                },
+                onMoveCompleted: { movedPaths in
+                  for path in movedPaths { environment.removeShelfItem(path) }
+                  selection.remove(Set(movedPaths))
+                },
+                selection: selection,
+                isSelected: selection.isSelected(path),
+                items: environment.shelfItems
               )
               .frame(height: 34)
             }
@@ -88,15 +100,6 @@ struct DragShelfView: View {
         .controlSize(.small)
         .disabled(environment.shelfItems.isEmpty)
       }
-
-      // 拖出方式：复制 / 移动。
-      // 微信/QQ/邮件等外部 app 只接受复制（系统机制）；移动对 Finder 生效。
-      Picker("拖出方式", selection: $environment.shelfDragOutMode) {
-        Text("复制").tag(ShelfDragOutMode.copy)
-        Text("移动").tag(ShelfDragOutMode.move)
-      }
-      .pickerStyle(.segmented)
-      .controlSize(.small)
     }
     .padding(12)
     .frame(width: 300, height: 340)
@@ -106,6 +109,9 @@ struct DragShelfView: View {
     }
     .onDisappear {
       environment.auxiliaryWindowDidDisappear()
+    }
+    .onChange(of: environment.shelfItems) { newItems in
+      selection.prune(keeping: Set(newItems))
     }
   }
 

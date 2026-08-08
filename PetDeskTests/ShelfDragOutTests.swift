@@ -53,11 +53,9 @@ final class ShelfDragOutTests: XCTestCase {
     XCTAssertTrue(types.contains(ShelfDragOutPasteboard.filenamesType))
   }
 
-  func testOperationMaskForCopyMode() {
-    XCTAssertEqual(ShelfDragOutPasteboard.operationMask(for: .copy), .copy)
-  }
-
-  func testOperationMaskForMoveMode() {
-    XCTAssertEqual(ShelfDragOutPasteboard.operationMask(for: .move), [.copy, .move])
+  func testAllowedOperationsLetSystemDecideMoveOrCopy() {
+    // 源声明同时允许复制与移动，由系统/目标按 Finder 语义决定：
+    // 同盘=移动、跨盘=复制、微信/QQ/邮件=复制（它们只接受复制）。
+    XCTAssertEqual(ShelfDragOutPasteboard.allowedOperations, [.copy, .move])
   }
 }

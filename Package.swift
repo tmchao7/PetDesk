@@ -32,6 +32,7 @@ let package = Package(
                 "Features/DragShelf/DragShelfPanel.swift",
                 "Features/DragShelf/DragShelfView.swift",
                 "Features/DragShelf/ShelfRowView.swift",
+                "Features/DragShelf/ShelfSelection.swift",
                 "Features/PetRender/PetLayerRenderer.swift",
                 "Features/PetRender/PetLayerRendererRepresentable.swift",
             ],
@@ -95,6 +96,7 @@ let package = Package(
                 "Features/DragShelf/DragShelfPanel.swift",
                 "Features/DragShelf/DragShelfView.swift",
                 "Features/DragShelf/ShelfRowView.swift",
+                "Features/DragShelf/ShelfSelection.swift",
                 "Features/PetRender/PetLayerRenderer.swift",
                 "Features/PetRender/PetLayerRendererRepresentable.swift",
             ]
