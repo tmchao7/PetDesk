@@ -56,6 +56,14 @@ Feature adapters own system calls. `AppEnvironment` owns cancellable tasks and o
 - `AppEnvironment` accumulates seconds per base state (focusing/tea/sleep) every tick, batches writes every 30s, flushes on exit.
 - `StatsView` window shows the last 7 days with per-activity bars.
 
+### Drag Shelf
+
+- Dropover-style 暂存托盘: the pet window and the shelf panel are both `NSDraggingDestination`s that forward dropped file/folder URLs to `AppEnvironment.addShelfItems` (paths only; the original files are never copied). `DragShelfStore` persists the path list in UserDefaults and filters dead paths on load.
+- Each shelf row is a single AppKit `ShelfRowView` (NSView + `NSDraggingSource`, bridged via `NSViewRepresentable`) that owns the icon, filename, remove button, and right-click menu. The whole row body starts the drag-out from `mouseDragged` — a SwiftUI row with the drag view in `.background` is unreliable because the row's own content swallows the mouse events.
+- Drag-out pasteboard (`ShelfDragOutPasteboard.makeWriter`) uses the file's `NSURL` directly as the `NSPasteboardWriting`, so AppKit produces the same type set Finder does: `public.file-url` (real `file://` path — no SwiftUI temp-container copies) plus `NSFilenamesPboardType` (path array) plus the Apple URL type. Finder reads `public.file-url`; WeChat/QQ and other IM targets read `NSFilenamesPboardType` — an `NSPasteboardItem` cannot carry the legacy type (not a valid UTI), so a plain item-based drag is rejected by IM apps.
+- Move/copy/trash follows Dropover semantics: `sourceOperationMask = [.copy, .move, .delete]`; Finder offers `.move` on the same volume, `.copy` cross-volume, WeChat/QQ/Mail only accept `.copy`, and the Trash accepts `.delete`. On `.move` the source delays ~1s then deletes the originals and removes them from the shelf; on `.delete` it moves them to the Trash (recoverable) — all in `draggingSession(_:endedAt:operation:)`. The delay lets the destination finish reading, avoiding the "意外错误（-8058）" that an immediate source-delete triggers.
+- Shelf rows support selection (state lives in a `ShelfSelection` store, not the state machine): plain click = single select, Command+click = toggle, Shift+click = range from the anchor; clicking a selected row defers deselection to mouse-up so a group can be dragged. Dragging a selected row drags the whole selection (one `NSDraggingItem` per file, fanned icons); dragging an unselected row drags only that file.
+
 ### Pet Window Interaction (AppKit layer)
 
 - `PetPanel`: borderless non-activating `NSPanel`, `canBecomeKey = true`, `becomesKeyOnlyIfNeeded = false`; `showPet()` calls `makeKey()` so single clicks dispatch immediately (`acceptsFirstMouse = true`).

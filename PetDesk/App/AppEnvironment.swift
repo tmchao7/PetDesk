@@ -71,12 +71,6 @@ final class AppEnvironment: ObservableObject {
   private let shelfStore = DragShelfStore()
   /// 托盘是否可见（AppDelegate 管理 DragShelfPanel）。
   var shelfPanel: DragShelfPanel?
-  /// 托盘拖出方式：复制（默认）或移动。
-  /// 注：微信/QQ/邮件等外部 app 作为目标只接受复制（系统机制，目标决定）；
-  /// 移动仅对 Finder 等支持 move 的目标生效。
-  @Published var shelfDragOutMode: ShelfDragOutMode {
-    didSet { defaults.set(shelfDragOutMode.rawValue, forKey: Keys.shelfDragOutMode) }
-  }
   /// 宠物窗口不可见或被遮挡时为 true，视图据此暂停帧动画与 Timeline 驱动。
   @Published private(set) var isPetAnimationPaused = true
   /// 最新 CPU 读数（0~1）。故意不做 @Published：动画速度读取用，
@@ -155,7 +149,6 @@ final class AppEnvironment: ObservableObject {
     static let animationSpeedMultiplier = "animationSpeedMultiplier"
     static let petMood = "petMood"
     static let petEnergy = "petEnergy"
-    static let shelfDragOutMode = "shelfDragOutMode"
   }
 
   private let defaults: UserDefaults
@@ -227,9 +220,6 @@ final class AppEnvironment: ObservableObject {
     )
     self.petMood = Self.storedStat(defaults, key: Keys.petMood, fallback: 70)
     self.petEnergy = Self.storedStat(defaults, key: Keys.petEnergy, fallback: 80)
-    self.shelfDragOutMode =
-      ShelfDragOutMode(
-        rawValue: defaults.string(forKey: Keys.shelfDragOutMode) ?? "") ?? .copy
     let notificationMonitor = AccessibilityNotificationPulseMonitor()
     self.notificationCapability = notificationMonitor.capability
     self.signalSources = [SystemLoadMonitor(), UserIdleMonitor(), notificationMonitor]
@@ -284,9 +274,6 @@ final class AppEnvironment: ObservableObject {
     )
     self.petMood = Self.storedStat(defaults, key: Keys.petMood, fallback: 70)
     self.petEnergy = Self.storedStat(defaults, key: Keys.petEnergy, fallback: 80)
-    self.shelfDragOutMode =
-      ShelfDragOutMode(
-        rawValue: defaults.string(forKey: Keys.shelfDragOutMode) ?? "") ?? .copy
     self.notificationCapability = notificationCapability
     self.signalSources = signalSources
     self.avatarRepository = avatarRepository
