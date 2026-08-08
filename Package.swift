@@ -31,7 +31,7 @@ let package = Package(
                 "Features/Avatar/AvatarPreviewImageFactory.swift",
                 "Features/DragShelf/DragShelfPanel.swift",
                 "Features/DragShelf/DragShelfView.swift",
-                "Features/DragShelf/ShelfDragOutView.swift",
+                "Features/DragShelf/ShelfRowView.swift",
                 "Features/PetRender/PetLayerRenderer.swift",
                 "Features/PetRender/PetLayerRendererRepresentable.swift",
             ],
@@ -94,7 +94,7 @@ let package = Package(
                 "Features/Avatar/AvatarPreviewImageFactory.swift",
                 "Features/DragShelf/DragShelfPanel.swift",
                 "Features/DragShelf/DragShelfView.swift",
-                "Features/DragShelf/ShelfDragOutView.swift",
+                "Features/DragShelf/ShelfRowView.swift",
                 "Features/PetRender/PetLayerRenderer.swift",
                 "Features/PetRender/PetLayerRendererRepresentable.swift",
             ]

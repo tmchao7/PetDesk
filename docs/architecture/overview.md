@@ -56,6 +56,12 @@ Feature adapters own system calls. `AppEnvironment` owns cancellable tasks and o
 - `AppEnvironment` accumulates seconds per base state (focusing/tea/sleep) every tick, batches writes every 30s, flushes on exit.
 - `StatsView` window shows the last 7 days with per-activity bars.
 
+### Drag Shelf
+
+- Dropover-style 暂存托盘: the pet window and the shelf panel are both `NSDraggingDestination`s that forward dropped file/folder URLs to `AppEnvironment.addShelfItems` (paths only; the original files are never copied). `DragShelfStore` persists the path list in UserDefaults and filters dead paths on load.
+- Each shelf row is a single AppKit `ShelfRowView` (NSView + `NSDraggingSource`, bridged via `NSViewRepresentable`) that owns the icon, filename, remove button, and right-click menu. The whole row body starts the drag-out from `mouseDragged` — a SwiftUI row with the drag view in `.background` is unreliable because the row's own content swallows the mouse events.
+- Drag-out pasteboard (`ShelfDragOutPasteboard.makeItem`) always carries the real `public.file-url` (`file://` string, so Finder/WeChat/QQ resolve the original path — no SwiftUI temp-container copies); for image files it additionally registers the content UTI (e.g. `public.png`) through a lazy `ShelfDragOutDataProvider` that reads the file only when the target requests data. `sourceOperationMask` follows the user's 复制/移动 picker (external apps such as WeChat/QQ only accept copy; move applies to Finder).
+
 ### Pet Window Interaction (AppKit layer)
 
 - `PetPanel`: borderless non-activating `NSPanel`, `canBecomeKey = true`, `becomesKeyOnlyIfNeeded = false`; `showPet()` calls `makeKey()` so single clicks dispatch immediately (`acceptsFirstMouse = true`).

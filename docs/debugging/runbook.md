@@ -73,6 +73,13 @@ Feedback: each pose row shows a first-frame thumbnail plus a `×N` frame badge f
 
 State representation: the keyboard / tea-cup / Zzz emoji overlays are removed. States are shown by the pet image itself — the imported pose when set, otherwise the avatar default. If a state still shows an emoji instead of the pet changing, the running app is an old build (check that Settings shows the 专注姿势/摸鱼姿势/休息姿势 rows).
 
+## Drag Shelf 拖出（暂存托盘 → Finder/微信/QQ）
+
+- 拖入：拖到宠物或托盘面板都接收文件/文件夹 URL，只存**原始路径**（`AppEnvironment.addShelfItems`），不复制文件。若原文件被删除，拖出会得到失效文件——这是设计（托盘是暂存，不是仓库）。
+- 拖出：每行是 AppKit `ShelfRowView`（整行 `NSDraggingSource`）。拖到桌面/微信/QQ 失败时，先确认跑的是新构建——旧构建把拖拽视图放在 SwiftUI 行的 `.background`，行内容吞掉鼠标事件，拖拽从未启动。
+- 拖拽 pasteboard 必须携带真实 `file://` 路径（`ShelfDragOutPasteboard` 的 `public.file-url`），绝不能用 SwiftUI `.onDrag`/Transferable 的临时容器副本（`com.apple.SwiftUI.Drag-*`），微信/QQ 等按 URL 消费的 app 会拒绝或读不到。图片文件额外注册内容 UTI（懒加载）。
+- 拖出方式选择器：复制对任何目标生效；移动仅对 Finder 等支持 move 的目标生效（微信/QQ 只接受复制）。
+
 ## Verifying You Are Running the New Build
 
 Every launch writes a marker file:

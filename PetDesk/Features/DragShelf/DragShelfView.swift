@@ -64,7 +64,12 @@ struct DragShelfView: View {
         ScrollView {
           LazyVStack(spacing: 4) {
             ForEach(environment.shelfItems, id: \.self) { path in
-              shelfRow(path: path)
+              ShelfRowRepresentable(
+                path: path,
+                mode: environment.shelfDragOutMode,
+                onRemove: { environment.removeShelfItem(path) }
+              )
+              .frame(height: 34)
             }
           }
           .padding(.vertical, 2)
@@ -104,44 +109,6 @@ struct DragShelfView: View {
     }
   }
 
-  private func shelfRow(path: String) -> some View {
-    HStack(spacing: 8) {
-      let icon = NSWorkspace.shared.icon(forFile: path)
-      Image(nsImage: icon)
-        .resizable()
-        .frame(width: 24, height: 24)
-
-      Text((path as NSString).lastPathComponent)
-        .font(.system(size: 12))
-        .lineLimit(1)
-
-      Spacer()
-
-      Button {
-        environment.removeShelfItem(path)
-      } label: {
-        Image(systemName: "xmark.circle.fill")
-          .foregroundStyle(.secondary)
-      }
-      .buttonStyle(.plain)
-      .help("移除")
-    }
-    .padding(.horizontal, 8)
-    .padding(.vertical, 5)
-    .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 6))
-    // AppKit 拖出源：按用户选择的复制/移动模式控制拖拽操作
-    //（SwiftUI .onDrag 固定为复制，无法切换移动）。
-    .background(
-      DragOutRepresentable(path: path, mode: environment.shelfDragOutMode)
-    )
-    .contextMenu {
-      Button("复制路径") {
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(path, forType: .string)
-      }
-    }
-  }
-
   private func shareAll() {
     let urls = environment.shelfItems.map { URL(fileURLWithPath: $0) }
     let picker = NSSharingServicePicker(items: urls)
@@ -157,23 +124,5 @@ struct DragShelfView: View {
     let pasteboard = NSPasteboard.general
     pasteboard.clearContents()
     pasteboard.writeObjects(urls as [NSURL])
-  }
-}
-
-/// 把 AppKit 拖出源（ShelfDragOutView）嵌入 SwiftUI 文件行。
-private struct DragOutRepresentable: NSViewRepresentable {
-  let path: String
-  let mode: ShelfDragOutMode
-
-  func makeNSView(context: Context) -> ShelfDragOutView {
-    let view = ShelfDragOutView()
-    view.filePath = path
-    view.mode = mode
-    return view
-  }
-
-  func updateNSView(_ nsView: ShelfDragOutView, context: Context) {
-    nsView.filePath = path
-    nsView.mode = mode
   }
 }

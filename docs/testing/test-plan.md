@@ -6,6 +6,8 @@
 
 `PetDeskUITests` launches deterministic demo states and verifies the pet remains accessible without Accessibility permission. Full Xcode is required for XCUITest.
 
+`ShelfDragOutTests` locks the drag-out contract: the pasteboard carries the real `file://` path and an image content UTI, and the copy/move mask follows the user's picker. Cross-app drag-out to Finder/微信/QQ must be verified by hand — XCUITest cannot synthesize a drop into another app.
+
 With full Xcode available, `make verify` validates unique target product/module identities, builds
 the app, and runs both XCTest and XCUITest. The build-only action may disable signing, but the test
 action must retain Xcode's local ad-hoc signing so the macOS UI test runner can load its bundle.
