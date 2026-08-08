@@ -11,7 +11,9 @@ final class AppEnvironment: ObservableObject {
   @Published private(set) var snapshot = PetSnapshot()
   @Published private(set) var avatarImage: NSImage?
   @Published private(set) var avatarSpritesheet: CGImage?
-  @Published private(set) var focusSession: FocusSession
+  /// 专注会话状态仅 AppEnvironment 内部读取（.phase/.advance），无视图观察；
+  /// 不做 @Published——它每秒 mutating 会触发无关的 objectWillChange 与全视图重绘。
+  private(set) var focusSession: FocusSession
   @Published var quickActionsVisible = false
   @Published private(set) var petWindowFrame: CGRect?
   @Published private(set) var avatarError: String?
@@ -66,6 +68,9 @@ final class AppEnvironment: ObservableObject {
   private var secondsSinceInteraction = 0
   /// 心情/精力写盘节流：避免每秒 tick 触发 UserDefaults I/O。
   private var secondsSincePetStatsFlush = 0
+  /// 心情/精力值更新节流：每 5 秒推进一次（速率不变、步长 5×），
+  /// 把 @Published 发布从 2 次/秒降到 0.4 次/秒，避免常驻视图每秒重绘。
+  private var secondsSincePetStatsAdvance = 0
   /// 拖拽缓存托盘条目（文件/文件夹路径）。
   @Published private(set) var shelfItems: [String] = []
   private let shelfStore = DragShelfStore()
@@ -115,8 +120,6 @@ final class AppEnvironment: ObservableObject {
   /// Set by PetDeskApp to relay `@Environment(\.openSettings)` into the view
   /// hierarchy (e.g. context menus) where the environment is unavailable.
   var openSettings: (() -> Void)?
-  /// Set by PetDeskApp to relay `@Environment(\.openWindow)` similarly.
-  var openDiagnosticsWindow: (() -> Void)?
   /// Set by PetDeskApp — hides the floating pet window.
   var hidePet: (() -> Void)?
   /// Set by PetDeskApp — opens the Todo window.
@@ -685,18 +688,24 @@ final class AppEnvironment: ObservableObject {
   }
 
   /// 心情/精力随时间变化：专注消耗、摸鱼回升心情、休息恢复精力。
+  /// 值每 5 秒推进一次（速率不变、步长 5×），避免每秒 @Published 发布
+  /// 触发全部观察视图重绘；`secondsSinceInteraction` 仍每秒累加。
   private func advancePetStats() {
     secondsSinceInteraction += 1
-    switch snapshot.baseState {
-    case .focusing:
-      petMood = Self.clampStat(petMood - 0.05)
-      petEnergy = Self.clampStat(petEnergy - 0.15)
-    case .drinkingTea:
-      petMood = Self.clampStat(petMood + 0.10)
-    case .sleeping:
-      petEnergy = Self.clampStat(petEnergy + 0.30)
-    default:
-      break
+    secondsSincePetStatsAdvance += 1
+    if secondsSincePetStatsAdvance >= 5 {
+      secondsSincePetStatsAdvance = 0
+      switch snapshot.baseState {
+      case .focusing:
+        petMood = Self.clampStat(petMood - 0.25)
+        petEnergy = Self.clampStat(petEnergy - 0.75)
+      case .drinkingTea:
+        petMood = Self.clampStat(petMood + 0.50)
+      case .sleeping:
+        petEnergy = Self.clampStat(petEnergy + 1.50)
+      default:
+        break
+      }
     }
     secondsSincePetStatsFlush += 1
     if secondsSincePetStatsFlush >= 30 {
