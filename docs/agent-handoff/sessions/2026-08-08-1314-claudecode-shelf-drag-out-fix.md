@@ -9,7 +9,7 @@
 - Status: ready
 - Branch: fix/shelf-drag-out
 - Starting commit: 0271e1d
-- Ending commit: 8848eb0
+- Ending commit: d64af3f
 
 ## Context Read
 
@@ -53,6 +53,12 @@
 - 删除 `ShelfDragOutMode` 与 `AppEnvironment.shelfDragOutMode`（含 UserDefaults 键）；`DragShelfView` 用 `@StateObject selection`，清空/移除同步清理选择。
 - 测试：`ShelfSelectionTests`（10 个）锁定选择/拖拽集合；`ShelfDragOutTests` 改为断言 `allowedOperations == [.copy, .move]`。
 
+### Follow-up 3（2026-08-08，同 agent 同任务继续）：-8058 修复——拖出改纯复制（`d64af3f`）
+
+- Owner 实测拖出到 Finder 报"无法完成此操作，因为发生意外错误（错误代码-8058）"。触发点是上一轮引入的 `.move` 声明：跨 app 移动的契约是"目标复制、源删原文件"，而 Finder 读取/复制是异步的，源在 `draggingSession(_:endedAt:)` 立即删除原文件与 Finder 读取竞态 → 目标端报 -8058（SDK 头文件无此错误码，属 Finder 内部运行时错误）。
+- 修复：`allowedOperations` 改为 `.copy`，删除 `endedAt` 的源文件删除逻辑与 `onMoveCompleted` 回调；拖出是纯复制，源不删任何文件，微信/QQ/Finder 收到的都是复制（恢复此前验证可用的行为）。
+- 测试：`testSourceAllowsCopyOnlyToAvoidMoveRace` 断言 `.copy`。
+
 ## Decisions
 
 - 用整行 AppKit 视图而非 `.background` representable：命中测试可靠，拖拽必然能启动；SwiftUI 壳保留，行内交互交给 AppKit（符合“AppKit 负责系统交互”）。
@@ -60,14 +66,15 @@
   - **更正（follow-up）**：`NSPasteboardItem` 无法携带 `NSFilenamesPboardType`，对微信/QQ 无效。改为直接以 `NSURL` 作写入器（与 Finder 拖拽等价）。
 - 保留复制/移动选择器（AppKit mask 控制），因为 SwiftUI `.onDrag` 只能复制。
   - **更正（follow-up 2）**：按 owner 要求砍掉选择器，源声明 `[.copy, .move]`，由系统/目标按盘符决定移动或复制；`.move` 时源删除原文件。
+  - **更正（follow-up 3）**：`.move` 源删除与 Finder 异步读取竞态 → 目标端 -8058。拖出定为**纯复制**（`.copy`），不删原文件，最安全。
 - 选择状态放托盘面板局部（`ShelfSelection`），不进入 `PetStateMachine`（纯 UI 状态，符合架构边界）。
 
 ## Verification
 
 - `xcodebuild test -only-testing:PetDeskTests/ShelfDragOutTests`：5 tests, 0 failures（先写失败用例确认红，再实现转绿；follow-up 重写为 NSURL 契约后仍 5 tests 通过）。
-- 全部 `PetDeskTests`：**136 tests, 0 failures**（含 `ShelfSelectionTests` 10 个 + `ShelfDragOutTests` 4 个；follow-up 2 后复跑全绿）。
-- `make lint`：passed（follow-up 2 后复跑，含 swift-format 自动修正）。
-- Release 构建：`BUILD SUCCEEDED`（follow-up 2 后复跑）。
+- 全部 `PetDeskTests`：**136 tests, 0 failures**（含 `ShelfSelectionTests` 10 个 + `ShelfDragOutTests` 4 个；follow-up 3 后复跑全绿）。
+- `make lint`：passed（follow-up 3 后复跑）。
+- Release 构建：`BUILD SUCCEEDED`（follow-up 3 后复跑）。
 - `swift build --product PetDeskAppCheck`、`swift run PetDeskCoreChecks`：passed（core checks 全绿）。
 - 禁止构造检查（`@unchecked Sendable|try!|as!|fatalError(`）：无命中。
 - UI 测试（PetDeskUITests 7 条）：runner 在 bootstrap 前崩溃 —— `Early unexpected exit, operation never finished bootstrapping (Test crashed with signal kill before establishing connection)`。**已对照验证为预先存在的环境问题**：`git stash -u` 到 baseline 状态重跑同样失败，与本次改动无关。
@@ -84,19 +91,20 @@
 ## Open Issues and Risks
 
 - 本会话 `make verify` 无法整体通过：UI 测试 runner 环境崩溃（预先存在）；`make verify` 的 `xcodebuild test` 步骤会失败。
-- 拖到微信/QQ 已由 owner 实测通过；**多选与自动移动/复制的行为待 owner 用真实 app 复测**（headless 无法合成跨 app 拖拽）。
-- `.move` 语义依赖系统/目标判定；若目标对同盘拖拽仍走复制，需在 GUI 下复核 `endedAt` 的 operation。
+- 拖到微信/QQ 已由 owner 实测通过；**多选与 -8058 修复后的复制拖出待 owner 复测**（headless 无法合成跨 app 拖拽）。
+- "同盘移动"未实现：跨 app `.move` 会引发 -8058（源删除与 Finder 异步读取竞态）。如需移动，需额外的"延迟删除/确认协议"，风险自担——owner 决策。
 - `picture.png` 保持未跟踪，禁止提交。
 - 后续合并 `fix/shelf-drag-out` 需 owner 批准。
 
 ## Next Actions
 
-1. Owner：`make run-app` 复测——多选（单击/Shift/Command）、整组拖到 Finder 桌面（同盘应移动、跨盘复制）与微信/QQ（复制）。
-2. Owner：批准后合并 `fix/shelf-drag-out` 到 main。
-3. UI 测试环境恢复后重跑 `make verify`。
+1. Owner：`make run-app` 复测——多选（单击/Shift/Command）、整组拖到 Finder 桌面与微信/QQ（均为复制，不应再报 -8058）。
+2. Owner：如确需"同盘移动"，与 agent 讨论延迟删除方案的风险后再加。
+3. Owner：批准后合并 `fix/shelf-drag-out` 到 main。
+4. UI 测试环境恢复后重跑 `make verify`。
 
 ## Git State
 
 - Branch: `fix/shelf-drag-out`（基于 `0271e1d`，main）。
-- Commits: `36ebe2b`、`134b0bf`、`8848eb0`（多选 + 自动移动/复制）。
+- Commits: `36ebe2b`、`134b0bf`、`8848eb0`（多选 + 自动移动/复制）、`d64af3f`（-8058 修复：拖出改纯复制）。
 - Working tree: `picture.png` 未跟踪；生成的 `PetDesk.xcodeproj` 未提交；handoff 更新待随本记录提交。
