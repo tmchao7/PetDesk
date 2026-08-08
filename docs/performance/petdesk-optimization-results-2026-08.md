@@ -50,3 +50,10 @@
 
 - Release 产物约 2.7 MB（可执行 1.0 MB），已启用 `-Wl,-dead_strip` + symbol strip。
 - 性能日志仅含场景、帧数与脱敏计数；无路径、文件名、消息正文。
+
+## 2026-08-08 清理 + 空闲 CPU 优化（`d783296` + `f97a6bb`）
+
+- **CPU**：`focusSession` 是 `@Published` 但无视图观察，其每秒 `advance()` 触发 `objectWillChange` 让全部观察视图重绘 → 去掉 `@Published`；`petMood`/`petEnergy` 更新节流为每 5s 一次（速率不变、步长 5×），`@Published` 发布从 2 次/秒降到 0.4 次/秒。实测 Release 空闲 CPU **0.71% → 0.06%**（60s，`ps` 采样）。
+- **死代码**（无行为变化，`-Wl,-dead_strip` 本已从二进制剥离，纯源码清理）：未用 Logger（stateMachine/systemLoad/notification）、`SpriteSheetSpec.sheetWidth/sheetHeight`、`DragShelfPanel.isHighlighted`、`openDiagnosticsWindow` relay、`AIPoseProvider.supportsReferenceImage`、TodoView/StatsView 冗余 `import AppKit`、过时自定义 `AnyShape`（系统版 macOS 14+ 接管）。
+- **内存**：RSS 未变（~137–143MB）。死代码不影响常驻内存；常驻内存由共享框架 + 头像/精灵图主导。进一步降低需 Instruments GUI Allocations 归因（当前环境不可用）。
+- 验证：136 单元测试、lint、Release、SwiftPM 全绿。
