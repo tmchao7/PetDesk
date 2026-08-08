@@ -6,9 +6,6 @@ public enum SpriteSheetSpec {
   public static let frameWidth: CGFloat = 192
   public static let frameHeight: CGFloat = 208
   public static let columns = 8
-
-  public static var sheetWidth: CGFloat { frameWidth * CGFloat(columns) }
-  public static var sheetHeight: CGFloat { frameHeight * CGFloat(AnimationRow.allCases.count) }
 }
 
 /// 动画行映射：每种动作一行，绑定 PetDesk 宠物状态。

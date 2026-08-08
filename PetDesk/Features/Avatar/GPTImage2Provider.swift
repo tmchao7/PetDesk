@@ -124,8 +124,6 @@ public struct GPTImage2Provider: AIPoseProvider {
     self.session = session
   }
 
-  public var supportsReferenceImage: Bool { true }
-
   /// 从进程环境读取配置；未配置 API Key 或选择了未实现的 CLI 传输时返回 nil。
   public static func fromEnvironment(
     _ environment: [String: String] = ProcessInfo.processInfo.environment

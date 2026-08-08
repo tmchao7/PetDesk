@@ -1,4 +1,3 @@
-import AppKit
 import SwiftUI
 
 #if SWIFT_PACKAGE

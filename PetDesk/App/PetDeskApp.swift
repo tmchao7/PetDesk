@@ -55,11 +55,6 @@ struct PetDeskApp: App {
       NSApp.activate(ignoringOtherApps: true)
       openSettings()
     }
-    appDelegate.environment.openDiagnosticsWindow = { [openWindow] in
-      NSApp.setActivationPolicy(.regular)
-      NSApp.activate(ignoringOtherApps: true)
-      openWindow(id: "diagnostics")
-    }
     appDelegate.environment.hidePet = { [weak appDelegate] in
       appDelegate?.togglePet()
     }

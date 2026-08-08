@@ -1127,8 +1127,6 @@ final class AppEnvironmentTests: XCTestCase {
   private struct RecordingPoseProvider: AIPoseProvider {
     let probe = ProbeCounter()
 
-    var supportsReferenceImage: Bool { true }
-
     func generateSpritesheet(from referenceImage: CGImage) async throws -> CGImage? {
       await probe.record()
       return SpriteSheetGenerator.generate(from: referenceImage)
@@ -1136,8 +1134,6 @@ final class AppEnvironmentTests: XCTestCase {
   }
 
   private struct ThrowingPoseProvider: AIPoseProvider {
-    var supportsReferenceImage: Bool { true }
-
     func generateSpritesheet(from referenceImage: CGImage) async throws -> CGImage? {
       throw AIPoseError.invalidResponse
     }

@@ -10,8 +10,6 @@ import AppKit
 final class DragShelfPanel: NSPanel, NSDraggingDestination, NSDraggingSource {
   /// 拖入新文件时回调（AppKit 主线程）。
   var onFilesDropped: (([URL]) -> Void)?
-  /// 拖入悬停高亮状态。
-  private(set) var isHighlighted = false
 
   /// 顶部拖拽把手高度（pt）。
   static let dragHandleHeight: CGFloat = 26
@@ -65,20 +63,14 @@ final class DragShelfPanel: NSPanel, NSDraggingDestination, NSDraggingSource {
   // MARK: - NSDraggingDestination
 
   func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
-    isHighlighted = true
-    return .copy
+    .copy
   }
 
-  func draggingExited(_ sender: NSDraggingInfo?) {
-    isHighlighted = false
-  }
+  func draggingExited(_ sender: NSDraggingInfo?) {}
 
-  func draggingEnded(_ sender: NSDraggingInfo) {
-    isHighlighted = false
-  }
+  func draggingEnded(_ sender: NSDraggingInfo) {}
 
   func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
-    isHighlighted = false
     let urls =
       sender.draggingPasteboard.readObjects(
         forClasses: [NSURL.self],
