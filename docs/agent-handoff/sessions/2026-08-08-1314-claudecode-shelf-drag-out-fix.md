@@ -9,7 +9,7 @@
 - Status: ready
 - Branch: fix/shelf-drag-out
 - Starting commit: 0271e1d
-- Ending commit: d7b287f
+- Ending commit: be0b050
 
 ## Context Read
 
@@ -66,6 +66,14 @@
 - Swift 6：后台 `DispatchQueue.global().asyncAfter` 闭包捕获 `self`（`@MainActor final class` 隐式 Sendable）与 `pending`（[String]），删除后经 `Task { @MainActor }` 回主线程回调 `onMoveCompleted`。
 - 测试：`testSourceAllowsMoveAndCopyForDropoverStyleMove` 断言 `[.copy, .move]`。
 
+### Follow-up 5（2026-08-08，同 agent 同任务继续）：自检 + 废纸篓对齐（`be0b050`）
+
+- Owner 要求自检 bug/泄露并尽量对齐 Dropover。自查结论：
+  - **无增长型泄漏**：延迟删除闭包对 `self`（行）的 ~1s 临时持有、`AppEnvironment ↔ 面板视图` 的循环引用（AppEnvironment 由 AppDelegate 持有、应用生命周期）都是良性。
+  - **修复**：补 `.delete`（拖到废纸篓时源把原文件移入废纸篓、可恢复，对齐 Dropover）；`filePath.didSet` 加 `oldValue !=` 守卫，避免选择重绘时重复取图标。
+  - 编译零告警；`@MainActor final` 隐式 Sendable 使后台闭包捕获 `self` 通过 Swift 6 严格并发。
+- 测试：`testSourceAllowsMoveCopyAndDeleteForDropoverParity` 断言 `[.copy, .move, .delete]`。
+
 ## Decisions
 
 - 用整行 AppKit 视图而非 `.background` representable：命中测试可靠，拖拽必然能启动；SwiftUI 壳保留，行内交互交给 AppKit（符合“AppKit 负责系统交互”）。
@@ -80,9 +88,9 @@
 ## Verification
 
 - `xcodebuild test -only-testing:PetDeskTests/ShelfDragOutTests`：5 tests, 0 failures（先写失败用例确认红，再实现转绿；follow-up 重写为 NSURL 契约后仍 5 tests 通过）。
-- 全部 `PetDeskTests`：**136 tests, 0 failures**（含 `ShelfSelectionTests` 10 个 + `ShelfDragOutTests` 4 个；follow-up 4 后复跑全绿）。
-- `make lint`：passed（follow-up 4 后复跑）。
-- Release 构建：`BUILD SUCCEEDED`（follow-up 4 后复跑）。
+- 全部 `PetDeskTests`：**136 tests, 0 failures**（含 `ShelfSelectionTests` 10 个 + `ShelfDragOutTests` 4 个；follow-up 5 后复跑全绿）。
+- `make lint`：passed（follow-up 5 后复跑）。
+- Release 构建：`BUILD SUCCEEDED`（follow-up 5 后复跑）。
 - `swift build --product PetDeskAppCheck`、`swift run PetDeskCoreChecks`：passed（core checks 全绿）。
 - 禁止构造检查（`@unchecked Sendable|try!|as!|fatalError(`）：无命中。
 - UI 测试（PetDeskUITests 7 条）：runner 在 bootstrap 前崩溃 —— `Early unexpected exit, operation never finished bootstrapping (Test crashed with signal kill before establishing connection)`。**已对照验证为预先存在的环境问题**：`git stash -u` 到 baseline 状态重跑同样失败，与本次改动无关。
@@ -99,19 +107,20 @@
 ## Open Issues and Risks
 
 - 本会话 `make verify` 无法整体通过：UI 测试 runner 环境崩溃（预先存在）；`make verify` 的 `xcodebuild test` 步骤会失败。
-- 拖到微信/QQ 已由 owner 实测通过；**多选 + Dropover 式同盘移动（延迟删除）待 owner 复测**（headless 无法合成跨 app 拖拽）。
+- 拖到微信/QQ 已由 owner 实测通过；**多选 + Dropover 式同盘移动（延迟删除）+ 废纸篓待 owner 复测**（headless 无法合成跨 app 拖拽）。
 - 延迟删除是启发式（~1s）：超大文件/慢目标下目标可能仍未读完 → 仍可能偶发 -8058。如 owner 复测遇到，需调大延迟或改"目标确认后再删"协议。
+- 自检发现无增长型泄漏；`AppEnvironment ↔ 面板视图` 循环引用为良性（应用生命周期）。
 - `picture.png` 保持未跟踪，禁止提交。
-- 后续合并 `fix/shelf-drag-out` 需 owner 批准。
+- 分支已推送 origin；合并 `fix/shelf-drag-out` 到 main 需 owner 批准。
 
 ## Next Actions
 
-1. Owner：`make run-app` 复测——多选（单击/Shift/Command）、整组拖到 Finder 桌面（同盘应**移动**、跨盘复制）与微信/QQ（复制），确认不再报 -8058。
-2. Owner：批准后合并 `fix/shelf-drag-out` 到 main。
+1. Owner：`make run-app` 复测——多选（单击/Shift/Command）、整组拖到 Finder 桌面（同盘应**移动**、跨盘复制）、微信/QQ（复制）、废纸篓（移入废纸篓、可恢复），确认不再报 -8058。
+2. Owner：批准后合并 `fix/shelf-drag-out` 到 main（PR）。
 3. UI 测试环境恢复后重跑 `make verify`。
 
 ## Git State
 
-- Branch: `fix/shelf-drag-out`（基于 `0271e1d`，main）。
-- Commits: `36ebe2b`、`134b0bf`、`8848eb0`（多选）、`d64af3f`（复制修复）、`d7b287f`（Dropover 式同盘移动 + 延迟删除）。
+- Branch: `fix/shelf-drag-out`（基于 `0271e1d`，main），已推送 origin。
+- Commits: `36ebe2b`、`134b0bf`、`8848eb0`（多选）、`d64af3f`（复制修复）、`d7b287f`（Dropover 式同盘移动 + 延迟删除）、`be0b050`（废纸篓 `.delete` + 图标守卫）。
 - Working tree: `picture.png` 未跟踪；生成的 `PetDesk.xcodeproj` 未提交；handoff 更新待随本记录提交。
