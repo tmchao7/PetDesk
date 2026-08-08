@@ -79,7 +79,7 @@ State representation: the keyboard / tea-cup / Zzz emoji overlays are removed. S
 - 拖出：每行是 AppKit `ShelfRowView`（整行 `NSDraggingSource`）。拖到桌面/微信/QQ 失败时，先确认跑的是新构建——旧构建把拖拽视图放在 SwiftUI 行的 `.background`，行内容吞掉鼠标事件，拖拽从未启动。
 - 拖拽 pasteboard 必须携带真实 `file://` 路径（`ShelfDragOutPasteboard` 的 `public.file-url`），绝不能用 SwiftUI `.onDrag`/Transferable 的临时容器副本（`com.apple.SwiftUI.Drag-*`），微信/QQ 等按 URL 消费的 app 会拒绝或读不到。
 - 微信/QQ 还读旧式 `NSFilenamesPboardType`（路径数组）。拖拽写入器直接用文件的 `NSURL`（`makeWriter`），AppKit 自动生成 file-url + filenames 完整类型集，与 Finder 拖拽等价；`NSPasteboardItem` 无法携带 filenames 类型（非法 UTI），所以基于 item 的拖拽对 IM 目标无效。
-- 移动/复制（Dropover 式）：`sourceOperationMask = [.copy, .move]`，Finder 同盘给 `.move`、跨盘给 `.copy`，微信/QQ/邮件只收 `.copy`。`.move` 时源在 `endedAt` **延迟 ~1s** 删除原文件并移出托盘（给目标读取时间）；若立即删除会与 Finder 异步读取竞态 → 目标端报"意外错误（错误代码-8058）"。
+- 移动/复制/废纸篓（Dropover 式）：`sourceOperationMask = [.copy, .move, .delete]`，Finder 同盘给 `.move`、跨盘给 `.copy`，微信/QQ/邮件只收 `.copy`，废纸篓给 `.delete`（源移入废纸篓、可恢复）。`.move`/`.delete` 时源在 `endedAt` **延迟 ~1s** 清理原文件并移出托盘（给目标读取时间）；若立即删除会与 Finder 异步读取竞态 → 目标端报"意外错误（错误代码-8058）"。
 - 多选：单击=单选、Command+单击=切换、Shift+单击=从锚点连选；拖已选中的行=整组拖出（多 `NSDraggingItem`），拖未选中的行=只拖该行。选择是托盘面板的临时 UI 状态（`ShelfSelection`），重启不保留。
 
 ## Verifying You Are Running the New Build

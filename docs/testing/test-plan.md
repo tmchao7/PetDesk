@@ -6,7 +6,7 @@
 
 `PetDeskUITests` launches deterministic demo states and verifies the pet remains accessible without Accessibility permission. Full Xcode is required for XCUITest.
 
-`ShelfDragOutTests` locks the drag-out contract: the pasteboard carries both the real `file://` path (`public.file-url`, Finder) and the legacy `NSFilenamesPboardType` path array (WeChat/QQ), and the source declares `[.copy, .move]` (Dropover-style move — same volume moves with a delayed ~1s source-delete, cross-volume/WeChat/QQ copy). `ShelfSelectionTests` locks single / Command-toggle / Shift-range selection and the drag set (whole group vs. single row). Cross-app drag-out to Finder/微信/QQ must be verified by hand — XCUITest cannot synthesize a drop into another app.
+`ShelfDragOutTests` locks the drag-out contract: the pasteboard carries both the real `file://` path (`public.file-url`, Finder) and the legacy `NSFilenamesPboardType` path array (WeChat/QQ), and the source declares `[.copy, .move, .delete]` (Dropover-style — same-volume moves / Trash-deletes with a delayed ~1s source cleanup, cross-volume/WeChat/QQ copy). `ShelfSelectionTests` locks single / Command-toggle / Shift-range selection and the drag set (whole group vs. single row). Cross-app drag-out to Finder/微信/QQ must be verified by hand — XCUITest cannot synthesize a drop into another app.
 
 With full Xcode available, `make verify` validates unique target product/module identities, builds
 the app, and runs both XCTest and XCUITest. The build-only action may disable signing, but the test

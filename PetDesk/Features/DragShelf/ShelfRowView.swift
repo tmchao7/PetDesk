@@ -18,13 +18,14 @@ enum ShelfDragOutPasteboard {
   /// 旧式 `NSFilenamesPboardType`（已废弃但仍被微信/QQ 等读取）。
   static let filenamesType = NSPasteboard.PasteboardType("NSFilenamesPboardType")
 
-  /// 源允许的拖拽操作：复制 + 移动（Dropover 式）。
+  /// 源允许的拖拽操作：复制 + 移动 + 删除（Dropover 式）。
   ///
   /// 移动的契约是"目标复制、源删原文件"（`draggingSession(_:endedAt:)`）。
-  /// Finder 对同盘拖拽给出 `.move`、跨盘/微信/QQ 给出 `.copy`。源删除原文件
-  /// 必须延迟到目标读完，否则与 Finder 异步读取竞态，目标端报"意外错误
-  /// （-8058）"——延迟清理见 `ShelfRowView.draggingSession(_:endedAt:)`。
-  static let allowedOperations: NSDragOperation = [.copy, .move]
+  /// Finder 对同盘拖拽给出 `.move`、跨盘/微信/QQ 给出 `.copy`、废纸篓给出
+  /// `.delete`。源删除原文件必须延迟到目标读完，否则与 Finder 异步读取竞态，
+  /// 目标端报"意外错误（-8058）"——延迟清理见
+  /// `ShelfRowView.draggingSession(_:endedAt:)`。
+  static let allowedOperations: NSDragOperation = [.copy, .move, .delete]
 }
 
 /// 托盘单行条目的 AppKit 视图：图标 + 文件名 + 移除按钮 + 拖出 + 右键菜单。
@@ -37,7 +38,11 @@ enum ShelfDragOutPasteboard {
 final class ShelfRowView: NSView, NSDraggingSource {
   /// 被拖出的文件路径。
   var filePath: String? {
-    didSet { refreshContent() }
+    didSet {
+      // 选择变化会触发 updateNSView 重设 filePath；值未变时跳过图标重取。
+      guard oldValue != filePath else { return }
+      refreshContent()
+    }
   }
   /// 共享选择状态（单选 / Shift 连选 / Command 切换）。
   var selection: ShelfSelection?
@@ -196,22 +201,32 @@ final class ShelfRowView: NSView, NSDraggingSource {
     ShelfDragOutPasteboard.allowedOperations
   }
 
-  /// 同盘移动：目标（Finder）已复制到新位置，源侧删除原文件完成"移动"。
-  /// 延迟 ~1s 清理，给目标完成读取/复制的时间，避免源删除与目标异步读取
+  /// 同盘移动 / 废纸篓删除后的源侧清理：
+  /// - `.move`：目标（Finder）已复制到新位置，源删除原文件完成"移动"。
+  /// - `.delete`：拖到废纸篓，源把原文件移入废纸篓（可恢复，非永久删除）。
+  /// 延迟 ~1s 执行，给目标完成读取/复制的时间，避免源删除与目标异步读取
   /// 竞态导致"意外错误（-8058）"。
   func draggingSession(
     _ session: NSDraggingSession,
     endedAt screenPoint: NSPoint,
     operation: NSDragOperation
   ) {
-    guard operation.contains(.move), let filePath else { return }
+    guard
+      operation.contains(.move) || operation.contains(.delete),
+      let filePath
+    else { return }
     let paths = selection?.dragPaths(for: filePath, in: items) ?? [filePath]
     let pending = paths
+    let isDelete = operation.contains(.delete)
     DispatchQueue.global().asyncAfter(deadline: .now() + Self.moveCleanupDelay) {
       var moved: [String] = []
       for path in pending {
-        // 若 Finder 已直接移走（原路径不存在），跳过删除，只清理托盘条目。
-        if FileManager.default.fileExists(atPath: path) {
+        if isDelete {
+          // 移入废纸篓（可恢复）。
+          try? FileManager.default.trashItem(
+            at: URL(fileURLWithPath: path), resultingItemURL: nil)
+        } else if FileManager.default.fileExists(atPath: path) {
+          // 若 Finder 已直接移走（原路径不存在），跳过删除，只清理托盘条目。
           try? FileManager.default.removeItem(atPath: path)
         }
         moved.append(path)
