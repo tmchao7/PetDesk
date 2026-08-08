@@ -14,25 +14,18 @@ enum ShelfDragOutMode: String, Sendable {
 /// 与视图分离以便单元测试：拖拽 pasteboard 必须携带真实 file:// 路径，
 /// Finder/微信/QQ 才能据此解析并消费文件。
 enum ShelfDragOutPasteboard {
-  /// 为真实文件构造拖拽 pasteboard 条目。
-  /// - `public.file-url`：真实 `file://` URL 字符串（Finder/终端读取）。
-  /// - 图片内容 UTI（如 `public.png`）：通过 dataProvider 按需懒加载，
-  ///   微信/QQ/图片编辑器等直接消费内容的 app 需要它；不整读大文件。
-  /// - 返回的 provider 必须由调用方强持有到拖拽结束（pasteboard 持弱引用）。
-  static func makeItem(for url: URL) -> (
-    item: NSPasteboardItem, provider: ShelfDragOutDataProvider?
-  ) {
-    let item = NSPasteboardItem()
-    item.setString(url.absoluteString, forType: .fileURL)
-
-    var provider: ShelfDragOutDataProvider?
-    if let type = UTType(filenameExtension: url.pathExtension), type.conforms(to: .image) {
-      let dataProvider = ShelfDragOutDataProvider(url: url)
-      item.setDataProvider(dataProvider, forTypes: [NSPasteboard.PasteboardType(type.identifier)])
-      provider = dataProvider
-    }
-    return (item, provider)
+  /// 构造与 Finder 拖拽等价的 pasteboard 写入器：直接返回 `NSURL`。
+  /// AppKit 会据此生成 `public.file-url` + `NSFilenamesPboardType` +
+  /// Apple URL 类型——Finder 读 file-url，微信/QQ 等 IM 目标读
+  /// `NSFilenamesPboardType`（路径数组）。两者缺一，对应目标就会拒绝拖拽。
+  /// （`NSPasteboardItem` 无法携带 `NSFilenamesPboardType`：它不是合法 UTI，
+  /// `setPropertyList` 会被静默丢弃。）
+  static func makeWriter(for url: URL) -> NSURL {
+    url as NSURL
   }
+
+  /// 旧式 `NSFilenamesPboardType`（已废弃但仍被微信/QQ 等读取）。
+  static let filenamesType = NSPasteboard.PasteboardType("NSFilenamesPboardType")
 
   /// 复制/移动模式的拖拽操作掩码。
   /// 注意：目标 app 决定最终操作——微信/QQ/邮件等外部 app 只接受复制；
@@ -42,25 +35,6 @@ enum ShelfDragOutPasteboard {
     case .copy: .copy
     case .move: [.copy, .move]
     }
-  }
-}
-
-/// 图片内容 UTI 的懒加载数据提供者：目标请求时才读取真实文件数据。
-/// 需继承 NSObject（NSPasteboardItemDataProvider 继承 NSObjectProtocol）。
-final class ShelfDragOutDataProvider: NSObject, NSPasteboardItemDataProvider {
-  private let url: URL
-
-  init(url: URL) {
-    self.url = url
-  }
-
-  func pasteboard(
-    _ pasteboard: NSPasteboard?,
-    item: NSPasteboardItem,
-    provideDataForType type: NSPasteboard.PasteboardType
-  ) {
-    guard let data = try? Data(contentsOf: url) else { return }
-    item.setData(data, forType: type)
   }
 }
 
@@ -86,8 +60,6 @@ final class ShelfRowView: NSView, NSDraggingSource {
   private let removeButton = NSButton()
 
   private var isDragging = false
-  /// 拖拽内容 UTI 数据提供者需存活到拖拽结束（NSPasteboardItem 持弱引用）。
-  private var activeDataProvider: ShelfDragOutDataProvider?
 
   override init(frame frameRect: NSRect) {
     super.init(frame: frameRect)
@@ -162,9 +134,10 @@ final class ShelfRowView: NSView, NSDraggingSource {
     isDragging = true
 
     let url = URL(fileURLWithPath: filePath)
-    let (item, provider) = ShelfDragOutPasteboard.makeItem(for: url)
-    activeDataProvider = provider
-    let draggingItem = NSDraggingItem(pasteboardWriter: item)
+    // NSURL 写入器 → AppKit 生成与 Finder 等价的完整类型集（file-url +
+    // filenames），Finder 与微信/QQ 都能识别。
+    let draggingItem = NSDraggingItem(
+      pasteboardWriter: ShelfDragOutPasteboard.makeWriter(for: url))
     // 拖拽预览：真实文件图标，避免空白拖拽。
     let image = NSWorkspace.shared.icon(forFile: filePath)
     draggingItem.setDraggingFrame(NSRect(x: 0, y: 0, width: 48, height: 48), contents: image)

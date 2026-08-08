@@ -1,5 +1,4 @@
 import AppKit
-import UniformTypeIdentifiers
 import XCTest
 
 #if SWIFT_PACKAGE
@@ -8,40 +7,50 @@ import XCTest
   @testable import PetDesk
 #endif
 
-/// 托盘「拖出文件」的行为测试：拖拽 pasteboard 必须携带真实的 file:// 路径
-/// （Finder/微信/QQ 据此解析文件），并为图片等目标注册内容 UTI 表示；
+/// 托盘「拖出文件」的行为测试：拖拽 pasteboard 必须同时携带
+/// `public.file-url`（Finder 读取）与 `NSFilenamesPboardType` 路径数组
+/// （微信/QQ 等 IM 目标读取），两者缺一对应目标就拒绝拖拽；
 /// 复制/移动模式的拖拽操作掩码按用户选择返回。
 final class ShelfDragOutTests: XCTestCase {
-  func testPasteboardProviderRegistersFileURLAndImageUTI() {
-    let url = URL(fileURLWithPath: "/tmp/PetDesk-拖出测试.png")
-    let (item, provider) = ShelfDragOutPasteboard.makeItem(for: url)
+  private func pasteboard(for url: URL) -> NSPasteboard {
+    let pasteboard = NSPasteboard(name: NSPasteboard.Name("ShelfDragOutTests.\(UUID())"))
+    pasteboard.clearContents()
+    pasteboard.writeObjects([ShelfDragOutPasteboard.makeWriter(for: url)])
+    return pasteboard
+  }
 
-    XCTAssertNotNil(provider, "图片文件应注册内容 UTI 数据提供者，供微信/QQ 等按内容消费的 app 使用")
-    let types = item.types
+  func testPasteboardCarriesFileURLAndLegacyFilenamesForIMTargets() {
+    let url = URL(fileURLWithPath: "/tmp/PetDesk-拖出测试.png")
+    let pasteboard = pasteboard(for: url)
+
+    let types = pasteboard.types ?? []
     XCTAssertTrue(
       types.contains(.fileURL),
       "拖拽 pasteboard 必须携带 public.file-url，否则 Finder 无法识别为文件拖拽。实际: \(types)")
     XCTAssertTrue(
-      types.contains(NSPasteboard.PasteboardType(UTType.png.identifier)),
-      "图片文件还需注册内容 UTI，否则微信/QQ 等按内容消费的 app 无法预览。实际: \(types)")
+      types.contains(ShelfDragOutPasteboard.filenamesType),
+      "拖拽 pasteboard 必须携带 NSFilenamesPboardType，否则微信/QQ 等 IM 目标无反应。实际: \(types)")
   }
 
-  func testFileURLStringIsRealPath() {
+  func testFileURLAndFilenamesPointToRealPath() {
     let url = URL(fileURLWithPath: "/tmp/PetDesk-拖出测试.png")
-    let (item, _) = ShelfDragOutPasteboard.makeItem(for: url)
+    let pasteboard = pasteboard(for: url)
 
     XCTAssertEqual(
-      item.string(forType: .fileURL),
+      pasteboard.string(forType: .fileURL),
       url.absoluteString,
-      "必须提供真实 file:// URL 字符串，而非临时副本路径")
+      "file-url 必须是真实 file:// URL 字符串，而非临时副本路径")
+    let paths = pasteboard.propertyList(forType: ShelfDragOutPasteboard.filenamesType) as? [String]
+    XCTAssertEqual(paths, [url.path], "NSFilenamesPboardType 必须是真实路径数组")
   }
 
-  func testNonImageFileStillCarriesFileURL() {
+  func testNonImageFileStillProducesBothFileTypes() {
     let url = URL(fileURLWithPath: "/tmp/PetDesk-拖出测试.txt")
-    let (item, provider) = ShelfDragOutPasteboard.makeItem(for: url)
+    let pasteboard = pasteboard(for: url)
 
-    XCTAssertNil(provider, "非图片文件只注册 file-url，不注册内容数据")
-    XCTAssertEqual(item.string(forType: .fileURL), url.absoluteString)
+    let types = pasteboard.types ?? []
+    XCTAssertTrue(types.contains(.fileURL))
+    XCTAssertTrue(types.contains(ShelfDragOutPasteboard.filenamesType))
   }
 
   func testOperationMaskForCopyMode() {

@@ -77,7 +77,8 @@ State representation: the keyboard / tea-cup / Zzz emoji overlays are removed. S
 
 - 拖入：拖到宠物或托盘面板都接收文件/文件夹 URL，只存**原始路径**（`AppEnvironment.addShelfItems`），不复制文件。若原文件被删除，拖出会得到失效文件——这是设计（托盘是暂存，不是仓库）。
 - 拖出：每行是 AppKit `ShelfRowView`（整行 `NSDraggingSource`）。拖到桌面/微信/QQ 失败时，先确认跑的是新构建——旧构建把拖拽视图放在 SwiftUI 行的 `.background`，行内容吞掉鼠标事件，拖拽从未启动。
-- 拖拽 pasteboard 必须携带真实 `file://` 路径（`ShelfDragOutPasteboard` 的 `public.file-url`），绝不能用 SwiftUI `.onDrag`/Transferable 的临时容器副本（`com.apple.SwiftUI.Drag-*`），微信/QQ 等按 URL 消费的 app 会拒绝或读不到。图片文件额外注册内容 UTI（懒加载）。
+- 拖拽 pasteboard 必须携带真实 `file://` 路径（`ShelfDragOutPasteboard` 的 `public.file-url`），绝不能用 SwiftUI `.onDrag`/Transferable 的临时容器副本（`com.apple.SwiftUI.Drag-*`），微信/QQ 等按 URL 消费的 app 会拒绝或读不到。
+- 微信/QQ 还读旧式 `NSFilenamesPboardType`（路径数组）。拖拽写入器直接用文件的 `NSURL`（`makeWriter`），AppKit 自动生成 file-url + filenames 完整类型集，与 Finder 拖拽等价；`NSPasteboardItem` 无法携带 filenames 类型（非法 UTI），所以基于 item 的拖拽对 IM 目标无效。
 - 拖出方式选择器：复制对任何目标生效；移动仅对 Finder 等支持 move 的目标生效（微信/QQ 只接受复制）。
 
 ## Verifying You Are Running the New Build
