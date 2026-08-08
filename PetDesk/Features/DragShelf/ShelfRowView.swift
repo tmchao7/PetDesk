@@ -18,12 +18,13 @@ enum ShelfDragOutPasteboard {
   /// 旧式 `NSFilenamesPboardType`（已废弃但仍被微信/QQ 等读取）。
   static let filenamesType = NSPasteboard.PasteboardType("NSFilenamesPboardType")
 
-  /// 源允许的拖拽操作：只允许复制。
+  /// 源允许的拖拽操作：复制 + 移动（Dropover 式）。
   ///
-  /// 不能声明 `.move`：跨 app 移动的契约是"目标复制、源删原文件"，但 Finder
-  /// 读取/复制是异步的，源在 `draggingSession(_:endedAt:)` 立即删除原文件会与
-  /// Finder 读取竞态，目标端报"意外错误（-8058）"。纯复制没有任何删除，安全。
-  static let allowedOperations: NSDragOperation = .copy
+  /// 移动的契约是"目标复制、源删原文件"（`draggingSession(_:endedAt:)`）。
+  /// Finder 对同盘拖拽给出 `.move`、跨盘/微信/QQ 给出 `.copy`。源删除原文件
+  /// 必须延迟到目标读完，否则与 Finder 异步读取竞态，目标端报"意外错误
+  /// （-8058）"——延迟清理见 `ShelfRowView.draggingSession(_:endedAt:)`。
+  static let allowedOperations: NSDragOperation = [.copy, .move]
 }
 
 /// 托盘单行条目的 AppKit 视图：图标 + 文件名 + 移除按钮 + 拖出 + 右键菜单。
@@ -48,6 +49,8 @@ final class ShelfRowView: NSView, NSDraggingSource {
   }
   /// 点击移除按钮时回调（AppKit 主线程）。
   var onRemove: (() -> Void)?
+  /// 拖拽以 `.move` 结束（同盘移动）后回调：删除原文件完成移动、从托盘移除。
+  var onMoveCompleted: (([String]) -> Void)?
 
   private let iconView = NSImageView()
   private let nameLabel = NSTextField(labelWithString: "")
@@ -192,12 +195,43 @@ final class ShelfRowView: NSView, NSDraggingSource {
   ) -> NSDragOperation {
     ShelfDragOutPasteboard.allowedOperations
   }
+
+  /// 同盘移动：目标（Finder）已复制到新位置，源侧删除原文件完成"移动"。
+  /// 延迟 ~1s 清理，给目标完成读取/复制的时间，避免源删除与目标异步读取
+  /// 竞态导致"意外错误（-8058）"。
+  func draggingSession(
+    _ session: NSDraggingSession,
+    endedAt screenPoint: NSPoint,
+    operation: NSDragOperation
+  ) {
+    guard operation.contains(.move), let filePath else { return }
+    let paths = selection?.dragPaths(for: filePath, in: items) ?? [filePath]
+    let pending = paths
+    DispatchQueue.global().asyncAfter(deadline: .now() + Self.moveCleanupDelay) {
+      var moved: [String] = []
+      for path in pending {
+        // 若 Finder 已直接移走（原路径不存在），跳过删除，只清理托盘条目。
+        if FileManager.default.fileExists(atPath: path) {
+          try? FileManager.default.removeItem(atPath: path)
+        }
+        moved.append(path)
+      }
+      let result = moved
+      Task { @MainActor in
+        self.onMoveCompleted?(result)
+      }
+    }
+  }
+
+  /// 同盘移动后延迟清理原文件的秒数（给目标留读取时间）。
+  private static let moveCleanupDelay = 1.0
 }
 
 /// SwiftUI 到 AppKit 行视图的最小桥接。
 struct ShelfRowRepresentable: NSViewRepresentable {
   let path: String
   let onRemove: () -> Void
+  let onMoveCompleted: ([String]) -> Void
   let selection: ShelfSelection
   let isSelected: Bool
   let items: [String]
@@ -206,6 +240,7 @@ struct ShelfRowRepresentable: NSViewRepresentable {
     let view = ShelfRowView()
     view.filePath = path
     view.onRemove = onRemove
+    view.onMoveCompleted = onMoveCompleted
     view.selection = selection
     view.items = items
     view.isSelected = isSelected
@@ -215,6 +250,7 @@ struct ShelfRowRepresentable: NSViewRepresentable {
   func updateNSView(_ nsView: ShelfRowView, context: Context) {
     nsView.filePath = path
     nsView.onRemove = onRemove
+    nsView.onMoveCompleted = onMoveCompleted
     nsView.selection = selection
     nsView.items = items
     nsView.isSelected = isSelected

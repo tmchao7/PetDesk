@@ -53,9 +53,9 @@ final class ShelfDragOutTests: XCTestCase {
     XCTAssertTrue(types.contains(ShelfDragOutPasteboard.filenamesType))
   }
 
-  func testSourceAllowsCopyOnlyToAvoidMoveRace() {
-    // 只允许复制：声明 .move 会要求源在拖拽结束立即删除原文件，与 Finder
-    // 异步读取竞态，目标端报"意外错误（-8058）"。纯复制没有任何删除。
-    XCTAssertEqual(ShelfDragOutPasteboard.allowedOperations, .copy)
+  func testSourceAllowsMoveAndCopyForDropoverStyleMove() {
+    // 声明复制 + 移动（Dropover 式）：Finder 同盘给 .move（源延迟删原文件）、
+    // 跨盘/微信/QQ 给 .copy。源删除原文件延迟 ~1s，避免 -8058 竞态。
+    XCTAssertEqual(ShelfDragOutPasteboard.allowedOperations, [.copy, .move])
   }
 }

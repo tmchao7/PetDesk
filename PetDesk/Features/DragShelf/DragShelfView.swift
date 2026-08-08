@@ -73,6 +73,11 @@ struct DragShelfView: View {
                   environment.removeShelfItem(path)
                   selection.remove([path])
                 },
+                onMoveCompleted: { movedPaths in
+                  // 同盘移动完成：原文件已删/被 Finder 移走，移出托盘并清理选择。
+                  for path in movedPaths { environment.removeShelfItem(path) }
+                  selection.remove(Set(movedPaths))
+                },
                 selection: selection,
                 isSelected: selection.isSelected(path),
                 items: environment.shelfItems
