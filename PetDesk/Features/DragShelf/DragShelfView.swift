@@ -73,10 +73,6 @@ struct DragShelfView: View {
                   environment.removeShelfItem(path)
                   selection.remove([path])
                 },
-                onMoveCompleted: { movedPaths in
-                  for path in movedPaths { environment.removeShelfItem(path) }
-                  selection.remove(Set(movedPaths))
-                },
                 selection: selection,
                 isSelected: selection.isSelected(path),
                 items: environment.shelfItems

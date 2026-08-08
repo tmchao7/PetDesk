@@ -18,9 +18,12 @@ enum ShelfDragOutPasteboard {
   /// 旧式 `NSFilenamesPboardType`（已废弃但仍被微信/QQ 等读取）。
   static let filenamesType = NSPasteboard.PasteboardType("NSFilenamesPboardType")
 
-  /// 源允许的拖拽操作：同时声明复制与移动，由系统/目标按 Finder 语义决定——
-  /// 同盘=移动、跨盘=复制；微信/QQ/邮件等外部 app 只接受复制。
-  static let allowedOperations: NSDragOperation = [.copy, .move]
+  /// 源允许的拖拽操作：只允许复制。
+  ///
+  /// 不能声明 `.move`：跨 app 移动的契约是"目标复制、源删原文件"，但 Finder
+  /// 读取/复制是异步的，源在 `draggingSession(_:endedAt:)` 立即删除原文件会与
+  /// Finder 读取竞态，目标端报"意外错误（-8058）"。纯复制没有任何删除，安全。
+  static let allowedOperations: NSDragOperation = .copy
 }
 
 /// 托盘单行条目的 AppKit 视图：图标 + 文件名 + 移除按钮 + 拖出 + 右键菜单。
@@ -45,8 +48,6 @@ final class ShelfRowView: NSView, NSDraggingSource {
   }
   /// 点击移除按钮时回调（AppKit 主线程）。
   var onRemove: (() -> Void)?
-  /// 拖拽以 .move 结束（同盘移动）后回调，用于从托盘移除已移走的原文件。
-  var onMoveCompleted: (([String]) -> Void)?
 
   private let iconView = NSImageView()
   private let nameLabel = NSTextField(labelWithString: "")
@@ -191,27 +192,12 @@ final class ShelfRowView: NSView, NSDraggingSource {
   ) -> NSDragOperation {
     ShelfDragOutPasteboard.allowedOperations
   }
-
-  /// 同盘移动：目标已复制到新位置，源侧删除原文件完成"移动"，并通知从托盘移除。
-  func draggingSession(
-    _ session: NSDraggingSession,
-    endedAt screenPoint: NSPoint,
-    operation: NSDragOperation
-  ) {
-    guard operation.contains(.move), let filePath else { return }
-    let paths = selection?.dragPaths(for: filePath, in: items) ?? [filePath]
-    for path in paths {
-      try? FileManager.default.removeItem(atPath: path)
-    }
-    onMoveCompleted?(paths)
-  }
 }
 
 /// SwiftUI 到 AppKit 行视图的最小桥接。
 struct ShelfRowRepresentable: NSViewRepresentable {
   let path: String
   let onRemove: () -> Void
-  let onMoveCompleted: ([String]) -> Void
   let selection: ShelfSelection
   let isSelected: Bool
   let items: [String]
@@ -220,7 +206,6 @@ struct ShelfRowRepresentable: NSViewRepresentable {
     let view = ShelfRowView()
     view.filePath = path
     view.onRemove = onRemove
-    view.onMoveCompleted = onMoveCompleted
     view.selection = selection
     view.items = items
     view.isSelected = isSelected
@@ -230,7 +215,6 @@ struct ShelfRowRepresentable: NSViewRepresentable {
   func updateNSView(_ nsView: ShelfRowView, context: Context) {
     nsView.filePath = path
     nsView.onRemove = onRemove
-    nsView.onMoveCompleted = onMoveCompleted
     nsView.selection = selection
     nsView.items = items
     nsView.isSelected = isSelected
