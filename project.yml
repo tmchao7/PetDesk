@@ -31,7 +31,7 @@ targets:
         CODE_SIGN_ENTITLEMENTS: Config/PetDesk.entitlements
         ENABLE_HARDENED_RUNTIME: true
         INFOPLIST_FILE: Config/Info.plist
-        MARKETING_VERSION: "2.0.0"
+        MARKETING_VERSION: "2.0.1"
         CURRENT_PROJECT_VERSION: "1"
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.productivity
         INFOPLIST_KEY_LSUIElement: true

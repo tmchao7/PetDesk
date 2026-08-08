@@ -1,6 +1,6 @@
 # PetDesk
 
-[![Release](https://img.shields.io/badge/下载-v2.0-blue)](https://github.com/tmchao7/PetDesk/releases/latest)
+[![Release](https://img.shields.io/badge/下载-v2.0.1-blue)](https://github.com/tmchao7/PetDesk/releases/latest)
 
 PetDesk is a **native macOS 26 desktop companion** — 原生、轻量、安静。
 It animates an imported avatar in response to CPU load, coarse thermal pressure,
@@ -21,7 +21,7 @@ user activity, focus sessions, and optional best-effort WeChat/QQ notification p
 
 ```bash
 # 1. 挂载 dmg 并复制到 Applications
-hdiutil attach ~/Downloads/PetDesk-2.0.0.dmg
+hdiutil attach ~/Downloads/PetDesk-2.0.1.dmg
 cp -R "/Volumes/PetDesk/PetDesk.app" /Applications/
 hdiutil detach /Volumes/PetDesk
 
