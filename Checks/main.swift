@@ -585,7 +585,7 @@ private func checkPoseCellPreservesInteriorBackgroundColor() throws {
   }
   context.draw(canvas, in: CGRect(x: 0, y: 0, width: 256, height: 256))
   context.setFillColor(CGColor(red: 0, green: 0.3, blue: 0.9, alpha: 1))
-  context.fillEllipse(in: CGRect(x: 18, y: 18, width: 220, height: 220))
+  context.fillEllipse(in: CGRect(x: 48, y: 28, width: 160, height: 200))
   context.setFillColor(CGColor(red: 1, green: 1, blue: 1, alpha: 1))
   context.fillEllipse(in: CGRect(x: 68, y: 68, width: 120, height: 120))
   guard let subjectImage = context.makeImage() else {
@@ -643,6 +643,109 @@ private func checkPoseCellRescuesLeakedInterior() throws {
     "interior background-colored region leaked through the outline gap should stay opaque")
   let corner = pixel(cell, x: 0, y: 0)
   try expect(corner.a == 0, "exterior background should be removed")
+}
+
+private func checkPoseCellDefringeRemovesBackgroundRing() throws {
+  // 白底 + 蓝色椭圆（默认抗锯齿）：过渡带像素颜色接近背景色，旧逻辑把整圈
+  // 过渡带保留为不透明 → 角色轮廓外出现一圈近白“边框/分割线”。修复应
+  // ① defringe：边缘像素颜色替换为内侧本体色（蓝）；② 羽化：最外层 alpha
+  // 半透明过渡（不再是 255 硬边）。
+  let white = (r: CGFloat(1.0), g: CGFloat(1.0), b: CGFloat(1.0))
+  guard
+    let canvas = makeSolidImage(width: 256, height: 256, color: white),
+    let context = CGContext(
+      data: nil,
+      width: 256,
+      height: 256,
+      bitsPerComponent: 8,
+      bytesPerRow: 0,
+      space: CGColorSpaceCreateDeviceRGB(),
+      bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+    )
+  else {
+    throw CheckFailure(description: "could not create defringe canvas")
+  }
+  context.draw(canvas, in: CGRect(x: 0, y: 0, width: 256, height: 256))
+  context.setFillColor(CGColor(red: 0, green: 0.3, blue: 0.9, alpha: 1))
+  // 竖椭圆：contain-fit 后垂直占满、水平留白，中间行能扫到真正的边缘过渡带。
+  context.fillEllipse(in: CGRect(x: 48, y: 28, width: 160, height: 200))
+  guard let subjectImage = context.makeImage() else {
+    throw CheckFailure(description: "could not make defringe subject image")
+  }
+
+  guard let cell = PoseCellProcessor.makeCell(from: subjectImage) else {
+    throw CheckFailure(description: "defringe pose processing returned nil")
+  }
+  // 中间行自左向右扫描：第一个不透明像素（羽化带最外层）与第一个
+  // 不透明主体像素（alpha ≥ 200，羽化带之外，颜色未经预乘拉暗）。
+  var outer: (r: Int, g: Int, b: Int, a: Int)?
+  var bodyEdge: (r: Int, g: Int, b: Int, a: Int)?
+  var thirdOpaque: (r: Int, g: Int, b: Int, a: Int)?
+  var opaqueCount = 0
+  for x in 0..<192 {
+    let p = pixel(cell, x: x, y: 104)
+    if p.a > 0 {
+      opaqueCount += 1
+      if outer == nil { outer = p }
+      if opaqueCount == 3 { thirdOpaque = p }
+    }
+    if p.a >= 200 && bodyEdge == nil { bodyEdge = p }
+  }
+  guard let outer, let bodyEdge, let thirdOpaque else {
+    throw CheckFailure(description: "defringe fixture produced no opaque pixels on the scan row")
+  }
+  // ① defringe：主体边缘是蓝色本体（预乘后 b 显著大于 r），而非近白残留（r≈b）。
+  try expect(
+    bodyEdge.b > bodyEdge.r + 60,
+    "edge pixel should carry the body color, not the background residual")
+  // ② 羽化：最外层半透明，第 3 层保持不透明。
+  try expect(outer.a < 250, "outermost edge pixel should be semi-transparent after feathering")
+  try expect(thirdOpaque.a >= 250, "inner edge pixels should stay opaque")
+  let center = pixel(cell, x: 96, y: 104)
+  try expect(center.a > 200, "subject body should stay opaque")
+}
+
+private func checkPoseCellFeathersNativeAlphaSource() throws {
+  // 自带透明背景路径（图片 alpha 本身透明）：不做 defringe（无 chroma 参考色），
+  // 但同样羽化——且预乘重写不得把半透明边缘压黑（绿色保持绿色）。
+  let bitmapInfo = CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue)
+  guard
+    let context = CGContext(
+      data: nil,
+      width: 256,
+      height: 256,
+      bitsPerComponent: 8,
+      bytesPerRow: 0,
+      space: CGColorSpaceCreateDeviceRGB(),
+      bitmapInfo: bitmapInfo.rawValue
+    )
+  else {
+    throw CheckFailure(description: "could not create native-alpha canvas")
+  }
+  context.clear(CGRect(x: 0, y: 0, width: 256, height: 256))
+  context.setFillColor(CGColor(red: 0, green: 0.8, blue: 0.2, alpha: 1))
+  context.fill(CGRect(x: 48, y: 48, width: 160, height: 160))
+  guard let subjectImage = context.makeImage() else {
+    throw CheckFailure(description: "could not make native-alpha subject image")
+  }
+
+  guard let cell = PoseCellProcessor.makeCell(from: subjectImage) else {
+    throw CheckFailure(description: "native-alpha pose processing returned nil")
+  }
+  var outer: (r: Int, g: Int, b: Int, a: Int)?
+  for x in 0..<192 {
+    let p = pixel(cell, x: x, y: 104)
+    if p.a > 0 {
+      outer = p
+      break
+    }
+  }
+  guard let outer else {
+    throw CheckFailure(description: "native-alpha fixture produced no opaque pixels")
+  }
+  try expect(
+    outer.g > outer.r + 40 && outer.g > outer.b + 40,
+    "feathered edge should keep the subject color (no black fringe)")
 }
 
 private func checkGPTImage2Provider() async throws {
@@ -727,6 +830,8 @@ private func runAllChecks() async throws {
   try checkPoseCellBBoxTrimsCornerNoise()
   try checkPoseCellPreservesInteriorBackgroundColor()
   try checkPoseCellRescuesLeakedInterior()
+  try checkPoseCellDefringeRemovesBackgroundRing()
+  try checkPoseCellFeathersNativeAlphaSource()
   try await checkGPTImage2Provider()
   try checkVisionEyeBandLocator()
 }

@@ -260,7 +260,192 @@ public enum PoseCellProcessor {
         height: fittedHeight
       )
     )
-    return cellContext.makeImage()
+    guard let cell = cellContext.makeImage() else { return nil }
+    // 最终单元：去背景色残留（defringe）+ 边缘羽化。抠底路径带 chroma 参考色
+    // 做 defringe；自带透明背景路径无参考色，仅羽化。
+    return Self.defringeAndFeather(
+      cell,
+      chromaBackground: hasTransparentBackground ? nil : background
+    )
+  }
+
+  /// 对最终 192×208 单元做边缘融合：
+  /// - defringe：轮廓外沿与背景同色的残留像素（抠底过渡带被保留的浅色环）的
+  ///   RGB 级联替换为内侧本体色，消除深色桌面上的“分割线/边框”感；
+  /// - 羽化：最外 1~2px alpha 线性衰减，轮廓柔和融入桌面。
+  /// 只作用于最终单元，不影响 bbox / 强主体密度统计（那些在裁剪前已算完）。
+  private static func defringeAndFeather(
+    _ cell: CGImage,
+    chromaBackground: (r: CGFloat, g: CGFloat, b: CGFloat)?,
+    featherRadius: Int = 2,
+    featherOuterAlpha: Int = 140,
+    defringeDepth: Int = 6,
+    defringeGate: CGFloat = 0.18
+  ) -> CGImage? {
+    let width = cell.width
+    let height = cell.height
+    let bitmapInfo = CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue)
+    guard
+      let context = CGContext(
+        data: nil,
+        width: width,
+        height: height,
+        bitsPerComponent: 8,
+        bytesPerRow: 0,
+        space: CGColorSpaceCreateDeviceRGB(),
+        bitmapInfo: bitmapInfo.rawValue
+      ),
+      let data = context.data
+    else { return nil }
+    context.clear(CGRect(x: 0, y: 0, width: width, height: height))
+    context.draw(cell, in: CGRect(x: 0, y: 0, width: width, height: height))
+    let bytes = data.bindMemory(to: UInt8.self, capacity: height * context.bytesPerRow)
+
+    var alpha = [UInt8](repeating: 0, count: width * height)
+    for row in 0..<height {
+      for column in 0..<width {
+        alpha[row * width + column] = bytes[row * context.bytesPerRow + column * 4 + 3]
+      }
+    }
+    let dist = Self.edgeDistance(alpha: alpha, width: width, height: height)
+
+    if let chromaBackground {
+      Self.defringeColors(
+        bytes: bytes,
+        bytesPerRow: context.bytesPerRow,
+        dist: dist,
+        width: width,
+        height: height,
+        chromaBackground: chromaBackground,
+        depth: defringeDepth,
+        gate: defringeGate
+      )
+    }
+    Self.featherEdges(
+      bytes: bytes,
+      bytesPerRow: context.bytesPerRow,
+      dist: dist,
+      width: width,
+      height: height,
+      radius: featherRadius,
+      outerAlpha: featherOuterAlpha
+    )
+    return context.makeImage()
+  }
+
+  /// 到最近透明像素的 8-连通（Chebyshev）步数距离场；透明像素 = 0。
+  /// 8-连通使 45° 斜边与轴向的羽化带宽度一致，不畸变。
+  private static func edgeDistance(alpha: [UInt8], width: Int, height: Int) -> [Int] {
+    var dist = [Int](repeating: 0, count: width * height)
+    var visited = [Bool](repeating: false, count: width * height)
+    var queue: [Int] = []
+    for index in 0..<(width * height) where alpha[index] < 8 {
+      visited[index] = true
+      queue.append(index)
+    }
+    let neighbors = [(-1, -1), (-1, 0), (-1, 1), (0, -1), (0, 1), (1, -1), (1, 0), (1, 1)]
+    var head = 0
+    while head < queue.count {
+      let index = queue[head]
+      head += 1
+      let row = index / width
+      let column = index % width
+      for (dr, dc) in neighbors {
+        let nr = row + dr
+        let nc = column + dc
+        guard nr >= 0, nr < height, nc >= 0, nc < width else { continue }
+        let n = nr * width + nc
+        guard !visited[n], alpha[n] >= 8 else { continue }
+        visited[n] = true
+        dist[n] = dist[index] + 1
+        queue.append(n)
+      }
+    }
+    return dist
+  }
+
+  /// Defringe：把轮廓外沿“颜色接近背景色”的不透明像素，级联（内→外）替换为
+  /// 内侧本体色。门控优先于深度——角色自身深色描边即使在外沿也不被碰；
+  /// 级联让颜色从内到外平滑传播，不会出现一圈突兀的均一色带。
+  /// 只改 RGB 不改 alpha（羽化阶段统一处理）。
+  private static func defringeColors(
+    bytes: UnsafeMutablePointer<UInt8>,
+    bytesPerRow: Int,
+    dist: [Int],
+    width: Int,
+    height: Int,
+    chromaBackground: (r: CGFloat, g: CGFloat, b: CGFloat),
+    depth: Int,
+    gate: CGFloat
+  ) {
+    let neighbors = [(-1, -1), (-1, 0), (-1, 1), (0, -1), (0, 1), (1, -1), (1, 0), (1, 1)]
+    for ringDepth in stride(from: depth, through: 1, by: -1) {
+      for row in 0..<height {
+        for column in 0..<width {
+          let index = row * width + column
+          guard dist[index] == ringDepth else { continue }
+          let offset = row * bytesPerRow + column * 4
+          guard bytes[offset + 3] >= 230 else { continue }
+          // 门控：颜色接近背景色 → 残留，替换为内侧色。
+          let dr = CGFloat(bytes[offset]) / 255 - chromaBackground.r
+          let dg = CGFloat(bytes[offset + 1]) / 255 - chromaBackground.g
+          let db = CGFloat(bytes[offset + 2]) / 255 - chromaBackground.b
+          let colorDistance = sqrt(dr * dr + dg * dg + db * db) / maxRGBDistance
+          guard colorDistance < gate else { continue }
+          // 内侧邻居平均色（alpha ≥ 200 的预乘像素 RGB 才接近直通色）。
+          var sumR = 0
+          var sumG = 0
+          var sumB = 0
+          var count = 0
+          for (nrow, ncol) in neighbors {
+            let nr = row + nrow
+            let nc = column + ncol
+            guard nr >= 0, nr < height, nc >= 0, nc < width else { continue }
+            let n = nr * width + nc
+            let noffset = nr * bytesPerRow + nc * 4
+            guard dist[n] > ringDepth, bytes[noffset + 3] >= 200 else { continue }
+            sumR += Int(bytes[noffset])
+            sumG += Int(bytes[noffset + 1])
+            sumB += Int(bytes[noffset + 2])
+            count += 1
+          }
+          guard count > 0 else { continue }  // 细窄特征（触须/天线）无内侧邻居 → 保留原色
+          bytes[offset] = UInt8((Double(sumR) / Double(count)).rounded())
+          bytes[offset + 1] = UInt8((Double(sumG) / Double(count)).rounded())
+          bytes[offset + 2] = UInt8((Double(sumB) / Double(count)).rounded())
+        }
+      }
+    }
+  }
+
+  /// 羽化：最外 radius 层 alpha 线性衰减（d=1 → outerAlpha，向内递增到 255）。
+  /// 缓冲是 premultipliedLast，改 alpha 必须同步预乘缩放 RGB，否则半透明边缘
+  /// 会被压黑（经典 premultiplied 陷阱）。
+  private static func featherEdges(
+    bytes: UnsafeMutablePointer<UInt8>,
+    bytesPerRow: Int,
+    dist: [Int],
+    width: Int,
+    height: Int,
+    radius: Int,
+    outerAlpha: Int
+  ) {
+    for row in 0..<height {
+      for column in 0..<width {
+        let d = dist[row * width + column]
+        guard d >= 1, d <= radius else { continue }
+        let ramp = 255 - (255 - outerAlpha) * (radius + 1 - d) / radius
+        let offset = row * bytesPerRow + column * 4
+        let current = Int(bytes[offset + 3])
+        let target = min(current, ramp)
+        guard target < current else { continue }
+        let scale = CGFloat(target) / CGFloat(current)
+        bytes[offset] = UInt8((CGFloat(bytes[offset]) * scale).rounded())
+        bytes[offset + 1] = UInt8((CGFloat(bytes[offset + 1]) * scale).rounded())
+        bytes[offset + 2] = UInt8((CGFloat(bytes[offset + 2]) * scale).rounded())
+        bytes[offset + 3] = UInt8(target)
+      }
+    }
   }
 
   /// 返回累计质量落在 [low, high] 区间的行/列索引窗口；统计异常时回退原始包围盒。

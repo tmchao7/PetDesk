@@ -63,6 +63,14 @@ final class PetLayerRenderer: NSView {
     wantsLayer = true
     animationLayer.contentsGravity = .resizeAspect
     animationLayer.backgroundColor = CGColor.clear
+    // 与静态路径 AnimatedAvatarView.spriteView 的 .shadow(black 0.22, radius 4, y: 2)
+    // 同参数，消除两条渲染路径的视觉不一致（多帧路径此前无投影，角色在深色
+    // 桌面上像贴纸）。CALayer 坐标 y 向上，SwiftUI y:2（向下）对应 (0, -2)。
+    // masksToBounds 默认 false，投影不会被裁剪；shadow 跟随 contents 的 alpha 轮廓。
+    animationLayer.shadowColor = CGColor(srgbRed: 0, green: 0, blue: 0, alpha: 0.22)
+    animationLayer.shadowOpacity = 1
+    animationLayer.shadowRadius = 4
+    animationLayer.shadowOffset = CGSize(width: 0, height: -2)
     layer?.addSublayer(animationLayer)
     // XCUITest 依赖 pet.avatar 标识；NSViewRepresentable 的 SwiftUI
     // accessibility modifier 不会作用到 NSView，必须在 NSView 层设置。
