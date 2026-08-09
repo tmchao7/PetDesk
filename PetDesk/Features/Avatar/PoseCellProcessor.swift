@@ -582,40 +582,29 @@ public enum PoseCellProcessor {
       seeds[index] = true
     }
 
-    // 种子在 eroded1 内扩张。
+    // 种子周围 1 层 eroded1 邻居：只救回种子及其紧邻过渡带，不 BFS 蔓延。
+    // 蔓延的陷阱：种子若与背景之间只隔着 1px 宽的 flood 通道（腐蚀 2 次
+    // 后断开、腐蚀 1 次后仍连通，如 AI 图的角落浅灰渐变带），BFS 会经通道
+    // 逃逸并把整个背景救回（实测摸鱼帧图 rescued 272 万像素 → cell 全白）。
     var rescued = seeds
-    var queue: [Int] = []
-    for index in 0..<(width * height) where rescued[index] { queue.append(index) }
-    while let index = queue.popLast() {
+    for index in 0..<(width * height) where rescued[index] {
       let row = index / width
       let column = index % width
       if row > 0 {
         let neighbor = index - width
-        if eroded1[neighbor] == 1, !rescued[neighbor] {
-          rescued[neighbor] = true
-          queue.append(neighbor)
-        }
+        if eroded1[neighbor] == 1 { rescued[neighbor] = true }
       }
       if row + 1 < height {
         let neighbor = index + width
-        if eroded1[neighbor] == 1, !rescued[neighbor] {
-          rescued[neighbor] = true
-          queue.append(neighbor)
-        }
+        if eroded1[neighbor] == 1 { rescued[neighbor] = true }
       }
       if column > 0 {
         let neighbor = index - 1
-        if eroded1[neighbor] == 1, !rescued[neighbor] {
-          rescued[neighbor] = true
-          queue.append(neighbor)
-        }
+        if eroded1[neighbor] == 1 { rescued[neighbor] = true }
       }
       if column + 1 < width {
         let neighbor = index + 1
-        if eroded1[neighbor] == 1, !rescued[neighbor] {
-          rescued[neighbor] = true
-          queue.append(neighbor)
-        }
+        if eroded1[neighbor] == 1 { rescued[neighbor] = true }
       }
     }
     return rescued
