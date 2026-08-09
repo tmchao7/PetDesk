@@ -603,6 +603,48 @@ private func checkPoseCellPreservesInteriorBackgroundColor() throws {
   try expect(corner.a == 0, "exterior background should be removed")
 }
 
+private func checkPoseCellRescuesLeakedInterior() throws {
+  // 白底 + 蓝色圆环（底部留 2px 缺口）+ 内部白色圆：边缘 flood 会经缺口
+  // 泄漏进内部白色（与背景同色）。旧逻辑把被泄漏的内部白色一并抠成透明
+  // （“白色部分变透明”）；修复应救回被泄漏、但仍被主体包围的区域。
+  let white = (r: CGFloat(1.0), g: CGFloat(1.0), b: CGFloat(1.0))
+  guard
+    let canvas = makeSolidImage(width: 256, height: 256, color: white),
+    let context = CGContext(
+      data: nil,
+      width: 256,
+      height: 256,
+      bitsPerComponent: 8,
+      bytesPerRow: 0,
+      space: CGColorSpaceCreateDeviceRGB(),
+      bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+    )
+  else {
+    throw CheckFailure(description: "could not create leaked-interior canvas")
+  }
+  context.draw(canvas, in: CGRect(x: 0, y: 0, width: 256, height: 256))
+  context.setStrokeColor(CGColor(red: 0, green: 0.3, blue: 0.9, alpha: 1))
+  context.setLineWidth(36)
+  context.strokeEllipse(in: CGRect(x: 34, y: 34, width: 188, height: 188))
+  // 缺口：从圆环内侧延伸到底部，连通外部背景与内部白色区域。
+  context.setFillColor(CGColor(red: 1, green: 1, blue: 1, alpha: 1))
+  context.fill(CGRect(x: 127, y: 196, width: 2, height: 60))
+  context.fillEllipse(in: CGRect(x: 78, y: 78, width: 100, height: 100))
+  guard let subjectImage = context.makeImage() else {
+    throw CheckFailure(description: "could not make leaked-interior subject image")
+  }
+
+  guard let cell = PoseCellProcessor.makeCell(from: subjectImage) else {
+    throw CheckFailure(description: "leaked-interior pose processing returned nil")
+  }
+  let center = pixel(cell, x: 96, y: 104)
+  try expect(
+    center.a > 200 && center.r > 200 && center.g > 200 && center.b > 200,
+    "interior background-colored region leaked through the outline gap should stay opaque")
+  let corner = pixel(cell, x: 0, y: 0)
+  try expect(corner.a == 0, "exterior background should be removed")
+}
+
 private func checkGPTImage2Provider() async throws {
   guard
     let pngData = makePosePNGData(),
@@ -684,6 +726,7 @@ private func runAllChecks() async throws {
   try checkPoseCellProcessor()
   try checkPoseCellBBoxTrimsCornerNoise()
   try checkPoseCellPreservesInteriorBackgroundColor()
+  try checkPoseCellRescuesLeakedInterior()
   try await checkGPTImage2Provider()
   try checkVisionEyeBandLocator()
 }

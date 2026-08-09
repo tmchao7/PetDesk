@@ -108,13 +108,20 @@ public enum PoseCellProcessor {
       }
     }
 
-    // 边缘 flood-fill 抠底：只移除与图像边缘连通的背景区域。
-    // 主体内部与背景同色的部分（如哆啦A梦的白色肚皮/脸）因 flood 无法进入
-    // 而被保留为不透明，避免“白色部分变透明”的问题（参考 pixa/transparent.rs
-    // 与 R2beat 精灵图脚本的边缘连通策略）。
+    // 边缘 flood-fill 抠底：只清除与图像边缘连通的、颜色近似背景的像素
+    // （硬带 a < 8，即距离 ≤ inner）。软带像素（inner < 距离 ≤ outer）
+    // 不参与 flood——它们可能是主体自身的浅色细节（与背景同色系），
+    // 交给下方的泄漏救回 / 软带组件规则区分；只有几乎等于背景色的像素
+    // 才被移除，避免“白色部分变透明”（参考 pixa/transparent.rs 与
+    // R2beat 精灵图脚本的边缘连通策略 + 泄漏救回）。
     var flood = [UInt8](repeating: 0, count: width * height)
+    // 泄漏救回 / 软带细节保留掩码（仅抠底路径需要；自带透明背景时原样用 alpha）。
+    var rescued: [Bool] = []
+    var keptSoft: [Bool] = []
     if !hasTransparentBackground {
       Self.floodBackground(alpha8: alpha8, flood: &flood, width: width, height: height)
+      rescued = Self.rescueFloodedInteriors(flood: flood, width: width, height: height)
+      keptSoft = Self.keptSoftComponents(alpha8: alpha8, flood: flood, width: width, height: height)
     }
 
     // 统一输出 + 统计最终 bbox / 强主体密度。
@@ -134,7 +141,7 @@ public enum PoseCellProcessor {
         let offset = row * context.bytesPerRow + column * 4
         let index = row * width + column
         let a = alpha8[index]
-        if flood[index] == 1 {
+        if flood[index] == 1 && !rescued[index] {
           bytes[offset] = 0
           bytes[offset + 1] = 0
           bytes[offset + 2] = 0
@@ -147,11 +154,18 @@ public enum PoseCellProcessor {
             bytes[offset + 2] = 0
             bytes[offset + 3] = 0
           }
-        } else if a < 8 {
-          // 主体内部的背景色（白色肚皮等）：恢复为不透明，保留原始颜色。
+        } else if rescued[index] || a < 8 || keptSoft[index] {
+          // 主体：被救回的内部背景色（白色肚皮/脸等）、或与背景同色系的
+          // 浅色主体细节——恢复为不透明，保留原始颜色。
           bytes[offset + 3] = 255
+        } else if a < 230 {
+          // 细窄软带（抗锯齿边缘 / 泄漏通道残余）：清除。
+          bytes[offset] = 0
+          bytes[offset + 1] = 0
+          bytes[offset + 2] = 0
+          bytes[offset + 3] = 0
         } else {
-          // 半透明边缘：预乘 alpha，RGB 存 color*alpha。
+          // 强主体：预乘比例 ≈ 1，原样保留。
           let scale = CGFloat(a) / 255
           bytes[offset] = UInt8((CGFloat(bytes[offset]) * scale).rounded())
           bytes[offset + 1] = UInt8((CGFloat(bytes[offset + 1]) * scale).rounded())
@@ -302,15 +316,17 @@ public enum PoseCellProcessor {
   }
 
   /// 从图像四条边缘做 4-连通 flood-fill，标记与边缘连通的背景像素。
-  /// 候选判定：软抠 alpha < 0.9（含白色背景与主体内部同色像素——后者因被主体
-  /// 包围而无法被 flood 到达，得以保留为不透明）。
+  /// 候选判定：硬带软抠 alpha < 8（颜色距离 ≤ inner 的近似背景色）。
+  /// 软带像素（inner < 距离 ≤ outer）不参与 flood——它们可能是主体自身的
+  /// 浅色细节（与背景同色系，如白色肚皮/受光面），由泄漏救回与软带组件
+  /// 规则区分；只清除几乎等于背景色的像素，避免“白色部分变透明”。
   private static func floodBackground(
     alpha8: [UInt8],
     flood: inout [UInt8],
     width: Int,
     height: Int
   ) {
-    let threshold: UInt8 = 230
+    let threshold: UInt8 = 8
     var stack: [Int] = []
 
     func push(_ index: Int) {
@@ -336,6 +352,161 @@ public enum PoseCellProcessor {
       if column > 0 { push(index - 1) }
       if column + 1 < width { push(index + 1) }
     }
+  }
+
+  /// 救回经“泄漏通道”（轮廓缺口、浅色道具接触等窄缝）被 flood 进入、但整体
+  /// 仍被主体包围的内部背景色区域（如哆啦A梦的白色肚皮/脸）。
+  /// 策略：把 flood 腐蚀 2 次，取与图像边缘断开的腐蚀区域为种子——真正的
+  /// 背景是边缘连通的，腐蚀后仍连通；泄漏通道 ≤2px 宽，腐蚀 2 次后消失。
+  /// 再在腐蚀 1 次后的 flood 内扩张（覆盖救回区域的 1px 过渡带）：通道已
+  /// 消失，扩张无法经通道逃回背景，也不会救回腿间空隙等开放区域。
+  private static func rescueFloodedInteriors(
+    flood: [UInt8],
+    width: Int,
+    height: Int
+  ) -> [Bool] {
+    let eroded1 = erode(flood, times: 1, width: width, height: height)
+    let eroded2 = erode(flood, times: 2, width: width, height: height)
+    // 种子：与图像边缘断开的 eroded2 区域。
+    var seeds = [Bool](repeating: false, count: width * height)
+    var seen = [Bool](repeating: false, count: width * height)
+    var stack: [Int] = []
+
+    func markEdge(_ index: Int) {
+      guard eroded2[index] == 1, !seen[index] else { return }
+      seen[index] = true
+      stack.append(index)
+    }
+    for column in 0..<width {
+      markEdge(column)
+      markEdge((height - 1) * width + column)
+    }
+    for row in 0..<height {
+      markEdge(row * width)
+      markEdge(row * width + width - 1)
+    }
+    while let index = stack.popLast() {
+      let row = index / width
+      let column = index % width
+      if row > 0 { markEdge(index - width) }
+      if row + 1 < height { markEdge(index + width) }
+      if column > 0 { markEdge(index - 1) }
+      if column + 1 < width { markEdge(index + 1) }
+    }
+    for index in 0..<(width * height) where eroded2[index] == 1 && !seen[index] {
+      seeds[index] = true
+    }
+
+    // 种子在 eroded1 内扩张。
+    var rescued = seeds
+    var queue: [Int] = []
+    for index in 0..<(width * height) where rescued[index] { queue.append(index) }
+    while let index = queue.popLast() {
+      let row = index / width
+      let column = index % width
+      if row > 0 {
+        let neighbor = index - width
+        if eroded1[neighbor] == 1, !rescued[neighbor] {
+          rescued[neighbor] = true
+          queue.append(neighbor)
+        }
+      }
+      if row + 1 < height {
+        let neighbor = index + width
+        if eroded1[neighbor] == 1, !rescued[neighbor] {
+          rescued[neighbor] = true
+          queue.append(neighbor)
+        }
+      }
+      if column > 0 {
+        let neighbor = index - 1
+        if eroded1[neighbor] == 1, !rescued[neighbor] {
+          rescued[neighbor] = true
+          queue.append(neighbor)
+        }
+      }
+      if column + 1 < width {
+        let neighbor = index + 1
+        if eroded1[neighbor] == 1, !rescued[neighbor] {
+          rescued[neighbor] = true
+          queue.append(neighbor)
+        }
+      }
+    }
+    return rescued
+  }
+
+  /// 形态学腐蚀：仅当 4-邻域全部在掩码内时保留该像素；图像边界像素缺少
+  /// 邻域视为通过（边界仍保持与边缘连通，全背景图才不会误判为内部种子）。
+  /// 迭代 times 次。
+  private static func erode(_ mask: [UInt8], times: Int, width: Int, height: Int) -> [UInt8] {
+    var current = mask
+    for _ in 0..<times {
+      var next = [UInt8](repeating: 0, count: width * height)
+      for index in 0..<current.count where current[index] == 1 {
+        let row = index / width
+        let column = index % width
+        let up = row == 0 || current[index - width] == 1
+        let down = row + 1 == height || current[index + width] == 1
+        let left = column == 0 || current[index - 1] == 1
+        let right = column + 1 == width || current[index + 1] == 1
+        if up && down && left && right { next[index] = 1 }
+      }
+      current = next
+    }
+    return current
+  }
+
+  /// 软带主体细节保留：非 flood 的软带像素（inner < 距离 ≤ outer）按 4-连通
+  /// 分组；组件最小跨度 ≥ 4px 的是主体细节（浅色肚皮、受光面、内部阴影），
+  /// 保留为不透明；细窄组件是抗锯齿边缘 / 泄漏通道残余，清除。
+  /// 典型源图分辨率（≥256px）下抗锯齿带仅 1~3px 宽，4px 跨度足以区分。
+  private static func keptSoftComponents(
+    alpha8: [UInt8],
+    flood: [UInt8],
+    width: Int,
+    height: Int
+  ) -> [Bool] {
+    var kept = [Bool](repeating: false, count: width * height)
+    var seen = [Bool](repeating: false, count: width * height)
+    for start in 0..<(width * height) {
+      let alpha = alpha8[start]
+      guard flood[start] == 0, alpha >= 8, alpha < 230, !seen[start] else { continue }
+      var component: [Int] = []
+      var stack: [Int] = [start]
+      seen[start] = true
+      var minRow = height
+      var maxRow = 0
+      var minColumn = width
+      var maxColumn = 0
+
+      func pushNeighbor(_ index: Int) {
+        guard flood[index] == 0, !seen[index] else { return }
+        let neighborAlpha = alpha8[index]
+        guard neighborAlpha >= 8, neighborAlpha < 230 else { return }
+        seen[index] = true
+        stack.append(index)
+      }
+      while let index = stack.popLast() {
+        component.append(index)
+        let row = index / width
+        let column = index % width
+        minRow = min(minRow, row)
+        maxRow = max(maxRow, row)
+        minColumn = min(minColumn, column)
+        maxColumn = max(maxColumn, column)
+        if row > 0 { pushNeighbor(index - width) }
+        if row + 1 < height { pushNeighbor(index + width) }
+        if column > 0 { pushNeighbor(index - 1) }
+        if column + 1 < width { pushNeighbor(index + 1) }
+      }
+
+      let span = min(maxColumn - minColumn + 1, maxRow - minRow + 1)
+      if span >= 4 {
+        for index in component { kept[index] = true }
+      }
+    }
+    return kept
   }
 
   private static func averageBackgroundColor(
