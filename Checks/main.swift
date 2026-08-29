@@ -818,6 +818,100 @@ private func checkVisionEyeBandLocator() throws {
     "blank image should not produce an eye band")
 }
 
+/// 跨帧归一化：平移漂移在夹紧范围内被完全对齐；超阈值漂移触发告警诊断。
+private func checkPoseFrameSetProcessor() throws {
+  let canvas = 256
+
+  func frame(subjectX: CGFloat) throws -> CGImage {
+    guard
+      let canvasImage = makeSolidImage(width: canvas, height: canvas, color: (0, 1, 0)),
+      let context = CGContext(
+        data: nil,
+        width: canvas,
+        height: canvas,
+        bitsPerComponent: 8,
+        bytesPerRow: 0,
+        space: CGColorSpaceCreateDeviceRGB(),
+        bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+      )
+    else {
+      throw CheckFailure(description: "could not create frame set canvas")
+    }
+    context.draw(canvasImage, in: CGRect(x: 0, y: 0, width: canvas, height: canvas))
+    context.setFillColor(CGColor(red: 0.1, green: 0.2, blue: 0.7, alpha: 1))
+    // 视觉 y=48、80×140 竖构图主体（Quartz 原点在左下）。
+    context.fill(CGRect(x: subjectX, y: 68, width: 80, height: 140))
+    guard let image = context.makeImage() else {
+      throw CheckFailure(description: "could not make frame set image")
+    }
+    return image
+  }
+
+  func subjectBBox(in cell: CGImage) throws -> CGRect {
+    guard
+      let context = CGContext(
+        data: nil,
+        width: cell.width,
+        height: cell.height,
+        bitsPerComponent: 8,
+        bytesPerRow: 0,
+        space: CGColorSpaceCreateDeviceRGB(),
+        bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+      ),
+      let data = context.data
+    else {
+      throw CheckFailure(description: "could not render cell for bbox scan")
+    }
+    context.draw(cell, in: CGRect(x: 0, y: 0, width: cell.width, height: cell.height))
+    let bytes = data.bindMemory(to: UInt8.self, capacity: cell.height * context.bytesPerRow)
+    var minColumn = cell.width
+    var maxColumn = -1
+    var minRow = cell.height
+    var maxRow = -1
+    for row in 0..<cell.height {
+      for column in 0..<cell.width {
+        if bytes[row * context.bytesPerRow + column * 4 + 3] > 8 {
+          minColumn = min(minColumn, column)
+          maxColumn = max(maxColumn, column)
+          minRow = min(minRow, row)
+          maxRow = max(maxRow, row)
+        }
+      }
+    }
+    guard maxColumn >= minColumn, maxRow >= minRow else {
+      throw CheckFailure(description: "cell has no subject")
+    }
+    return CGRect(
+      x: minColumn, y: minRow,
+      width: maxColumn - minColumn + 1, height: maxRow - minRow + 1)
+  }
+
+  // 小幅平移（±6 源像素 ≈ ±8.9 单元像素，夹紧范围内）：三帧包围盒一致。
+  let aligned = try PoseFrameSetProcessor.process(
+    images: [try frame(subjectX: 82), try frame(subjectX: 88), try frame(subjectX: 94)])
+  try expect(aligned.cells.count == 3, "frame set should produce one cell per frame")
+  let boxes = try aligned.cells.map { try subjectBBox(in: $0) }
+  for box in boxes {
+    try expect(abs(box.minX - boxes[0].minX) <= 2, "aligned frames should share the anchor")
+    try expect(abs(box.minY - boxes[0].minY) <= 2, "aligned frames should share the baseline")
+  }
+  try expect(
+    !aligned.diagnostics.exceedsDriftThreshold,
+    "small in-clamp drift should not raise the warning")
+
+  // 超阈值漂移（离群帧 +30 源像素 ≈ 44.6 单元像素 > 18px）：告警 + 夹紧部分矫正。
+  let drifted = try PoseFrameSetProcessor.process(
+    images: [try frame(subjectX: 88), try frame(subjectX: 88), try frame(subjectX: 118)])
+  try expect(
+    drifted.diagnostics.exceedsDriftThreshold,
+    "44.6 cell-pixel centroid shift should raise the drift warning")
+  let driftedBoxes = try drifted.cells.map { try subjectBBox(in: $0) }
+  let remaining = abs(driftedBoxes[2].minX - driftedBoxes[0].minX)
+  try expect(
+    remaining > 20 && remaining < 40,
+    "clamped correction should partially reduce the drift, not remove or preserve it all")
+}
+
 private func runAllChecks() async throws {
   try checkStateMachine()
   try checkSnapshotDisplayEquality()
@@ -832,6 +926,7 @@ private func runAllChecks() async throws {
   try checkPoseCellRescuesLeakedInterior()
   try checkPoseCellDefringeRemovesBackgroundRing()
   try checkPoseCellFeathersNativeAlphaSource()
+  try checkPoseFrameSetProcessor()
   try await checkGPTImage2Provider()
   try checkVisionEyeBandLocator()
 }

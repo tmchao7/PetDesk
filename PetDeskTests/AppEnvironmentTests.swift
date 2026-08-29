@@ -632,6 +632,62 @@ final class AppEnvironmentTests: XCTestCase {
       "plain string sort would put focus-10 before focus-2")
   }
 
+  /// 单文件横向帧条带（AI 一次生成的“8 帧长图”工作流）应自动切帧导入，
+  /// 并产出该组的漂移诊断；清除姿势时诊断一并清除。
+  @MainActor
+  func testImportStripPoseAutoSlicesIntoFrames() async throws {
+    let tmp = tempDirectory()
+    defer { try? FileManager.default.removeItem(at: tmp) }
+    let repo = try AvatarRepository(directoryURL: tmp)
+    let env = AppEnvironment(defaults: defaults, signalSources: [], avatarRepository: repo)
+    await env.saveCroppedAvatar(try makeTestCGImage(width: 64, height: 64))
+
+    let stripURL = try writeStripPoseFile(in: tmp, name: "focus-strip.png", cellCount: 4)
+    let message = await env.importPose(row: .working, from: [stripURL])
+
+    XCTAssertNil(message, "strip pose should import without an error")
+    XCTAssertEqual(
+      env.multiFrameCount(for: .working), 4,
+      "4-cell strip should be auto-sliced into 4 frames")
+    XCTAssertNotNil(
+      env.customPoseDiagnostics[.working],
+      "multi-frame import should publish drift diagnostics")
+    XCTAssertFalse(
+      env.customPoseDiagnostics[.working]?.exceedsDriftThreshold ?? true,
+      "consistent strip cells should not raise the drift warning")
+
+    await env.clearPose(row: .working)
+    XCTAssertNil(
+      env.customPoseDiagnostics[.working],
+      "clearing the pose should clear its diagnostics")
+  }
+
+  /// 帧间漂移超阈值（面积/质心）时导入成功但发布告警诊断。
+  @MainActor
+  func testImportDriftedPosePublishesDiagnostics() async throws {
+    let tmp = tempDirectory()
+    defer { try? FileManager.default.removeItem(at: tmp) }
+    let repo = try AvatarRepository(directoryURL: tmp)
+    let env = AppEnvironment(defaults: defaults, signalSources: [], avatarRepository: repo)
+    await env.saveCroppedAvatar(try makeTestCGImage(width: 64, height: 64))
+
+    let side = CGSize(width: 80, height: 140)
+    let frame1 = try writePosePNG(
+      in: tmp, name: "drift-1.png",
+      subjectRect: CGRect(origin: CGPoint(x: 88, y: 48), size: side))
+    let frame2 = try writePosePNG(
+      in: tmp, name: "drift-2.png",
+      subjectRect: CGRect(origin: CGPoint(x: 118, y: 48), size: side))
+
+    let message = await env.importPose(row: .working, from: [frame1, frame2])
+
+    XCTAssertNil(message, "drifted frames should still import (correction is best-effort)")
+    XCTAssertEqual(env.multiFrameCount(for: .working), 2)
+    XCTAssertTrue(
+      env.customPoseDiagnostics[.working]?.exceedsDriftThreshold ?? false,
+      "30 source-pixel centroid drift should raise the drift warning")
+  }
+
   /// 单帧姿势重启后仍恢复为 1 帧（不误判为多帧动画）。
   @MainActor
   func testSingleFramePoseRestoresAsOneFrame() async throws {
@@ -1238,6 +1294,96 @@ final class AppEnvironmentTests: XCTestCase {
     context.fill(CGRect(x: 0, y: 0, width: size, height: size))
     context.setFillColor(CGColor(red: 0, green: 1, blue: 0, alpha: 1))
     context.fill(CGRect(x: 64, y: 64, width: 128, height: 128))
+    guard let image = context.makeImage(),
+      let destination = CGImageDestinationCreateWithURL(
+        url as CFURL, UTType.png.identifier as CFString, 1, nil)
+    else { throw NSError(domain: "test", code: 41) }
+    CGImageDestinationAddImage(destination, image, nil)
+    guard CGImageDestinationFinalize(destination) else {
+      throw NSError(domain: "test", code: 42)
+    }
+    return url
+  }
+
+  /// 写一张指定主体位置（视觉坐标，y 从顶部起算）的绿幕姿势 PNG。
+  private func writePosePNG(
+    in directory: URL,
+    name: String,
+    size: Int = 256,
+    subjectRect: CGRect
+  ) throws -> URL {
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    let url = directory.appendingPathComponent(name)
+    let bitmapInfo = CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue)
+    guard
+      let context = CGContext(
+        data: nil,
+        width: size,
+        height: size,
+        bitsPerComponent: 8,
+        bytesPerRow: 0,
+        space: CGColorSpaceCreateDeviceRGB(),
+        bitmapInfo: bitmapInfo.rawValue
+      )
+    else { throw NSError(domain: "test", code: 40) }
+    context.setFillColor(CGColor(red: 0, green: 1, blue: 0, alpha: 1))
+    context.fill(CGRect(x: 0, y: 0, width: size, height: size))
+    context.setFillColor(CGColor(red: 0.1, green: 0.2, blue: 0.7, alpha: 1))
+    context.fill(
+      CGRect(
+        x: subjectRect.origin.x,
+        y: CGFloat(size) - subjectRect.maxY,
+        width: subjectRect.width,
+        height: subjectRect.height
+      )
+    )
+    guard let image = context.makeImage(),
+      let destination = CGImageDestinationCreateWithURL(
+        url as CFURL, UTType.png.identifier as CFString, 1, nil)
+    else { throw NSError(domain: "test", code: 41) }
+    CGImageDestinationAddImage(destination, image, nil)
+    guard CGImageDestinationFinalize(destination) else {
+      throw NSError(domain: "test", code: 42)
+    }
+    return url
+  }
+
+  /// 写一张 N 格横向帧条带 PNG（每格等宽，格内一个圆形主体，模拟 AI 单次
+  /// 生成的连续动作帧长图）。
+  private func writeStripPoseFile(
+    in directory: URL,
+    name: String,
+    cellCount: Int,
+    cellSize: Int = 256
+  ) throws -> URL {
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    let url = directory.appendingPathComponent(name)
+    let width = cellCount * cellSize
+    let bitmapInfo = CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue)
+    guard
+      let context = CGContext(
+        data: nil,
+        width: width,
+        height: cellSize,
+        bitsPerComponent: 8,
+        bytesPerRow: 0,
+        space: CGColorSpaceCreateDeviceRGB(),
+        bitmapInfo: bitmapInfo.rawValue
+      )
+    else { throw NSError(domain: "test", code: 40) }
+    context.setFillColor(CGColor(red: 0, green: 1, blue: 0, alpha: 1))
+    context.fill(CGRect(x: 0, y: 0, width: width, height: cellSize))
+    context.setFillColor(CGColor(red: 0.1, green: 0.2, blue: 0.7, alpha: 1))
+    for index in 0..<cellCount {
+      context.fill(
+        CGRect(
+          x: CGFloat(index * cellSize + cellSize / 4),
+          y: CGFloat(cellSize / 4),
+          width: CGFloat(cellSize / 2),
+          height: CGFloat(cellSize / 2)
+        )
+      )
+    }
     guard let image = context.makeImage(),
       let destination = CGImageDestinationCreateWithURL(
         url as CFURL, UTType.png.identifier as CFString, 1, nil)

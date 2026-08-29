@@ -11,12 +11,24 @@ public enum PoseImageImportError: Error, Sendable, Equatable {
 }
 
 /// 把 AI 生成的单帧姿势图处理成 192×208 透明动画单元：
-/// 纯色背景自动抠底（四角采样）、裁剪到主体包围盒、contain-fit 居中。
+/// 纯色背景自动抠底（边缘中位数采样）、裁剪到主体包围盒、contain-fit 居中。
+/// 多帧组导入的跨帧归一化（统一缩放/锚点/背景）见 `PoseFrameSetProcessor`，
+/// 两者共享本文件的位图级抠底管线。
 public enum PoseCellProcessor {
-  private static let maxRGBDistance = sqrt(3.0)
+  static let maxRGBDistance = sqrt(3.0)
 
   /// 从 PNG/WebP 文件读取姿势图并处理成动画单元。
   public static func loadCell(from url: URL) throws -> CGImage {
+    let image = try loadImage(from: url)
+    guard let cell = makeCell(from: image) else {
+      throw PoseImageImportError.emptySubject
+    }
+    return cell
+  }
+
+  /// 从 PNG/WebP 文件读取姿势图原图（校验 UTType，不做处理）。
+  /// 多帧导入先批量取原图，再交给 `PoseFrameSetProcessor` 统一处理。
+  public static func loadImage(from url: URL) throws -> CGImage {
     guard
       let source = CGImageSourceCreateWithURL(url as CFURL, nil),
       let image = CGImageSourceCreateImageAtIndex(source, 0, nil)
@@ -31,15 +43,141 @@ public enum PoseCellProcessor {
         throw PoseImageImportError.unsupportedType
       }
     }
-    guard let cell = makeCell(from: image) else {
-      throw PoseImageImportError.emptySubject
-    }
-    return cell
+    return image
   }
 
-  /// - Parameter chromaTolerance: 归一化品红距离阈值（0-1），0.18 对应 ImageMagick
+  /// - Parameter chromaTolerance: 归一化背景距离阈值（0-1），0.18 对应 ImageMagick
   ///   `-fuzz 18%`；阈值内做软抠图避免抗锯齿边缘。
   public static func makeCell(from image: CGImage, chromaTolerance: CGFloat = 0.18) -> CGImage? {
+    guard let bitmap = prepareFrame(image) else { return nil }
+    let hasTransparentBackground = bitmap.hasTransparentBackground
+    let background =
+      hasTransparentBackground
+      ? (r: CGFloat(0), g: CGFloat(0), b: CGFloat(0))
+      : edgeMedianBackground(bitmap)
+    guard
+      let keyed = keyFrame(
+        bitmap, background: background, chromaTolerance: chromaTolerance)
+    else { return nil }
+
+    // 保留包含中央 99.8% 强主体的行/列窗口（两侧各裁掉 0.1% 长尾）：
+    // 只剔除极端稀疏的边缘杂色；窗口过窄会切到角色的头/脚/道具边缘
+    // （96% 窗口曾被实测裁掉角色腿部约 10%）。
+    // 只有当强主体占原始包围盒面积不足一半（存在明显长尾场景）时才收紧；
+    // 若图片本身已紧贴主体（如整幅都是角色），直接保留原始包围盒，避免切头脚。
+    var minRow = keyed.minRow
+    var maxRow = keyed.maxRow
+    var minColumn = keyed.minColumn
+    var maxColumn = keyed.maxColumn
+    let rawArea = (maxRow - minRow + 1) * (maxColumn - minColumn + 1)
+    let subjectDensity = rawArea > 0 ? Double(keyed.strongTotal) / Double(rawArea) : 1
+    if keyed.strongTotal > 0, subjectDensity < 0.5 {
+      let rowWindow = massWindow(
+        keyed.strongRowDensity,
+        total: keyed.strongTotal,
+        low: 0.001,
+        high: 0.999,
+        fallbackMin: minRow,
+        fallbackMax: maxRow
+      )
+      let columnWindow = massWindow(
+        keyed.strongColumnDensity,
+        total: keyed.strongTotal,
+        low: 0.001,
+        high: 0.999,
+        fallbackMin: minColumn,
+        fallbackMax: maxColumn
+      )
+      minRow = rowWindow.min
+      maxRow = rowWindow.max
+      minColumn = columnWindow.min
+      maxColumn = columnWindow.max
+    }
+
+    // 位图内存第 0 行即图像视觉顶部，与 CGImage.cropping 的 y=0 一致，直接使用行列。
+    let cropRect = CGRect(
+      x: minColumn,
+      y: minRow,
+      width: maxColumn - minColumn + 1,
+      height: maxRow - minRow + 1
+    )
+    guard let processed = keyed.context.makeImage(),
+      let cropped = processed.cropping(to: cropRect)
+    else { return nil }
+
+    let cellWidth = Int(SpriteSheetSpec.frameWidth)
+    let cellHeight = Int(SpriteSheetSpec.frameHeight)
+    let scale = min(
+      SpriteSheetSpec.frameWidth / cropRect.width,
+      SpriteSheetSpec.frameHeight / cropRect.height
+    )
+    let fittedWidth = cropRect.width * scale
+    let fittedHeight = cropRect.height * scale
+    guard
+      let cellContext = CGContext(
+        data: nil,
+        width: cellWidth,
+        height: cellHeight,
+        bitsPerComponent: 8,
+        bytesPerRow: 0,
+        space: CGColorSpaceCreateDeviceRGB(),
+        bitmapInfo: CGBitmapInfo(
+          rawValue: CGImageAlphaInfo.premultipliedLast.rawValue
+        ).rawValue
+      )
+    else { return nil }
+    cellContext.clear(CGRect(x: 0, y: 0, width: cellWidth, height: cellHeight))
+    cellContext.interpolationQuality = .high
+    cellContext.draw(
+      cropped,
+      in: CGRect(
+        x: (SpriteSheetSpec.frameWidth - fittedWidth) / 2,
+        y: (SpriteSheetSpec.frameHeight - fittedHeight) / 2,
+        width: fittedWidth,
+        height: fittedHeight
+      )
+    )
+    guard let cell = cellContext.makeImage() else { return nil }
+    // 最终单元：去背景色残留（defringe）+ 边缘羽化。抠底路径带 chroma 参考色
+    // 做 defringe；自带透明背景路径无参考色，仅羽化。
+    return defringeAndFeather(
+      cell,
+      chromaBackground: hasTransparentBackground ? nil : background
+    )
+  }
+
+  // MARK: - 位图级抠底管线（单帧 makeCell 与多帧 PoseFrameSetProcessor 共用）
+
+  /// 已解码进位图上下文的姿势帧（抠底前的预备态）。
+  struct PoseFrameBitmap {
+    let context: CGContext
+    let bytes: UnsafeMutablePointer<UInt8>
+    let width: Int
+    let height: Int
+    let bytesPerRow: Int
+    /// 图片本身带透明背景（边缘有明显透明像素）——直接使用原 alpha，不做抠底。
+    let hasTransparentBackground: Bool
+  }
+
+  /// 抠底完成的姿势帧：位图字节已写回（背景清零/主体保留）+ 主体统计。
+  /// bbox / 密度 / 质心均为整幅源图坐标（视觉 y 向下）。
+  struct KeyedPoseFrame {
+    let context: CGContext
+    let width: Int
+    let height: Int
+    let minColumn: Int
+    let maxColumn: Int
+    let minRow: Int
+    let maxRow: Int
+    let strongTotal: Int
+    let strongRowDensity: [Int]
+    let strongColumnDensity: [Int]
+    /// 强主体（alpha ≥ 128）像素质心。
+    let strongCentroid: (x: Double, y: Double)
+  }
+
+  /// 把 CGImage 解码进 DeviceRGB premultipliedLast 位图上下文并判断是否自带透明背景。
+  static func prepareFrame(_ image: CGImage) -> PoseFrameBitmap? {
     let width = image.width
     let height = image.height
     let bitmapInfo = CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue)
@@ -57,25 +195,73 @@ public enum PoseCellProcessor {
     else { return nil }
     context.clear(CGRect(x: 0, y: 0, width: width, height: height))
     context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
-
     let bytes = data.bindMemory(to: UInt8.self, capacity: height * context.bytesPerRow)
-    // 图片本身带透明背景（边缘有明显透明像素）时直接使用原 alpha，不做抠底。
-    let hasTransparentBackground = Self.edgeIsTransparent(
+    let hasTransparentBackground = edgeIsTransparent(
       bytes: bytes,
       width: width,
       height: height,
       bytesPerRow: context.bytesPerRow
     )
-    // 否则从四角采样实际背景色（色彩管理可能偏移 #FF00FF），按该色做软抠图。
-    let background =
-      hasTransparentBackground
-      ? (r: CGFloat(0), g: CGFloat(0), b: CGFloat(0))
-      : Self.averageBackgroundColor(
-        bytes: bytes,
-        width: width,
-        height: height,
-        bytesPerRow: context.bytesPerRow
-      )
+    return PoseFrameBitmap(
+      context: context,
+      bytes: bytes,
+      width: width,
+      height: height,
+      bytesPerRow: context.bytesPerRow,
+      hasTransparentBackground: hasTransparentBackground
+    )
+  }
+
+  /// 背景色估计：四条边缘采样像素的逐通道中位数。
+  /// AI 生成图的四角颜色常不一致（白 + 暖色桌面），四角平均会偏色；
+  /// 边缘中位数对混合角落与局部杂物稳健。
+  static func edgeMedianBackground(_ bitmap: PoseFrameBitmap) -> (
+    r: CGFloat, g: CGFloat, b: CGFloat
+  ) {
+    let width = bitmap.width
+    let height = bitmap.height
+    let stride = max(1, min(width, height) / 256)
+    var reds: [Int] = []
+    var greens: [Int] = []
+    var blues: [Int] = []
+    func sample(_ x: Int, _ y: Int) {
+      let offset = y * bitmap.bytesPerRow + x * 4
+      reds.append(Int(bitmap.bytes[offset]))
+      greens.append(Int(bitmap.bytes[offset + 1]))
+      blues.append(Int(bitmap.bytes[offset + 2]))
+    }
+    for column in Swift.stride(from: 0, to: width, by: stride) {
+      sample(column, 0)
+      sample(column, height - 1)
+    }
+    for row in Swift.stride(from: 0, to: height, by: stride) {
+      sample(0, row)
+      sample(width - 1, row)
+    }
+    func median(_ values: [Int]) -> CGFloat {
+      guard !values.isEmpty else { return 0 }
+      let sorted = values.sorted()
+      return CGFloat(sorted[sorted.count / 2])
+    }
+    return (
+      r: median(reds) / 255,
+      g: median(greens) / 255,
+      b: median(blues) / 255
+    )
+  }
+
+  /// 对预备帧执行软抠图 + 边缘 flood + 泄漏救回 + 软带保留，写回位图字节并统计主体。
+  /// - Returns: 主体为空（无 alpha > 8 像素）时返回 nil。
+  static func keyFrame(
+    _ bitmap: PoseFrameBitmap,
+    background: (r: CGFloat, g: CGFloat, b: CGFloat),
+    chromaTolerance: CGFloat
+  ) -> KeyedPoseFrame? {
+    let width = bitmap.width
+    let height = bitmap.height
+    let bytes = bitmap.bytes
+    let bytesPerRow = bitmap.bytesPerRow
+    let hasTransparentBackground = bitmap.hasTransparentBackground
     let inner = chromaTolerance * 0.55
     let outer = chromaTolerance
 
@@ -83,7 +269,7 @@ public enum PoseCellProcessor {
     var alpha8 = [UInt8](repeating: 0, count: width * height)
     for row in 0..<height {
       for column in 0..<width {
-        let offset = row * context.bytesPerRow + column * 4
+        let offset = row * bytesPerRow + column * 4
         if hasTransparentBackground {
           alpha8[row * width + column] = bytes[offset + 3]
           continue
@@ -119,12 +305,12 @@ public enum PoseCellProcessor {
     var rescued: [Bool] = []
     var keptSoft: [Bool] = []
     if !hasTransparentBackground {
-      Self.floodBackground(alpha8: alpha8, flood: &flood, width: width, height: height)
-      rescued = Self.rescueFloodedInteriors(flood: flood, width: width, height: height)
-      keptSoft = Self.keptSoftComponents(alpha8: alpha8, flood: flood, width: width, height: height)
+      floodBackground(alpha8: alpha8, flood: &flood, width: width, height: height)
+      rescued = rescueFloodedInteriors(flood: flood, width: width, height: height)
+      keptSoft = keptSoftComponents(alpha8: alpha8, flood: flood, width: width, height: height)
     }
 
-    // 统一输出 + 统计最终 bbox / 强主体密度。
+    // 统一输出 + 统计最终 bbox / 强主体密度 / 强主体质心。
     var minColumn = width
     var maxColumn = -1
     var minRow = height
@@ -135,10 +321,12 @@ public enum PoseCellProcessor {
     var strongRowDensity = [Int](repeating: 0, count: height)
     var strongColumnDensity = [Int](repeating: 0, count: width)
     var strongTotal = 0
+    var strongSumX = 0
+    var strongSumY = 0
 
     for row in 0..<height {
       for column in 0..<width {
-        let offset = row * context.bytesPerRow + column * 4
+        let offset = row * bytesPerRow + column * 4
         let index = row * width + column
         let a = alpha8[index]
         if flood[index] == 1 && !rescued[index] {
@@ -183,89 +371,34 @@ public enum PoseCellProcessor {
           strongRowDensity[row] += 1
           strongColumnDensity[column] += 1
           strongTotal += 1
+          strongSumX += column
+          strongSumY += row
         }
       }
     }
 
-    guard maxColumn >= minColumn, maxRow >= minRow, let processed = context.makeImage() else {
-      return nil
-    }
-
-    // 保留包含中央 99.8% 强主体的行/列窗口（两侧各裁掉 0.1% 长尾）：
-    // 只剔除极端稀疏的边缘杂色；窗口过窄会切到角色的头/脚/道具边缘
-    // （96% 窗口曾被实测裁掉角色腿部约 10%）。
-    // 只有当强主体占原始包围盒面积不足一半（存在明显长尾场景）时才收紧；
-    // 若图片本身已紧贴主体（如整幅都是角色），直接保留原始包围盒，避免切头脚。
-    let rawArea = (maxRow - minRow + 1) * (maxColumn - minColumn + 1)
-    let subjectDensity = rawArea > 0 ? Double(strongTotal) / Double(rawArea) : 1
-    if strongTotal > 0, subjectDensity < 0.5 {
-      let rowWindow = Self.massWindow(
-        strongRowDensity,
-        total: strongTotal,
-        low: 0.001,
-        high: 0.999,
-        fallbackMin: minRow,
-        fallbackMax: maxRow
-      )
-      let columnWindow = Self.massWindow(
-        strongColumnDensity,
-        total: strongTotal,
-        low: 0.001,
-        high: 0.999,
-        fallbackMin: minColumn,
-        fallbackMax: maxColumn
-      )
-      minRow = rowWindow.min
-      maxRow = rowWindow.max
-      minColumn = columnWindow.min
-      maxColumn = columnWindow.max
-    }
-
-    // 位图内存第 0 行即图像视觉顶部，与 CGImage.cropping 的 y=0 一致，直接使用行列。
-    let cropRect = CGRect(
-      x: minColumn,
-      y: minRow,
-      width: maxColumn - minColumn + 1,
-      height: maxRow - minRow + 1
-    )
-    guard let cropped = processed.cropping(to: cropRect) else { return nil }
-
-    let cellWidth = Int(SpriteSheetSpec.frameWidth)
-    let cellHeight = Int(SpriteSheetSpec.frameHeight)
-    let scale = min(
-      SpriteSheetSpec.frameWidth / cropRect.width,
-      SpriteSheetSpec.frameHeight / cropRect.height
-    )
-    let fittedWidth = cropRect.width * scale
-    let fittedHeight = cropRect.height * scale
-    guard
-      let cellContext = CGContext(
-        data: nil,
-        width: cellWidth,
-        height: cellHeight,
-        bitsPerComponent: 8,
-        bytesPerRow: 0,
-        space: CGColorSpaceCreateDeviceRGB(),
-        bitmapInfo: bitmapInfo.rawValue
-      )
-    else { return nil }
-    cellContext.clear(CGRect(x: 0, y: 0, width: cellWidth, height: cellHeight))
-    cellContext.interpolationQuality = .high
-    cellContext.draw(
-      cropped,
-      in: CGRect(
-        x: (SpriteSheetSpec.frameWidth - fittedWidth) / 2,
-        y: (SpriteSheetSpec.frameHeight - fittedHeight) / 2,
-        width: fittedWidth,
-        height: fittedHeight
-      )
-    )
-    guard let cell = cellContext.makeImage() else { return nil }
-    // 最终单元：去背景色残留（defringe）+ 边缘羽化。抠底路径带 chroma 参考色
-    // 做 defringe；自带透明背景路径无参考色，仅羽化。
-    return Self.defringeAndFeather(
-      cell,
-      chromaBackground: hasTransparentBackground ? nil : background
+    guard maxColumn >= minColumn, maxRow >= minRow else { return nil }
+    // 无强主体像素（整幅只有半透明软带）时用包围盒中心充当质心。
+    let centroidX =
+      strongTotal > 0
+      ? Double(strongSumX) / Double(strongTotal)
+      : Double(minColumn + maxColumn) / 2
+    let centroidY =
+      strongTotal > 0
+      ? Double(strongSumY) / Double(strongTotal)
+      : Double(minRow + maxRow) / 2
+    return KeyedPoseFrame(
+      context: bitmap.context,
+      width: width,
+      height: height,
+      minColumn: minColumn,
+      maxColumn: maxColumn,
+      minRow: minRow,
+      maxRow: maxRow,
+      strongTotal: strongTotal,
+      strongRowDensity: strongRowDensity,
+      strongColumnDensity: strongColumnDensity,
+      strongCentroid: (x: centroidX, y: centroidY)
     )
   }
 
@@ -274,7 +407,7 @@ public enum PoseCellProcessor {
   ///   RGB 级联替换为内侧本体色，消除深色桌面上的“分割线/边框”感；
   /// - 羽化：最外 1~2px alpha 线性衰减，轮廓柔和融入桌面。
   /// 只作用于最终单元，不影响 bbox / 强主体密度统计（那些在裁剪前已算完）。
-  private static func defringeAndFeather(
+  static func defringeAndFeather(
     _ cell: CGImage,
     chromaBackground: (r: CGFloat, g: CGFloat, b: CGFloat)?,
     featherRadius: Int = 2,
@@ -307,10 +440,10 @@ public enum PoseCellProcessor {
         alpha[row * width + column] = bytes[row * context.bytesPerRow + column * 4 + 3]
       }
     }
-    let dist = Self.edgeDistance(alpha: alpha, width: width, height: height)
+    let dist = edgeDistance(alpha: alpha, width: width, height: height)
 
     if let chromaBackground {
-      Self.defringeColors(
+      defringeColors(
         bytes: bytes,
         bytesPerRow: context.bytesPerRow,
         dist: dist,
@@ -321,7 +454,7 @@ public enum PoseCellProcessor {
         gate: defringeGate
       )
     }
-    Self.featherEdges(
+    featherEdges(
       bytes: bytes,
       bytesPerRow: context.bytesPerRow,
       dist: dist,
@@ -449,7 +582,7 @@ public enum PoseCellProcessor {
   }
 
   /// 返回累计质量落在 [low, high] 区间的行/列索引窗口；统计异常时回退原始包围盒。
-  private static func massWindow(
+  static func massWindow(
     _ counts: [Int],
     total: Int,
     low: Double,
@@ -681,33 +814,5 @@ public enum PoseCellProcessor {
       }
     }
     return kept
-  }
-
-  private static func averageBackgroundColor(
-    bytes: UnsafeMutablePointer<UInt8>,
-    width: Int,
-    height: Int,
-    bytesPerRow: Int
-  ) -> (r: CGFloat, g: CGFloat, b: CGFloat) {
-    let corners = [
-      (0, 0),
-      (width - 1, 0),
-      (0, height - 1),
-      (width - 1, height - 1),
-    ]
-    var totalR = 0
-    var totalG = 0
-    var totalB = 0
-    for (x, y) in corners {
-      let offset = y * bytesPerRow + x * 4
-      totalR += Int(bytes[offset])
-      totalG += Int(bytes[offset + 1])
-      totalB += Int(bytes[offset + 2])
-    }
-    return (
-      r: CGFloat(totalR) / 255 / CGFloat(corners.count),
-      g: CGFloat(totalG) / 255 / CGFloat(corners.count),
-      b: CGFloat(totalB) / 255 / CGFloat(corners.count)
-    )
   }
 }

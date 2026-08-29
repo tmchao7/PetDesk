@@ -263,6 +263,16 @@ struct SettingsView: View {
           Text("×\(frameCount)")
             .font(.system(size: 10, weight: .medium))
             .foregroundStyle(.secondary)
+          // 漂移告警：导入时某帧与首帧差异超阈值（已自动对齐到统一锚点，
+          // 但帧间体型/色调差异无法矫正，建议重新生成该组帧图）。
+          if let diagnostics = environment.customPoseDiagnostics[row],
+            diagnostics.exceedsDriftThreshold
+          {
+            Image(systemName: "exclamationmark.triangle.fill")
+              .font(.system(size: 10))
+              .foregroundStyle(.yellow)
+              .help(diagnosticsHint(for: diagnostics))
+          }
         }
       }
       Label(label, systemImage: systemImage)
@@ -298,6 +308,14 @@ struct SettingsView: View {
     case .sleeping: "休息姿势"
     default: "姿势"
     }
+  }
+
+  /// 漂移告警提示：指出首个超阈值帧与差异维度。
+  private func diagnosticsHint(for diagnostics: PoseFrameDiagnostics) -> String {
+    let frameNumber = (diagnostics.firstDriftedFrameIndex ?? 1) + 1
+    return
+      "第 \(frameNumber) 帧与第一帧差异较大（大小或位置漂移）。"
+      + "已自动对齐到统一基准；若动画仍不连贯，建议用首帧作参考图重新生成该组帧。"
   }
 }
 
