@@ -2,36 +2,32 @@
 
 - Status: ready
 - Active owner: unassigned
-- Updated: 2026-08-08T19:30:00+0800
-- Branch: `main`
-- Latest implementation commit: `23f940b`
-- Latest session: [claudecode deadcode-and-cpu-cleanup](sessions/2026-08-08-1928-claudecode-deadcode-and-cpu-cleanup.md)
+- Updated: 2026-08-29T17:45:00+0800
+- Branch: `feat/pose-frame-consistency`
+- Latest implementation commit: `620e3ed`
+- Latest session: [zcode pose-frame-consistency-plan](sessions/2026-08-29-1710-zcode-pose-frame-consistency-plan.md)
 
 ## Active Objective
 
-代码 debug/review + 更轻量：空闲 CPU 优化 + 死代码清理（v2.0 之后）。已完成：① `focusSession` 去掉无人观察的 `@Published`、心情/精力更新节流为 5s（`@Published` 发布 2 次/秒→0.4 次/秒）→ 实测空闲 CPU **0.71%→0.06%**；② 死代码移除（未用 Logger、sheetWidth/Height、isHighlighted、openDiagnosticsWindow、supportsReferenceImage、冗余 import AppKit、过时 AnyShape）。RSS 未变（~137MB，死代码不影响常驻内存，需 Instruments 归因 app 自身分配）。
+消除精灵轮廓“分割线/边框”感 + 修复用户帧图白框（已完成三轮：① 抠底泄漏修复；② defringe+羽化+投影统一；③ rescue 扩张逃逸修复；6 帧动画支持已确认）。当前进行中：**AI 帧图漂移治理**——调研已完成并产出规划 `docs/superpowers/plans/2026-08-29-pose-frame-consistency.md`（P1 = 生成端引导 + 主体色彩归一化 + Settings 循环预览；P2 = 视频导入抽帧）。多帧导入跨帧归一化（统一背景/缩放/锚点 + 漂移诊断 + 长条带切帧）已实现并以 `620e3ed` 入库。
 
 ## Repository Snapshot
 
-- main 已推送 `37e8058`（v2.0）；本轮 `d783296`（perf）+ `f97a6bb`（refactor 死代码）+ `23f940b`（docs(perf)）待推送。
-- 本轮无新功能，仅优化与清理；136 单元测试全绿。
+- 分支 `feat/pose-frame-consistency`（未推送）：`591dd72` → `b10986e`（docs plan）→ `620e3ed`（feat(avatar): normalize multi-frame pose imports across frames，含本轮三处修复）。
+- Working tree 干净（仅未跟踪 `picture.png`、`.mimosa/`、`.zcode/`，禁止提交）。
+- main 仍为 `a36ef48`（v2.0.1），无 main 改动。
 
 ## Latest Verification
 
-- 全部 `PetDeskTests`：**136 tests, 0 failures**。
-- `make lint`：passed。Release 构建：BUILD SUCCEEDED。SwiftPM `PetDeskAppCheck` + `PetDeskCoreChecks`：passed。禁止构造检查：无命中。
-- 测量：优化前 CPU 0.71% / RSS 137MB（30s）；优化后 CPU 0.06% / RSS 137-143MB（60s）。
-- UI 测试（PetDeskUITests）：runner 环境问题（预先存在），本轮未跑。
-- 未执行：`make verify` 未整体转绿（UI 测试环境）；RSS 归因未做（需 Instruments GUI）。
+- **2026-08-29 17:44：`make verify` 全绿**——149 单元测试 + 7 UI 测试 0 失败，Debug/Release 构建通过，swift format lint 无警告，`PetDeskCoreChecks` all checks passed，禁止构造扫描通过。
+- 实测 18 张用户帧图（专注/摸鱼/休息 × 6）：无全白 cell；白色残留仅角色内部（前序会话验证）。
 
 ## Blockers
 
-- 无代码阻塞。UI 测试 runner 环境崩溃阻塞 `make verify` 的 test 步骤。
-- RSS 归因需要 Instruments GUI Allocations（owner 动作，30-60 分钟）。
+- 无代码阻塞。UI 测试 runner 间歇性崩溃（预先存在环境问题，verify 时正常）。
 
 ## Next Actions
 
-1. Owner：如在意 RSS，Instruments GUI Allocations 1 小时归因 app 自身分配。
-2. Owner：可选——决定是否移除测试专用的 `importAvatar(from:)`。
-3. 推送本轮提交（pre-push hook 的 `make verify` 因 UI 测试环境需 `--no-verify`）。
-4. UI 测试环境恢复后重跑 `make verify`。
+1. Owner：推送 `feat/pose-frame-consistency`（pre-push hook 将再跑一次 `make verify`）。
+2. 按规划文档实施 P1 剩余任务：Task 1.1 提示词文档重写 → Task 1.2 跨帧主体色彩归一化 → Task 1.3 Settings 循环预览 → Task 1.4 告警细化。
+3. Owner：重新导入三状态 6 帧图验收动画连贯性。

@@ -23,6 +23,22 @@ final class PetLayerRendererTests: XCTestCase {
     XCTAssertEqual(normal.baseFrameDuration, 0.05, accuracy: 0.001)
   }
 
+  /// 动画层投影必须与静态路径（AnimatedAvatarView.spriteView）同参，
+  /// 且不被 masksToBounds 裁剪——两条渲染路径的视觉一致性。
+  @MainActor
+  func testAnimationLayerHasSpriteShadow() {
+    let renderer = PetLayerRenderer()
+    let animationLayer = renderer.layer?.sublayers?.first
+    XCTAssertNotNil(animationLayer, "animation layer should exist")
+    guard let animationLayer else { return }
+    XCTAssertEqual(animationLayer.shadowOpacity, 1)
+    XCTAssertEqual(animationLayer.shadowRadius, 4)
+    XCTAssertEqual(animationLayer.shadowOffset, CGSize(width: 0, height: -2))
+    let alpha = animationLayer.shadowColor?.alpha ?? 0
+    XCTAssertEqual(alpha, 0.22, accuracy: 0.01)
+    XCTAssertFalse(animationLayer.masksToBounds, "shadow must not be clipped")
+  }
+
   /// 内容配置只描述播放内容：暂停状态不在配置里（避免暂停触发重建）。
   @MainActor
   func testConfigExcludesPauseState() {

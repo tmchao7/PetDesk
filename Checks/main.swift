@@ -585,7 +585,7 @@ private func checkPoseCellPreservesInteriorBackgroundColor() throws {
   }
   context.draw(canvas, in: CGRect(x: 0, y: 0, width: 256, height: 256))
   context.setFillColor(CGColor(red: 0, green: 0.3, blue: 0.9, alpha: 1))
-  context.fillEllipse(in: CGRect(x: 18, y: 18, width: 220, height: 220))
+  context.fillEllipse(in: CGRect(x: 48, y: 28, width: 160, height: 200))
   context.setFillColor(CGColor(red: 1, green: 1, blue: 1, alpha: 1))
   context.fillEllipse(in: CGRect(x: 68, y: 68, width: 120, height: 120))
   guard let subjectImage = context.makeImage() else {
@@ -601,6 +601,151 @@ private func checkPoseCellPreservesInteriorBackgroundColor() throws {
     "interior background-colored region should stay opaque")
   let corner = pixel(cell, x: 0, y: 0)
   try expect(corner.a == 0, "exterior background should be removed")
+}
+
+private func checkPoseCellRescuesLeakedInterior() throws {
+  // 白底 + 蓝色圆环（底部留 2px 缺口）+ 内部白色圆：边缘 flood 会经缺口
+  // 泄漏进内部白色（与背景同色）。旧逻辑把被泄漏的内部白色一并抠成透明
+  // （“白色部分变透明”）；修复应救回被泄漏、但仍被主体包围的区域。
+  let white = (r: CGFloat(1.0), g: CGFloat(1.0), b: CGFloat(1.0))
+  guard
+    let canvas = makeSolidImage(width: 256, height: 256, color: white),
+    let context = CGContext(
+      data: nil,
+      width: 256,
+      height: 256,
+      bitsPerComponent: 8,
+      bytesPerRow: 0,
+      space: CGColorSpaceCreateDeviceRGB(),
+      bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+    )
+  else {
+    throw CheckFailure(description: "could not create leaked-interior canvas")
+  }
+  context.draw(canvas, in: CGRect(x: 0, y: 0, width: 256, height: 256))
+  context.setStrokeColor(CGColor(red: 0, green: 0.3, blue: 0.9, alpha: 1))
+  context.setLineWidth(36)
+  context.strokeEllipse(in: CGRect(x: 34, y: 34, width: 188, height: 188))
+  // 缺口：从圆环内侧延伸到底部，连通外部背景与内部白色区域。
+  context.setFillColor(CGColor(red: 1, green: 1, blue: 1, alpha: 1))
+  context.fill(CGRect(x: 127, y: 196, width: 2, height: 60))
+  context.fillEllipse(in: CGRect(x: 78, y: 78, width: 100, height: 100))
+  guard let subjectImage = context.makeImage() else {
+    throw CheckFailure(description: "could not make leaked-interior subject image")
+  }
+
+  guard let cell = PoseCellProcessor.makeCell(from: subjectImage) else {
+    throw CheckFailure(description: "leaked-interior pose processing returned nil")
+  }
+  let center = pixel(cell, x: 96, y: 104)
+  try expect(
+    center.a > 200 && center.r > 200 && center.g > 200 && center.b > 200,
+    "interior background-colored region leaked through the outline gap should stay opaque")
+  let corner = pixel(cell, x: 0, y: 0)
+  try expect(corner.a == 0, "exterior background should be removed")
+}
+
+private func checkPoseCellDefringeRemovesBackgroundRing() throws {
+  // 白底 + 蓝色椭圆（默认抗锯齿）：过渡带像素颜色接近背景色，旧逻辑把整圈
+  // 过渡带保留为不透明 → 角色轮廓外出现一圈近白“边框/分割线”。修复应
+  // ① defringe：边缘像素颜色替换为内侧本体色（蓝）；② 羽化：最外层 alpha
+  // 半透明过渡（不再是 255 硬边）。
+  let white = (r: CGFloat(1.0), g: CGFloat(1.0), b: CGFloat(1.0))
+  guard
+    let canvas = makeSolidImage(width: 256, height: 256, color: white),
+    let context = CGContext(
+      data: nil,
+      width: 256,
+      height: 256,
+      bitsPerComponent: 8,
+      bytesPerRow: 0,
+      space: CGColorSpaceCreateDeviceRGB(),
+      bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+    )
+  else {
+    throw CheckFailure(description: "could not create defringe canvas")
+  }
+  context.draw(canvas, in: CGRect(x: 0, y: 0, width: 256, height: 256))
+  context.setFillColor(CGColor(red: 0, green: 0.3, blue: 0.9, alpha: 1))
+  // 竖椭圆：contain-fit 后垂直占满、水平留白，中间行能扫到真正的边缘过渡带。
+  context.fillEllipse(in: CGRect(x: 48, y: 28, width: 160, height: 200))
+  guard let subjectImage = context.makeImage() else {
+    throw CheckFailure(description: "could not make defringe subject image")
+  }
+
+  guard let cell = PoseCellProcessor.makeCell(from: subjectImage) else {
+    throw CheckFailure(description: "defringe pose processing returned nil")
+  }
+  // 中间行自左向右扫描：第一个不透明像素（羽化带最外层）与第一个
+  // 不透明主体像素（alpha ≥ 200，羽化带之外，颜色未经预乘拉暗）。
+  var outer: (r: Int, g: Int, b: Int, a: Int)?
+  var bodyEdge: (r: Int, g: Int, b: Int, a: Int)?
+  var thirdOpaque: (r: Int, g: Int, b: Int, a: Int)?
+  var opaqueCount = 0
+  for x in 0..<192 {
+    let p = pixel(cell, x: x, y: 104)
+    if p.a > 0 {
+      opaqueCount += 1
+      if outer == nil { outer = p }
+      if opaqueCount == 3 { thirdOpaque = p }
+    }
+    if p.a >= 200 && bodyEdge == nil { bodyEdge = p }
+  }
+  guard let outer, let bodyEdge, let thirdOpaque else {
+    throw CheckFailure(description: "defringe fixture produced no opaque pixels on the scan row")
+  }
+  // ① defringe：主体边缘是蓝色本体（预乘后 b 显著大于 r），而非近白残留（r≈b）。
+  try expect(
+    bodyEdge.b > bodyEdge.r + 60,
+    "edge pixel should carry the body color, not the background residual")
+  // ② 羽化：最外层半透明，第 3 层保持不透明。
+  try expect(outer.a < 250, "outermost edge pixel should be semi-transparent after feathering")
+  try expect(thirdOpaque.a >= 250, "inner edge pixels should stay opaque")
+  let center = pixel(cell, x: 96, y: 104)
+  try expect(center.a > 200, "subject body should stay opaque")
+}
+
+private func checkPoseCellFeathersNativeAlphaSource() throws {
+  // 自带透明背景路径（图片 alpha 本身透明）：不做 defringe（无 chroma 参考色），
+  // 但同样羽化——且预乘重写不得把半透明边缘压黑（绿色保持绿色）。
+  let bitmapInfo = CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue)
+  guard
+    let context = CGContext(
+      data: nil,
+      width: 256,
+      height: 256,
+      bitsPerComponent: 8,
+      bytesPerRow: 0,
+      space: CGColorSpaceCreateDeviceRGB(),
+      bitmapInfo: bitmapInfo.rawValue
+    )
+  else {
+    throw CheckFailure(description: "could not create native-alpha canvas")
+  }
+  context.clear(CGRect(x: 0, y: 0, width: 256, height: 256))
+  context.setFillColor(CGColor(red: 0, green: 0.8, blue: 0.2, alpha: 1))
+  context.fill(CGRect(x: 48, y: 48, width: 160, height: 160))
+  guard let subjectImage = context.makeImage() else {
+    throw CheckFailure(description: "could not make native-alpha subject image")
+  }
+
+  guard let cell = PoseCellProcessor.makeCell(from: subjectImage) else {
+    throw CheckFailure(description: "native-alpha pose processing returned nil")
+  }
+  var outer: (r: Int, g: Int, b: Int, a: Int)?
+  for x in 0..<192 {
+    let p = pixel(cell, x: x, y: 104)
+    if p.a > 0 {
+      outer = p
+      break
+    }
+  }
+  guard let outer else {
+    throw CheckFailure(description: "native-alpha fixture produced no opaque pixels")
+  }
+  try expect(
+    outer.g > outer.r + 40 && outer.g > outer.b + 40,
+    "feathered edge should keep the subject color (no black fringe)")
 }
 
 private func checkGPTImage2Provider() async throws {
@@ -673,6 +818,100 @@ private func checkVisionEyeBandLocator() throws {
     "blank image should not produce an eye band")
 }
 
+/// 跨帧归一化：平移漂移在夹紧范围内被完全对齐；超阈值漂移触发告警诊断。
+private func checkPoseFrameSetProcessor() throws {
+  let canvas = 256
+
+  func frame(subjectX: CGFloat) throws -> CGImage {
+    guard
+      let canvasImage = makeSolidImage(width: canvas, height: canvas, color: (0, 1, 0)),
+      let context = CGContext(
+        data: nil,
+        width: canvas,
+        height: canvas,
+        bitsPerComponent: 8,
+        bytesPerRow: 0,
+        space: CGColorSpaceCreateDeviceRGB(),
+        bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+      )
+    else {
+      throw CheckFailure(description: "could not create frame set canvas")
+    }
+    context.draw(canvasImage, in: CGRect(x: 0, y: 0, width: canvas, height: canvas))
+    context.setFillColor(CGColor(red: 0.1, green: 0.2, blue: 0.7, alpha: 1))
+    // 视觉 y=48、80×140 竖构图主体（Quartz 原点在左下）。
+    context.fill(CGRect(x: subjectX, y: 68, width: 80, height: 140))
+    guard let image = context.makeImage() else {
+      throw CheckFailure(description: "could not make frame set image")
+    }
+    return image
+  }
+
+  func subjectBBox(in cell: CGImage) throws -> CGRect {
+    guard
+      let context = CGContext(
+        data: nil,
+        width: cell.width,
+        height: cell.height,
+        bitsPerComponent: 8,
+        bytesPerRow: 0,
+        space: CGColorSpaceCreateDeviceRGB(),
+        bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+      ),
+      let data = context.data
+    else {
+      throw CheckFailure(description: "could not render cell for bbox scan")
+    }
+    context.draw(cell, in: CGRect(x: 0, y: 0, width: cell.width, height: cell.height))
+    let bytes = data.bindMemory(to: UInt8.self, capacity: cell.height * context.bytesPerRow)
+    var minColumn = cell.width
+    var maxColumn = -1
+    var minRow = cell.height
+    var maxRow = -1
+    for row in 0..<cell.height {
+      for column in 0..<cell.width {
+        if bytes[row * context.bytesPerRow + column * 4 + 3] > 8 {
+          minColumn = min(minColumn, column)
+          maxColumn = max(maxColumn, column)
+          minRow = min(minRow, row)
+          maxRow = max(maxRow, row)
+        }
+      }
+    }
+    guard maxColumn >= minColumn, maxRow >= minRow else {
+      throw CheckFailure(description: "cell has no subject")
+    }
+    return CGRect(
+      x: minColumn, y: minRow,
+      width: maxColumn - minColumn + 1, height: maxRow - minRow + 1)
+  }
+
+  // 小幅平移（±6 源像素 ≈ ±8.9 单元像素，夹紧范围内）：三帧包围盒一致。
+  let aligned = try PoseFrameSetProcessor.process(
+    images: [try frame(subjectX: 82), try frame(subjectX: 88), try frame(subjectX: 94)])
+  try expect(aligned.cells.count == 3, "frame set should produce one cell per frame")
+  let boxes = try aligned.cells.map { try subjectBBox(in: $0) }
+  for box in boxes {
+    try expect(abs(box.minX - boxes[0].minX) <= 2, "aligned frames should share the anchor")
+    try expect(abs(box.minY - boxes[0].minY) <= 2, "aligned frames should share the baseline")
+  }
+  try expect(
+    !aligned.diagnostics.exceedsDriftThreshold,
+    "small in-clamp drift should not raise the warning")
+
+  // 超阈值漂移（离群帧 +30 源像素 ≈ 44.6 单元像素 > 18px）：告警 + 夹紧部分矫正。
+  let drifted = try PoseFrameSetProcessor.process(
+    images: [try frame(subjectX: 88), try frame(subjectX: 88), try frame(subjectX: 118)])
+  try expect(
+    drifted.diagnostics.exceedsDriftThreshold,
+    "44.6 cell-pixel centroid shift should raise the drift warning")
+  let driftedBoxes = try drifted.cells.map { try subjectBBox(in: $0) }
+  let remaining = abs(driftedBoxes[2].minX - driftedBoxes[0].minX)
+  try expect(
+    remaining > 20 && remaining < 40,
+    "clamped correction should partially reduce the drift, not remove or preserve it all")
+}
+
 private func runAllChecks() async throws {
   try checkStateMachine()
   try checkSnapshotDisplayEquality()
@@ -684,6 +923,10 @@ private func runAllChecks() async throws {
   try checkPoseCellProcessor()
   try checkPoseCellBBoxTrimsCornerNoise()
   try checkPoseCellPreservesInteriorBackgroundColor()
+  try checkPoseCellRescuesLeakedInterior()
+  try checkPoseCellDefringeRemovesBackgroundRing()
+  try checkPoseCellFeathersNativeAlphaSource()
+  try checkPoseFrameSetProcessor()
   try await checkGPTImage2Provider()
   try checkVisionEyeBandLocator()
 }

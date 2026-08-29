@@ -22,6 +22,8 @@ final class AppEnvironment: ObservableObject {
   @Published private(set) var customPoseRows: Set<AnimationRow> = []
   /// 自定义姿势的缩略图（每帧一张，供设置界面即时预览；第一帧为主预览）。
   @Published private(set) var customPoseImages: [AnimationRow: [NSImage]] = [:]
+  /// 逐行姿势帧的漂移诊断（导入时对生成端一致性的量化；重启后不恢复）。
+  @Published private(set) var customPoseDiagnostics: [AnimationRow: PoseFrameDiagnostics] = [:]
   @Published var avatarDisplayMode: AvatarDisplayMode {
     didSet { defaults.set(avatarDisplayMode.rawValue, forKey: Keys.avatarDisplayMode) }
   }
@@ -426,6 +428,7 @@ final class AppEnvironment: ObservableObject {
       customPoseCells.removeAll()
       customPoseRows = []
       customPoseImages = [:]
+      customPoseDiagnostics = [:]
       avatarSpritesheet = await generateSpritesheet(from: image)
       avatarSourceImage = nil
       avatarError = nil
@@ -448,6 +451,7 @@ final class AppEnvironment: ObservableObject {
       customPoseCells.removeAll()
       customPoseRows = []
       customPoseImages = [:]
+      customPoseDiagnostics = [:]
       avatarError = nil
       diagnostics.record(category: "avatar", message: "avatar-reset")
     } catch {
@@ -479,23 +483,49 @@ final class AppEnvironment: ObservableObject {
         $0.lastPathComponent.localizedStandardCompare($1.lastPathComponent)
           == .orderedAscending
       }
-      var cells: [CGImage] = []
+      var images: [CGImage] = []
       for url in orderedURLs {
-        cells.append(try PoseCellProcessor.loadCell(from: url))
+        images.append(try PoseCellProcessor.loadImage(from: url))
       }
-      customPoseCells[row] = cells
+      // 单文件横向帧条带（AI 单次生成的“N 帧长图”）自动切帧；
+      // 判定不像条带的宽图原样回退为单帧。
+      let frameImages =
+        images.count == 1 ? PoseSheetSlicer.sliceStrip(from: images[0]) : images
+      if frameImages.count == 1 {
+        // 单帧：保持既有单帧处理契约（逐帧独立处理 + 居中 contain-fit）。
+        guard let cell = PoseCellProcessor.makeCell(from: frameImages[0]) else {
+          throw PoseImageImportError.emptySubject
+        }
+        customPoseCells[row] = [cell]
+        customPoseDiagnostics[row] = nil
+      } else {
+        // 多帧：跨帧归一化（统一背景/缩放/锚点）+ 漂移诊断。
+        let result = try PoseFrameSetProcessor.process(images: frameImages)
+        customPoseCells[row] = result.cells
+        customPoseDiagnostics[row] = result.diagnostics
+      }
       customPoseRows = Set(customPoseCells.keys)
       // 只保留第一帧的降采样预览（48×52），播放用全分辨率帧仍在 customPoseCells。
-      customPoseImages[row] = Self.makePosePreview(from: cells)
+      customPoseImages[row] = Self.makePosePreview(from: customPoseCells[row] ?? [])
       if let message = await reassembleSpritesheet() {
         AppLog.avatar.error("Pose import reassembly failed: \(message, privacy: .public)")
         return message
       }
       diagnostics.record(category: "avatar", message: "pose-imported")
       AppLog.avatar.info(
-        "Pose imported \(cells.count, privacy: .public) frame(s) for row \(row.rawValue, privacy: .public)"
+        "Pose imported \(self.customPoseCells[row]?.count ?? 0, privacy: .public) frame(s) for row \(row.rawValue, privacy: .public)"
       )
       return nil
+    } catch let error as PoseFrameSetError {
+      let message: String
+      switch error {
+      case .emptySubject(let index):
+        message = "第 \(index + 1) 帧没有识别到主体（请确认该帧人物清晰、背景为纯色或透明）。"
+      case .contextUnavailable:
+        message = "姿势图处理失败，请重试。"
+      }
+      AppLog.avatar.error("Pose frame set rejected: \(message, privacy: .public)")
+      return message
     } catch let error as PoseImageImportError {
       let message = Self.poseMessage(for: error)
       AppLog.avatar.error("Pose image rejected: \(message, privacy: .public)")
@@ -513,6 +543,7 @@ final class AppEnvironment: ObservableObject {
     customPoseCells.removeValue(forKey: row)
     customPoseRows = Set(customPoseCells.keys)
     customPoseImages.removeValue(forKey: row)
+    customPoseDiagnostics.removeValue(forKey: row)
     guard avatarBaseCGImage != nil else { return nil }
     if let message = await reassembleSpritesheet() {
       return message
@@ -980,6 +1011,8 @@ final class AppEnvironment: ObservableObject {
     customPoseCells.removeAll()
     customPoseRows = []
     customPoseImages = [:]
+    // 漂移诊断只在导入会话内有效，重启恢复不重建。
+    customPoseDiagnostics = [:]
     guard
       let avatarBaseCGImage,
       let baseCell = SpriteSheetGenerator.baseCell(from: avatarBaseCGImage),
