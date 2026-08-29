@@ -19,7 +19,8 @@
 
 ## Latest Verification
 
-- **2026-08-29 17:44：`make verify` 全绿**——149 单元测试 + 7 UI 测试 0 失败，Debug/Release 构建通过，swift format lint 无警告，`PetDeskCoreChecks` all checks passed，禁止构造扫描通过。合并内容即该验证过的代码（合并后无代码改动）。
+- **2026-08-29 18:58：`git push origin main` 成功**（`a36ef48..220d5a9`），pre-push `make verify` 全绿（149 单元 + 7 UI 测试、Debug/Release 构建、lint、CoreChecks）。此前两次推送因 UI 冒烟测试无法终止一个 **Xcode 调试会话启动的 Debug 宠物实例**（debugserver 附着，PID 98889）而失败——已记录为"UI 测试间歇失败"的具体诱因之一：push/verify 前先退出 Xcode 调试运行。
+- 2026-08-29 17:44：合并内容在特性分支上的 `make verify` 全绿（同规模）。
 - 实测 18 张用户帧图（专注/摸鱼/休息 × 6）：无全白 cell；白色残留仅角色内部（前序会话验证）。
 
 ## Blockers

@@ -44,6 +44,7 @@
 
 - **2026-08-29 17:44（zcode，本会话第二轮）**：分支上的未提交归一化 WIP 经 owner 要求用自动化门禁验证。`make verify` 首跑失败：① `AppEnvironment.swift:516` 闭包内引用 `customPoseCells` 缺显式 `self.`（Swift 6 编译错误）；② `PoseSheetSlicerTests.testSliceFallsBackWhenACellIsEmpty` 失败（实现 bug：`cellLooksLikeFrame` 只按 alpha 判主体，不透明绿幕背景的空格被误判有主体，未回退单帧）；③ `PoseFrameSetProcessorTests.testProcessUnifiesBackgroundEstimationAcrossFrames` 失败（测试探针 `(96,1)` 落在撑满单元全高的主体内，属测试 bug）。修复：显式 `self.`；`cellLooksLikeFrame` 内部主体判定改为"透明或与四边中位数背景色明显不同"（距离阈值 0.18 复用切线边语义）；探针移到主体水平范围外 `(170,1)`；并 `swift format --in-place` 清掉 format 警告。修复后 `make verify` **全绿**：149 单元测试 + 7 UI 测试 0 失败、Debug/Release 构建、swift format lint 无警告、`PetDeskCoreChecks` all checks passed、禁止构造扫描通过。WIP 连同修复以 `620e3ed`（feat(avatar): normalize multi-frame pose imports across frames）入库。
 - 本会话第一轮为纯研究/规划，无代码改动。调研结论来自联网检索与源码阅读。
+- **2026-08-29 18:58（zcode，推送轮）**：owner 指示合并 main 并推送。`git merge --no-ff` → main `96ed77c`，docs 提交 `220d5a9`。`git push origin main` 前两次失败：pre-push `make verify` 均挂在 `PetDeskSmokeTests.testFakeNotificationStillLaunchesWithoutAccessibilityPermission`（"Failed to terminate io.github.tmchao7.PetDesk:98889"）。根因排查：PID 98889 是 **17:55 从 Xcode 调试器启动的 Debug 构建 PetDesk**（父进程为 Xcode 派生的 debugserver 98902，主线程空闲非挂起），UI 测试启动时终止同 bundle ID 的该实例失败——即"UI 测试 runner 间歇性崩溃"的又一具体诱因：**Xcode 调试运行会话挂着时会卡死所有 UI 测试**。终止 debugserver + 应用实例后第三次 `git push` 成功：pre-push verify 全绿（同 149+7 规模），`a36ef48..220d5a9 main -> main`。未使用 `--no-verify` 绕过钩子。
 
 ## Review and Debug Findings
 
