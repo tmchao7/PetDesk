@@ -9,7 +9,7 @@
 - Status: ready
 - Branch: feat/pose-frame-consistency
 - Starting commit: 591dd72
-- Ending commit: 本记录所在 docs 提交（提交后补充哈希）
+- Ending commit: `620e3ed`（feat 实现提交）+ docs 提交（本记录更新）
 
 ## Context Read
 
@@ -42,8 +42,8 @@
 
 ## Verification
 
-- 本会话无代码改动，未运行 `make test`/`make verify`（不适用）；`make handoff-check` 通过后随 docs 提交。
-- 所有调研结论来自联网检索与源码阅读，未写入任何未经验证的行为断言。
+- **2026-08-29 17:44（zcode，本会话第二轮）**：分支上的未提交归一化 WIP 经 owner 要求用自动化门禁验证。`make verify` 首跑失败：① `AppEnvironment.swift:516` 闭包内引用 `customPoseCells` 缺显式 `self.`（Swift 6 编译错误）；② `PoseSheetSlicerTests.testSliceFallsBackWhenACellIsEmpty` 失败（实现 bug：`cellLooksLikeFrame` 只按 alpha 判主体，不透明绿幕背景的空格被误判有主体，未回退单帧）；③ `PoseFrameSetProcessorTests.testProcessUnifiesBackgroundEstimationAcrossFrames` 失败（测试探针 `(96,1)` 落在撑满单元全高的主体内，属测试 bug）。修复：显式 `self.`；`cellLooksLikeFrame` 内部主体判定改为"透明或与四边中位数背景色明显不同"（距离阈值 0.18 复用切线边语义）；探针移到主体水平范围外 `(170,1)`；并 `swift format --in-place` 清掉 format 警告。修复后 `make verify` **全绿**：149 单元测试 + 7 UI 测试 0 失败、Debug/Release 构建、swift format lint 无警告、`PetDeskCoreChecks` all checks passed、禁止构造扫描通过。WIP 连同修复以 `620e3ed`（feat(avatar): normalize multi-frame pose imports across frames）入库。
+- 本会话第一轮为纯研究/规划，无代码改动。调研结论来自联网检索与源码阅读。
 
 ## Review and Debug Findings
 
@@ -65,6 +65,5 @@
 
 ## Git State
 
-- Branch: `feat/pose-frame-consistency`（自 `fix/pose-cell-keying-leak` 演进，HEAD `591dd72`）。
-- Working tree：大量未提交改动（见 Context Read）；`picture.png`、`.mimosa/`、`.zcode/` 未跟踪（禁止提交）。
-- 本会话新增：`docs/superpowers/plans/2026-08-29-pose-frame-consistency.md`、本记录、CURRENT.md 更新。
+- Branch: `feat/pose-frame-consistency`（未推送）：`591dd72` → `b10986e`（docs plan）→ `620e3ed`（feat 归一化实现 + 本轮修复）→ docs 提交（本记录更新）。
+- 原未提交 WIP（归一化实现）已随 `620e3ed` 入库；working tree 仅剩未跟踪的 `picture.png`、`.mimosa/`、`.zcode/`（禁止提交）。
