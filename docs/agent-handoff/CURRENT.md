@@ -2,20 +2,20 @@
 
 - Status: ready
 - Active owner: unassigned
-- Updated: 2026-08-29T18:00:00+0800
+- Updated: 2026-08-29T19:15:00+0800
 - Branch: `main`
-- Latest implementation commit: `96ed77c`（merge）
+- Latest implementation commit: `21068af`（chore(release): bump version to 2.1.0）
 - Latest session: [zcode pose-frame-consistency-plan](sessions/2026-08-29-1710-zcode-pose-frame-consistency-plan.md)
 
 ## Active Objective
 
-精灵图像质量与 AI 帧图漂移治理。`fix/pose-cell-keying-leak` 三轮修复（抠底泄漏、defringe+羽化、rescue 扩张逃逸）与跨帧归一化特性（`PoseFrameSetProcessor` 统一背景/缩放/锚点 + 漂移诊断、`PoseSheetSlicer` 长条带切帧 + 空格守卫、Settings 漂移告警）已随 `96ed77c` 合并进 `main` 并推送 origin。后续：按 `docs/superpowers/plans/2026-08-29-pose-frame-consistency.md` 实施 P1（提示词文档重写 → 主体色彩归一化 → Settings 循环预览 → 告警细化），从 `main` 拉新 `feat/` 分支。
+精灵图像质量与 AI 帧图漂移治理。keying/边缘三轮修复 + 跨帧归一化特性（统一背景/缩放/锚点、条带切帧、漂移诊断）已合并 `main` 并随 **v2.1.0** 发布（Release：CI 自动构建 DMG，见 `gh release view v2.1.0`）。后续：按 `docs/superpowers/plans/2026-08-29-pose-frame-consistency.md` 实施 P1（提示词文档重写 → 主体色彩归一化 → Settings 循环预览 → 告警细化），从 `main` 拉新 `feat/` 分支。
 
 ## Repository Snapshot
 
-- `main` = origin/main，包含合并 `96ed77c`（9 个提交：keying 修复 5 + docs 1 + plan 1 + feat 归一化 1 + handoff 1）。
+- `main` = origin/main = `21068af`；标签 `v2.1.0` 已推送并触发自动 Release（github-actions[bot]，含 PetDesk-2.1.0.dmg）。
 - `feat/pose-frame-consistency` 已合并，本地保留。
-- Working tree：仅未跟踪 `picture.png`、`.mimosa/`、`.zcode/`（禁止提交）。
+- Working tree：仅未跟踪 `picture.png`、`.mimosa/`、`.zcode/`、`dist/`（禁止提交）。
 
 ## Latest Verification
 
