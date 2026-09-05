@@ -79,3 +79,7 @@
 - Production code: unchanged
 - Untracked user files preserved: `.mimosa/`, `.zcode/`, `picture.png`
 - Handoff record and `CURRENT.md` update are the only intended tracked changes.
+
+## Factual Correction
+
+- 2026-09-05，codex：本记录原先在提交前写作“docs handoff commit pending”；提交完成后确认本 session 的 ending commit 为 `8128d1c`（`docs(handoff): record bug observability review`）。原始记录保留，补充此更正以满足交接事实完整性。
