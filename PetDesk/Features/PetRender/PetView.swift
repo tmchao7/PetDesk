@@ -18,7 +18,7 @@ struct PetView: View {
 
   /// 多帧动画的 CGImage 帧列表（供 CALayer 播放器）。
   private func animationFrames(sheet: CGImage, row: AnimationRow, count: Int) -> [CGImage] {
-    layerFrameStore.preload(sheet: sheet, row: row, frameCount: count).cgImages
+    layerFrameStore.preloadCGImages(sheet: sheet, row: row, frameCount: count)
   }
 
   var body: some View {

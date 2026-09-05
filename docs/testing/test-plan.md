@@ -1,6 +1,6 @@
 # Test Plan
 
-`PetDeskTests` covers state thresholds, hysteresis, event restoration, thermal overlays, focus completion, idle pause, reminder snooze, CPU tick rollback, avatar policy, screen clamping, notification deduplication, and ring-buffer capacity.
+`PetDeskTests` covers state thresholds, hysteresis, event restoration, thermal overlays, focus completion, idle pause, reminder snooze, CPU tick rollback, avatar policy, screen clamping, notification deduplication, ring-buffer capacity, manual-state CPU/speed freshness, CG-only frame preparation, and debounced settings/Todo persistence.
 
 `PetDeskCoreChecks` mirrors critical assertions without XCTest so Command Line Tools-only machines can verify behavior. It is not shipped in the app.
 
@@ -24,6 +24,7 @@ Measured on the same Apple Silicon Mac with a Release build (`scripts/measure-pe
 | One-frame pose | 专注 pose, 1 frame | same as static (low-cost Image path) |
 | Eight-frame pose | 专注 pose, 8 frames, working state | 10-min avg CPU < 2%; no CPU-positive feedback (frame rate capped 5–30 FPS) |
 | Occlusion pause | cover pet window with another window | `isPetAnimationPaused` flips; zero animation work (no timeline, layer frozen) |
+| Persistence burst | drag animation-speed slider or rapidly edit Todo | live UI is immediate; settings flush after 300ms; each Todo burst writes only the final snapshot |
 | Hidden pet | 显示/隐藏桌宠 → hidden | same as occlusion |
 | Restart | import pose, quit, relaunch | frame count and preview restored; no stale frames after sheet replacement |
 | 30-min stability | any scenario | RSS has no sustained growth |

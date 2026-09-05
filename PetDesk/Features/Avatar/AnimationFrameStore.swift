@@ -6,8 +6,8 @@ import CoreGraphics
 #endif
 
 /// 动画帧预切片缓存：按（精灵图, 动作行, 帧数）一次性裁出全部帧，
-/// 同时缓存成对的 `CGImage`（供 CALayer 播放）与 `NSImage`（供 SwiftUI 显示）。
-/// 播放期间零 crop、零 NSImage 包装；精灵图更换或视图消失时调用 `clear()`。
+/// CALayer 播放路径只缓存 `CGImage`；SwiftUI 路径按需补建对应的 `NSImage`。
+/// 播放期间零 crop；精灵图更换或视图消失时调用 `clear()`。
 @MainActor
 final class AnimationFrameStore {
   /// 一次预切片的结果：CGImage 与 NSImage 一一对应。
@@ -24,22 +24,40 @@ final class AnimationFrameStore {
   }
 
   private var cache: PreparedAnimationFrames?
+  private var cgCache: [CGImage]?
   private var cacheKey: CacheKey?
   /// 强引用精灵图，保证地址在命中比较期间不被复用。
   private var retainedSheet: CGImage?
 
   /// 预切片指定行的帧。帧数非法（<=0）时返回单帧安全回退；
   /// 帧数超过可用列数时夹紧到列数。同 key 命中直接复用已准备帧。
-  func preload(sheet: CGImage, row: AnimationRow, frameCount: Int) -> PreparedAnimationFrames {
-    let clampedCount = max(1, min(frameCount, SpriteSheetSpec.columns))
-    let sheetID = UInt(bitPattern: Unmanaged.passUnretained(sheet).toOpaque())
-    let key = CacheKey(sheetID: sheetID, row: row, frameCount: clampedCount)
+  func preloadCGImages(sheet: CGImage, row: AnimationRow, frameCount: Int) -> [CGImage] {
+    let key = makeKey(sheet: sheet, row: row, frameCount: frameCount)
+    if let cgCache, cacheKey == key {
+      return cgCache
+    }
 
+    let frames = Self.slice(sheet: sheet, row: row, frameCount: key.frameCount)
+    cgCache = frames
+    cache = nil
+    cacheKey = key
+    retainedSheet = sheet
+    return frames
+  }
+
+  func preload(sheet: CGImage, row: AnimationRow, frameCount: Int) -> PreparedAnimationFrames {
+    let key = makeKey(sheet: sheet, row: row, frameCount: frameCount)
     if let cache, cacheKey == key {
       return cache
     }
 
-    let frames = Self.slice(sheet: sheet, row: row, frameCount: clampedCount)
+    let frames: [CGImage]
+    if let cgCache, cacheKey == key {
+      frames = cgCache
+    } else {
+      frames = Self.slice(sheet: sheet, row: row, frameCount: key.frameCount)
+      cgCache = frames
+    }
     let prepared = PreparedAnimationFrames(
       cgImages: frames,
       nsImages: frames.map { frame in
@@ -54,9 +72,16 @@ final class AnimationFrameStore {
     return prepared
   }
 
+  private func makeKey(sheet: CGImage, row: AnimationRow, frameCount: Int) -> CacheKey {
+    let clampedCount = max(1, min(frameCount, SpriteSheetSpec.columns))
+    let sheetID = UInt(bitPattern: Unmanaged.passUnretained(sheet).toOpaque())
+    return CacheKey(sheetID: sheetID, row: row, frameCount: clampedCount)
+  }
+
   /// 清空缓存（精灵图替换或视图消失时调用）。
   func clear() {
     cache = nil
+    cgCache = nil
     cacheKey = nil
     retainedSheet = nil
   }

@@ -1,6 +1,11 @@
 import Foundation
 
-public actor TodoStore {
+public protocol TodoStoring: Sendable {
+  func load() async -> [TodoItem]
+  func save(_ items: [TodoItem]) async throws
+}
+
+public actor TodoStore: TodoStoring {
   private let fileManager: FileManager
   private let fileURL: URL
 

@@ -18,7 +18,7 @@ log stream --style compact --predicate 'subsystem == "io.github.tmchao7.PetDesk"
 
 Use the Diagnostics window to copy the current state, CPU average, notification capability, window frame, and latest 200 sanitized events.
 
-Review these hotspots first: duplicate AsyncStream tasks, counter rollback after sleep, state dwell and hysteresis, focus pause transitions, `NSPanel` retention, multi-screen coordinates, bubble hit-test regions, image decode size, and Accessibility behavior after OS or client updates.
+Review these hotspots first: duplicate AsyncStream tasks, counter rollback after sleep, state dwell and hysteresis, focus pause transitions, manual-state CPU/speed freshness, `NSPanel` retention, multi-screen coordinates, bubble hit-test regions, image decode size, debounced persistence flushes, and Accessibility behavior after OS or client updates.
 
 ## AI Pose Provider
 
@@ -41,7 +41,7 @@ The spritesheet spec uses a top-left origin (row 0 at the top). Empirically (202
 
 ## Animation Pause
 
-Multi-frame rows (frameCount > 1) play through `PetLayerRenderer` (discrete `CAKeyframeAnimation` on `contents`); the `TimelineView(.periodic(by: interval))` path in `AnimatedAvatarView` is only the fallback. Both honor `AppEnvironment.isPetAnimationPaused` (window hidden/occluded): no TimelineView is instantiated, and the layer is frozen via `speed = 0` + `timeOffset`. To debug CPU usage, hide the pet and confirm `isPetAnimationPaused` flips in Diagnostics state — a running layer animation or timeline while hidden means the pause flag is not reaching the renderer.
+Multi-frame rows (frameCount > 1) play through `PetLayerRenderer` (discrete `CAKeyframeAnimation` on `contents`); its `preloadCGImages` path avoids constructing unused `NSImage` wrappers. The `TimelineView(.periodic(by: interval))` path in `AnimatedAvatarView` is only the fallback. Both honor `AppEnvironment.isPetAnimationPaused` (window hidden/occluded): no TimelineView is instantiated, and the layer is frozen via `speed = 0` + `timeOffset`. To debug CPU usage, hide the pet and confirm `isPetAnimationPaused` flips in Diagnostics state — a running layer animation or timeline while hidden means the pause flag is not reaching the renderer.
 
 Known CALayer pitfalls:
 - `CAKeyframeAnimation` with `contents` requires preloaded `CGImage` values; do not crop or wrap `NSImage` during playback (use `AnimationFrameStore`).

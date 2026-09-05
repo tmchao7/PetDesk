@@ -7,6 +7,54 @@ import Foundation
 #endif
 
 @MainActor
+private final class DebouncedDefaultsWriter {
+  enum Value: Sendable {
+    case double(Double)
+  }
+
+  private let defaults: UserDefaults
+  private let delay: Duration
+  private var pending: [String: Value] = [:]
+  private var task: Task<Void, Never>?
+
+  init(defaults: UserDefaults, delay: Duration = .milliseconds(300)) {
+    self.defaults = defaults
+    self.delay = delay
+  }
+
+  func set(_ value: Value, forKey key: String) {
+    pending[key] = value
+    scheduleFlush()
+  }
+
+  func flush() {
+    task?.cancel()
+    task = nil
+    let writes = pending
+    pending.removeAll(keepingCapacity: true)
+    for (key, value) in writes {
+      switch value {
+      case .double(let value): defaults.set(value, forKey: key)
+      }
+    }
+  }
+
+  private func scheduleFlush() {
+    task?.cancel()
+    task = Task { [weak self] in
+      guard let self else { return }
+      do {
+        try await Task.sleep(for: delay)
+      } catch {
+        return
+      }
+      guard !Task.isCancelled else { return }
+      flush()
+    }
+  }
+}
+
+@MainActor
 final class AppEnvironment: ObservableObject {
   @Published private(set) var snapshot = PetSnapshot()
   @Published private(set) var avatarImage: NSImage?
@@ -59,13 +107,13 @@ final class AppEnvironment: ObservableObject {
     didSet { defaults.set(reminderDisplaySeconds, forKey: Keys.reminderDisplaySeconds) }
   }
   @Published var petScale: Double {
-    didSet { defaults.set(petScale, forKey: Keys.petScale) }
+    didSet { defaultsWriter.set(.double(petScale), forKey: Keys.petScale) }
   }
   /// 动画速度倍率（0.25× ~ 4.0×），用户可调，乘到 CPU→帧间隔映射上。
   /// 倍率变化立即刷新独立速度信号（手动状态拦截 CPU 指标时也生效）。
   @Published var animationSpeedMultiplier: Double {
     didSet {
-      defaults.set(animationSpeedMultiplier, forKey: Keys.animationSpeedMultiplier)
+      defaultsWriter.set(.double(animationSpeedMultiplier), forKey: Keys.animationSpeedMultiplier)
       updateAnimationPlaybackSpeed()
     }
   }
@@ -164,9 +212,10 @@ final class AppEnvironment: ObservableObject {
   }
 
   private let defaults: UserDefaults
+  private let defaultsWriter: DebouncedDefaultsWriter
   private let usesConfiguredFocusDuration: Bool
   private let avatarRepository: AvatarRepository?
-  private let todoStore: TodoStore?
+  private let todoStore: (any TodoStoring)?
   private let usageStore: UsageStatsStore?
   /// AI 姿态生成器（可选；未配置时使用本地程序化方案）。
   private var poseProvider: (any AIPoseProvider)?
@@ -180,8 +229,8 @@ final class AppEnvironment: ObservableObject {
   private var machine = PetStateMachine()
   private var activityReminder = ActivityReminderAccumulator()
   private var latestIdle: Duration = .zero
-  /// 用户手动选择的摸鱼/放松状态：锁定期间忽略 CPU/idle 统计事件，
-  /// 直到用户再点 专注/摸鱼/放松（点击什么就是什么，不自动切回）。
+  /// 用户手动选择的摸鱼/放松状态：锁定期间忽略 CPU/idle 导致的状态切换，
+  /// 但仍保持指标采样与 idle 时长更新，直到用户再点 专注/摸鱼/放松。
   private var manualState: BasePetState?
   /// 用户当前选择的状态（专注/摸鱼/放松），用于“已连续 xx 分钟”气泡提醒。
   private var pinnedState: BasePetState?
@@ -196,12 +245,13 @@ final class AppEnvironment: ObservableObject {
   private var secondsSinceStatsFlush = 0
   private var tasks: [Task<Void, Never>] = []
   private var reminderWasDue = false
-  /// 持久化写盘串行链：多次触发（todo 快速勾选、30s 批量 + stop 竞态）按
-  /// 触发顺序依次落盘，避免乱序覆盖丢数据。
+  /// usage stats 的持久化写盘串行链，避免 30s 批量写盘与 stop 竞态乱序覆盖。
   private var pendingWrite: Task<Void, Never>?
+  private var pendingTodoWrite: Task<Void, Never>?
 
   init(defaults: UserDefaults = .standard) {
     self.defaults = defaults
+    self.defaultsWriter = DebouncedDefaultsWriter(defaults: defaults)
     self.avatarDisplayMode =
       defaults.string(forKey: Keys.avatarDisplayMode)
       .flatMap(AvatarDisplayMode.init) ?? .circle
@@ -251,13 +301,14 @@ final class AppEnvironment: ObservableObject {
     signalSources: [any PetSignalSource],
     notificationCapability: NotificationCapability = .unsupported(.sourceApplicationUnavailable),
     avatarRepository: AvatarRepository? = nil,
-    todoStore: TodoStore? = nil,
+    todoStore: (any TodoStoring)? = nil,
     usageStore: UsageStatsStore? = nil,
     poseProvider: (any AIPoseProvider)? = nil,
     eyeLocator: (any EyeBandLocating)? = nil,
     focusSession: FocusSession? = nil
   ) {
     self.defaults = defaults
+    self.defaultsWriter = DebouncedDefaultsWriter(defaults: defaults)
     self.avatarDisplayMode =
       defaults.string(forKey: Keys.avatarDisplayMode)
       .flatMap(AvatarDisplayMode.init) ?? .circle
@@ -333,6 +384,8 @@ final class AppEnvironment: ObservableObject {
   }
 
   func stop() {
+    defaultsWriter.flush()
+    flushTodoPersistence()
     for task in tasks {
       task.cancel()
     }
@@ -684,8 +737,15 @@ final class AppEnvironment: ObservableObject {
     if case .userIdleChanged(let duration) = event { latestIdle = duration }
     if manualState != nil {
       switch event {
-      case .systemMetrics, .userIdleChanged:
-        return  // 手动状态锁定：忽略统计事件，保持用户选择的状态
+      case .systemMetrics:
+        // 手动状态只锁定“状态选择”，不冻结 CPU 采样与动画速度。
+        // 仍让状态机消费指标，以保持负载带和热状态在解除锁定后最新。
+        let reduced = machine.reduce(event, elapsed: eventElapsed(event))
+        latestCPU = reduced.averageCPU
+        updateAnimationPlaybackSpeed()
+        return
+      case .userIdleChanged:
+        return  // 手动状态锁定外观，但 latestIdle 已在上方同步
       default:
         break
       }
@@ -996,19 +1056,44 @@ final class AppEnvironment: ObservableObject {
   }
 
   private func persistTodo() {
-    guard let todoStore else { return }
+    guard todoStore != nil else { return }
+    pendingTodoWrite?.cancel()
     let snapshot = todoItems
-    let previous = pendingWrite
-    pendingWrite = Task {
-      _ = await previous?.value
+    pendingTodoWrite = Task { [weak self] in
       do {
-        try await todoStore.save(snapshot)
+        try await Task.sleep(for: .milliseconds(300))
       } catch {
-        await MainActor.run {
-          diagnostics.record(category: "todo", message: "todo-save-failed")
-          AppLog.app.error("Todo save failed: \(String(describing: error))")
-        }
+        return
       }
+      guard !Task.isCancelled else { return }
+      await self?.beginTodoPersistence(snapshot)
+    }
+  }
+
+  private func beginTodoPersistence(_ snapshot: [TodoItem]) async {
+    // The debounce task has fired; clear it before awaiting the actor-backed
+    // store so a new user edit can schedule an independent write.
+    pendingTodoWrite = nil
+    await saveTodo(snapshot)
+  }
+
+  private func flushTodoPersistence() {
+    guard pendingTodoWrite != nil else { return }
+    pendingTodoWrite?.cancel()
+    pendingTodoWrite = nil
+    let snapshot = todoItems
+    Task { [weak self] in
+      await self?.saveTodo(snapshot)
+    }
+  }
+
+  private func saveTodo(_ snapshot: [TodoItem]) async {
+    guard let todoStore else { return }
+    do {
+      try await todoStore.save(snapshot)
+    } catch {
+      diagnostics.record(category: "todo", message: "todo-save-failed")
+      AppLog.app.error("Todo save failed: \(String(describing: error))")
     }
   }
 

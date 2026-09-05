@@ -45,6 +45,18 @@ private final class ControllableSignalSource: PetSignalSource, Sendable {
   }
 }
 
+private actor CountingTodoStore: TodoStoring {
+  private(set) var saveCount = 0
+
+  func load() -> [TodoItem] { [] }
+
+  func save(_ items: [TodoItem]) {
+    saveCount += 1
+  }
+
+  func currentSaveCount() -> Int { saveCount }
+}
+
 final class AppEnvironmentTests: XCTestCase {
   private let suiteName = "AppEnvironmentTests"
   private var defaults: UserDefaults!
@@ -930,6 +942,45 @@ final class AppEnvironmentTests: XCTestCase {
     source.finish()
   }
 
+  /// 手动状态锁定外观，但 CPU 采样仍应更新动画速度。
+  @MainActor
+  func testManualStateKeepsAnimationSpeedInSyncWithCPU() async {
+    let source = ControllableSignalSource()
+    let env = AppEnvironment(defaults: defaults, signalSources: [source])
+    env.start()
+    await waitUntil { source.subscriptionCount == 1 }
+
+    env.slackOff()
+    let speedBefore = env.animationPlaybackSpeed
+    let processedBefore = env.processedEventCount
+    for _ in 0..<12 {
+      source.emit(.systemMetrics(SystemMetrics(cpuLoad: 0.9, thermalLevel: .nominal)))
+    }
+    await waitUntil { env.processedEventCount >= processedBefore + 12 }
+
+    XCTAssertEqual(env.snapshot.baseState, .drinkingTea)
+    XCTAssertNotEqual(
+      env.animationPlaybackSpeed, speedBefore,
+      "pinned state should not freeze CPU-paced animation speed")
+
+    env.stop()
+    source.finish()
+  }
+
+  /// 滑块设置应延迟写入，但在 debounce 到期后仍保存最终值。
+  @MainActor
+  func testSliderSettingsPersistAfterDebounce() async throws {
+    let env = AppEnvironment(defaults: defaults, signalSources: [])
+
+    env.animationSpeedMultiplier = 2.0
+    XCTAssertNil(defaults.object(forKey: "animationSpeedMultiplier"))
+
+    try await Task.sleep(for: .milliseconds(350))
+    XCTAssertEqual(defaults.double(forKey: "animationSpeedMultiplier"), 2.0, accuracy: 0.001)
+
+    env.stop()
+  }
+
   /// 手动状态（摸鱼/放松）下修改倍率：CPU 基础状态保持，但播放速度必须刷新。
   @MainActor
   func testSpeedMultiplierChangePublishesInManualState() async {
@@ -1032,6 +1083,31 @@ final class AppEnvironmentTests: XCTestCase {
     env.cancelAvatarEdit()
     XCTAssertNil(env.avatarSourceImage)
     XCTAssertNil(env.avatarError, "cancel should clear the error banner")
+  }
+
+  /// 快速连续修改待办时只应合并为一次持久化。
+  @MainActor
+  func testRapidTodoChangesAreDebounced() async throws {
+    let store = CountingTodoStore()
+    let env = AppEnvironment(defaults: defaults, signalSources: [], todoStore: store)
+
+    env.addTodoItem("A")
+    env.addTodoItem("B")
+    env.addTodoItem("C")
+
+    try await Task.sleep(for: .milliseconds(50))
+    let earlySaveCount = await store.currentSaveCount()
+    XCTAssertEqual(earlySaveCount, 0)
+
+    for _ in 0..<20 {
+      let saveCount = await store.currentSaveCount()
+      if saveCount == 1 { break }
+      try await Task.sleep(for: .milliseconds(50))
+    }
+    let finalSaveCount = await store.currentSaveCount()
+    XCTAssertEqual(finalSaveCount, 1)
+
+    env.stop()
   }
 
   /// 删除待办：列表与磁盘都应移除该条。

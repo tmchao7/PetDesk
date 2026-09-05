@@ -14,6 +14,18 @@ final class AnimationFrameStoreTests: XCTestCase {
   }
 
   @MainActor
+  func testCGOnlyPreloadReusesPreparedImagesWithoutSwiftUIImageResults() {
+    let store = AnimationFrameStore()
+    let sheet = makeTestSpriteSheet()
+
+    let first = store.preloadCGImages(sheet: sheet, row: .working, frameCount: 3)
+    let second = store.preloadCGImages(sheet: sheet, row: .working, frameCount: 3)
+
+    XCTAssertEqual(first.count, 3)
+    XCTAssertTrue(first[0] === second[0])
+  }
+
+  @MainActor
   func testRepeatedPreloadReusesPreparedImagesUntilSheetChanges() {
     let store = AnimationFrameStore()
     let sheet = makeTestSpriteSheet()
