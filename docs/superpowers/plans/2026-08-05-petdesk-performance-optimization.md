@@ -304,11 +304,11 @@ git commit -m "perf(render): animate sprite frames with calayer"
 - Modify: `PetDesk/Features/Settings/SettingsView.swift:253-260`.
 - Modify: `PetDeskTests/AppEnvironmentTests.swift` and create focused factory tests if needed.
 
-- [ ] **Step 1: Add a failing storage assertion.**
+- [x] **Step 1: Add a failing storage assertion.**
 
-After importing an eight-frame row, assert that the settings preview contains exactly one image and that `multiFrameCount(for:)` still reports eight. This distinguishes UI preview storage from playback frame storage.
+After importing multi-frame rows, assert that the settings preview contains exactly one image, `multiFrameCount(for:)` still reports the imported count, and transient full-resolution pose cells are released after assembly. This distinguishes UI preview storage from persistent frame-count metadata.
 
-- [ ] **Step 2: Implement a small preview factory.**
+- [x] **Step 2: Implement a small preview factory.**
 
 Create a 48x52-point thumbnail from the first `CGImage` using an `NSBitmapImageRep` or equivalent AppKit drawing context. The factory must return `nil` for invalid dimensions and must never log the source path or filename:
 
@@ -318,9 +318,9 @@ enum AvatarPreviewImageFactory {
 }
 ```
 
-Store `[preview]` (one element for source compatibility with the current Settings view) or migrate Settings to a single optional preview in the same commit. Keep full-resolution `customPoseCells`/sprite sheet ownership unchanged for actual playback.
+Store `[preview]` (one element for source compatibility with the current Settings view). Keep full-resolution pose cells only in the import/reassembly call scope; persistent playback uses the assembled spritesheet plus per-row frame counts.
 
-- [ ] **Step 3: Make restore and clear paths use the same policy.**
+- [x] **Step 3: Make restore and clear paths use the same policy.**
 
 Update both import and persisted-avatar restore paths so they retain only the first preview. Clearing a row must remove the preview and all playback cells. Ensure replacing an avatar clears old preview objects before assigning the new map.
 

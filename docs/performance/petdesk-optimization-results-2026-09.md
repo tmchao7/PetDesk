@@ -42,9 +42,17 @@ scripts/measure-petdesk.sh \
 
 该测量没有通过 Settings 导入八帧姿势，因此不能作为多帧 CALayer 动画专项基线。现有 2026-08 记录中的真实八帧场景仍是后续重复测量的参考基线。
 
+本轮姿势帧生命周期改造后的默认静态启动复测：
+
+| 场景 | avg_cpu_pct | avg_rss_mb | peak_rss_mb | 说明 |
+| --- | ---: | ---: | ---: | --- |
+| 默认静态启动（Release，60 秒） | 0.09 | 122 | 123 | 与上一轮默认静态场景相比，RSS 未出现上升；CPU 差异在采样噪声范围内 |
+
+该结果证明本次改造没有增加默认常驻资源，但要量化多帧姿势收益，仍需真实导入 8 帧后进行前后对照。
+
 ## 尚未纳入本轮的项目
 
-- `customPoseCells` 与完整 `avatarSpritesheet` 的重复像素持有：需要重新设计姿势帧的按需加载和清除流程。
+- 已处理 `customPoseCells` 与完整 `avatarSpritesheet` 的重复像素持有：现在只保留每行帧数，清除其他行时从当前 spritesheet 临时切片。仍需通过真实八帧姿势的 Instruments/长时 RSS 测量确认收益。
 - 动态 CALayer 阴影的合成成本：需要 Instruments 对比动态阴影、固定 shadowPath 和预烘焙阴影。
 - 三个独立的一秒循环的 wakeup 成本：需要 Energy Log / Time Profiler 证据后再决定是否合并。
 - Drag Shelf 的完整文件路径持久化：这首先是隐私与产品契约问题，不应只作为性能问题处理。

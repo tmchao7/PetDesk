@@ -1554,6 +1554,42 @@ final class AppEnvironmentTests: XCTestCase {
     XCTAssertTrue(env.customPoseRows.isEmpty)
   }
 
+  /// 姿势组装完成后不应继续持有全分辨率 custom pose cells，
+  /// 但清除另一行时仍须保留已导入行的帧数与内容。
+  @MainActor
+  func testPoseCellsAreReleasedAfterAssemblyAndOtherRowsSurviveClear() async throws {
+    let tmp = tempDirectory()
+    defer { try? FileManager.default.removeItem(at: tmp) }
+    let repo = try AvatarRepository(directoryURL: tmp)
+    let env = AppEnvironment(defaults: defaults, signalSources: [], avatarRepository: repo)
+    await env.saveCroppedAvatar(try makeTestCGImage(width: 64, height: 64))
+
+    let workingStrip = try writeStripPoseFile(in: tmp, name: "working-strip.png", cellCount: 3)
+    let drinkingPose = try writePoseFile(in: tmp, name: "drinking.png")
+    let workingMessage = await env.importPose(row: .working, from: [workingStrip])
+    let drinkingMessage = await env.importPose(row: .drinking, from: [drinkingPose])
+    XCTAssertNil(workingMessage)
+    XCTAssertNil(drinkingMessage)
+
+    XCTAssertEqual(env.retainedCustomPoseFrameCount, 0)
+    XCTAssertEqual(env.multiFrameCount(for: .working), 3)
+    XCTAssertEqual(env.multiFrameCount(for: .drinking), 1)
+
+    let env2 = AppEnvironment(defaults: defaults, signalSources: [], avatarRepository: repo)
+    env2.start()
+    await waitUntil { env2.multiFrameCount(for: .working) == 3 }
+    XCTAssertEqual(env2.retainedCustomPoseFrameCount, 0)
+    XCTAssertEqual(env2.multiFrameCount(for: .drinking), 1)
+
+    let clearMessage = await env2.clearPose(row: .drinking)
+    XCTAssertNil(clearMessage)
+
+    XCTAssertEqual(env2.retainedCustomPoseFrameCount, 0)
+    XCTAssertEqual(env2.multiFrameCount(for: .working), 3)
+    XCTAssertEqual(env2.multiFrameCount(for: .drinking), 0)
+    env2.stop()
+  }
+
   @MainActor
   func testClearPoseRestoresAvatarSheet() async throws {
     let tmp = tempDirectory()
