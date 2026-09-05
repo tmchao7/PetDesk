@@ -2,10 +2,11 @@
 
 - Status: ready
 - Active owner: unassigned
-- Updated: 2026-09-05T13:55:00+0800
+- Updated: 2026-09-05T14:45:00+0800
 - Branch: `fix/reminder-and-drag-smoothness`
 - Latest implementation commit: `dc1bca5`（fix(pet): sync focus duration and smooth window dragging）
-- Latest session: [codex reminder-drag-fix](sessions/2026-09-05-1347-codex-reminder-drag-fix.md)
+- Latest session: [codex app-audit](sessions/2026-09-05-1443-codex-app-audit.md)
+- Previous implementation session: [codex reminder-drag-fix](sessions/2026-09-05-1347-codex-reminder-drag-fix.md)
 
 ## Active Objective
 
@@ -19,6 +20,7 @@
 - 拖动期间抑制 UserDefaults 写盘和 `petWindowFrame` 发布，鼠标释放时保存最终位置。
 - 工作区原有未跟踪 `.mimosa/`、`.zcode/`、`picture.png` 保留，未读取或修改。
 - 生成的 `PetDesk.xcodeproj` 未编辑或提交。
+- 本次只读审计确认：CALayer 路径仍额外创建 NSImage 帧包装、AppEnvironment 保留姿势帧与完整精灵图两份像素、手动锁定状态会冻结 CPU/动画速度信号；拖拽托盘还存在持久化文件路径与隐私规则冲突。
 
 ## Latest Verification
 
@@ -27,6 +29,7 @@
 - `make lint`：通过。
 - `swift run PetDeskCoreChecks`：通过。
 - `make verify`：SwiftPM checks、handoff checks、Debug/Release 构建均通过；Xcode UI 测试因 `PetDeskUITests-Runner` 在建立连接前被系统 kill 失败。单独重跑拖动 UI 测试仍复现 runner early exit，属于环境阻塞，不能作为代码失败证据。
+- 本次审计重跑 `make test`：153 个单元测试通过，但整体仍因同一 `PetDeskUITests-Runner` early unexpected exit 返回失败；`make lint` 通过。
 
 ## Confirmed Fixes
 
@@ -39,6 +42,12 @@
 
 - XCUITest runner 仍会在启动连接阶段 early exit/被 kill；需要本机测试环境稳定后再完成全量 UI 验证。
 - 代码无已知阻塞；拖动“是否足够流畅”还需要 owner 实机主观验收或 Instruments 数据。
+
+## Audit Follow-up
+
+1. Owner 确认手动专注/摸鱼/放松时是否仍要求动画速度随 CPU 更新。
+2. Owner 确认拖拽托盘是否继续保留；当前实现持久化完整文件路径，与隐私规则冲突。
+3. 后续优化优先拆分 CGImage-only 帧缓存、姿势帧按需加载，并用 Release Instruments 验证动态阴影、唤醒次数和长时 RSS。
 
 ## Next Actions
 
