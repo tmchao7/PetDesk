@@ -2,21 +2,22 @@
 
 - Status: ready
 - Active owner: unassigned
-- Updated: 2026-09-05T15:06:00+0800
+- Updated: 2026-09-05T15:27:00+0800
 - Branch: `fix/reminder-and-drag-smoothness`
-- Latest implementation commit: `22bb5eb`（perf(app): reduce render and persistence overhead）
-- Latest session: [codex lightweight-optimization](sessions/2026-09-05-1505-codex-lightweight-optimization.md)
+- Latest implementation commit: `6393ca1`（perf(avatar): release pose frames after assembly）
+- Latest session: [codex pose-memory-lifecycle](sessions/2026-09-05-1526-codex-pose-memory-lifecycle.md)
+- Previous implementation session: [codex lightweight-optimization](sessions/2026-09-05-1505-codex-lightweight-optimization.md)
 - Previous audit session: [codex app-audit](sessions/2026-09-05-1443-codex-app-audit.md)
 - Previous implementation session: [codex reminder-drag-fix](sessions/2026-09-05-1347-codex-reminder-drag-fix.md)
 
 ## Active Objective
 
-第一批轻量化整改已完成并提交：降低多帧渲染对象开销、保持手动状态下 CPU/动画速度同步、合并设置与 Todo 高频写盘，并移除无用鼠标移动事件。下一步是 owner 手动体验与真实八帧姿势 Release 测量；窗口尺寸、动态阴影、姿势帧按需加载和 Drag Shelf 隐私契约仍未改动。
+前两批轻量化整改已完成并提交：降低多帧渲染对象开销、释放姿势帧临时内存、保持手动状态下 CPU/动画速度同步、合并设置与 Todo 高频写盘，并移除无用鼠标移动事件。下一步是 owner 手动体验与真实八帧姿势 Release 测量；窗口尺寸、动态阴影和 Drag Shelf 隐私契约仍未改动。
 
 ## Repository Snapshot
 
 - `main` / `origin/main` 基线未修改；修复分支为 `fix/reminder-and-drag-smoothness`。
-- 原始体验修复提交：`dc1bca5`；本轮性能提交：`22bb5eb`。
+- 原始体验修复提交：`dc1bca5`；前一轮性能提交：`22bb5eb`；本轮姿势内存提交：`6393ca1`。
 - 专注设置现在同时控制手动专注会话总时长和连续专注提醒；运行中修改会重置两者累计。
 - 拖动期间抑制 UserDefaults 写盘和 `petWindowFrame` 发布，鼠标释放时保存最终位置。
 - 工作区原有未跟踪 `.mimosa/`、`.zcode/`、`picture.png` 保留，未读取或修改。
@@ -24,17 +25,19 @@
 - CALayer 多帧路径现在使用 CGImage-only 缓存；SwiftUI fallback 才按需创建 NSImage 包装。
 - 手动钉住状态仍锁定外观，但继续消费 CPU 指标并更新动画速度。
 - `petScale`、动画速度和 Todo 持久化采用 300ms debounce，应用停止时 flush。
+- AppEnvironment 只保留每个自定义姿势行的帧数；完整姿势帧仅在重组调用期间临时存在，清除行时从 spritesheet 临时恢复其他行。
 - 本次只读审计确认：CALayer 路径仍额外创建 NSImage 帧包装、AppEnvironment 保留姿势帧与完整精灵图两份像素、手动锁定状态会冻结 CPU/动画速度信号；拖拽托盘还存在持久化文件路径与隐私规则冲突。
 
 ## Latest Verification
 
-- 本轮定向回归测试：4/4 通过。
-- 完整单元测试：157/157 通过。
+- 前一轮定向回归测试：4/4 通过。
+- 本轮姿势生命周期定向测试：1/1 通过。
+- 本轮完整单元测试：158/158 通过。
 - 完整 UI 测试：7/7 通过。
 - `make lint`：通过。
 - `swift run PetDeskCoreChecks`：通过。
-- `make verify`：通过，包含 handoff checks、Debug/Release 构建、157 个单元测试和 7 个 UI 测试。
-- Release 默认静态启动采样（60 秒）：`avg_cpu_pct=.07`、`avg_rss_mb=123`、`peak_rss_mb=123`；尚未代表真实八帧导入姿势场景。
+- `make verify`：通过，包含 handoff checks、Debug/Release 构建、158 个单元测试和 7 个 UI 测试。
+- 本轮 Release 默认静态启动采样（60 秒）：`avg_cpu_pct=.09`、`avg_rss_mb=122`、`peak_rss_mb=123`；尚未代表真实八帧导入姿势场景。
 
 ## Confirmed Fixes
 
