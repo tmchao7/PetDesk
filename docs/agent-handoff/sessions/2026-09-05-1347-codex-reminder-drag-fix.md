@@ -76,3 +76,7 @@
 - HEAD: `dc1bca5`
 - `main` / `origin/main` 未修改
 - 工作区仅有原有未跟踪 `.mimosa/`、`.zcode/`、`picture.png`
+
+## Factual Correction
+
+- 2026-09-05，codex：本记录的实现 ending commit 仍为 `dc1bca5`；交接文档随后以 `5fed1b7`（`docs(handoff): record reminder and drag fix`）提交，因此当前分支 HEAD 为 `5fed1b7`。原始实现记录保留。
