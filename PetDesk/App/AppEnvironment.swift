@@ -27,9 +27,16 @@ final class AppEnvironment: ObservableObject {
   @Published var avatarDisplayMode: AvatarDisplayMode {
     didSet { defaults.set(avatarDisplayMode.rawValue, forKey: Keys.avatarDisplayMode) }
   }
-  /// 状态时长提醒阈值（分钟）：专注/摸鱼/放松各自可调。
+  /// 状态时长提醒阈值（分钟）：专注/摸鱼/放松各自可调；专注值同时
+  /// 作为专注会话总时长。
   @Published var focusDurationMinutes: Int {
-    didSet { defaults.set(focusDurationMinutes, forKey: Keys.focusDurationMinutes) }
+    didSet {
+      defaults.set(focusDurationMinutes, forKey: Keys.focusDurationMinutes)
+      guard usesConfiguredFocusDuration else { return }
+      let wasActive = focusSession.phase == .running || focusSession.phase == .pausedForIdle
+      focusSession.updateDuration(focusSessionDuration)
+      if wasActive { resetStateDuration() }
+    }
   }
   @Published var slackDurationMinutes: Int {
     didSet { defaults.set(slackDurationMinutes, forKey: Keys.slackDurationMinutes) }
@@ -157,6 +164,7 @@ final class AppEnvironment: ObservableObject {
   }
 
   private let defaults: UserDefaults
+  private let usesConfiguredFocusDuration: Bool
   private let avatarRepository: AvatarRepository?
   private let todoStore: TodoStore?
   private let usageStore: UsageStatsStore?
@@ -197,8 +205,9 @@ final class AppEnvironment: ObservableObject {
     self.avatarDisplayMode =
       defaults.string(forKey: Keys.avatarDisplayMode)
       .flatMap(AvatarDisplayMode.init) ?? .circle
-    self.focusDurationMinutes = Self.durationMinutes(
+    let configuredFocusMinutes = Self.durationMinutes(
       defaults.integer(forKey: Keys.focusDurationMinutes), fallback: 25)
+    self.focusDurationMinutes = configuredFocusMinutes
     self.slackDurationMinutes = Self.durationMinutes(
       defaults.integer(forKey: Keys.slackDurationMinutes), fallback: 10)
     self.relaxDurationMinutes = Self.durationMinutes(
@@ -233,7 +242,8 @@ final class AppEnvironment: ObservableObject {
     self.usageStore = try? UsageStatsStore()
     self.eyeLocator = VisionEyeBandLocator()
     self.poseProvider = GPTImage2Provider.fromEnvironment()
-    self.focusSession = FocusSession()
+    self.focusSession = FocusSession(duration: .seconds(configuredFocusMinutes * 60))
+    self.usesConfiguredFocusDuration = true
   }
 
   init(
@@ -245,14 +255,15 @@ final class AppEnvironment: ObservableObject {
     usageStore: UsageStatsStore? = nil,
     poseProvider: (any AIPoseProvider)? = nil,
     eyeLocator: (any EyeBandLocating)? = nil,
-    focusSession: FocusSession = FocusSession()
+    focusSession: FocusSession? = nil
   ) {
     self.defaults = defaults
     self.avatarDisplayMode =
       defaults.string(forKey: Keys.avatarDisplayMode)
       .flatMap(AvatarDisplayMode.init) ?? .circle
-    self.focusDurationMinutes = Self.durationMinutes(
+    let configuredFocusMinutes = Self.durationMinutes(
       defaults.integer(forKey: Keys.focusDurationMinutes), fallback: 25)
+    self.focusDurationMinutes = configuredFocusMinutes
     self.slackDurationMinutes = Self.durationMinutes(
       defaults.integer(forKey: Keys.slackDurationMinutes), fallback: 10)
     self.relaxDurationMinutes = Self.durationMinutes(
@@ -286,7 +297,13 @@ final class AppEnvironment: ObservableObject {
     self.usageStore = usageStore
     self.poseProvider = poseProvider
     self.eyeLocator = eyeLocator
-    self.focusSession = focusSession
+    if let focusSession {
+      self.focusSession = focusSession
+      self.usesConfiguredFocusDuration = false
+    } else {
+      self.focusSession = FocusSession(duration: .seconds(configuredFocusMinutes * 60))
+      self.usesConfiguredFocusDuration = true
+    }
   }
 
   func start() {
@@ -870,6 +887,10 @@ final class AppEnvironment: ObservableObject {
     if snapshot.bubble == nil || snapshot.bubble == .stateDurationReminder(text) {
       snapshot.bubble = .stateDurationReminder(text)
     }
+  }
+
+  private var focusSessionDuration: Duration {
+    .seconds(max(1, focusDurationMinutes) * 60)
   }
 
   private func durationMinutes(for state: BasePetState) -> Int {

@@ -9,6 +9,11 @@ final class PetHitTestHostingView<Content: View>: NSHostingView<Content> {
   /// Whether the bubble overlay is currently shown.
   var bubbleVisible = false
 
+  /// Hooks used by the window controller to suspend high-frequency position
+  /// persistence while the user is dragging the pet.
+  var onUserDragBegan: (() -> Void)?
+  var onUserDragEnded: (() -> Void)?
+
   /// Required for buttons and gestures to work inside a non-activating
   /// NSPanel.  Without this the panel never becomes key and SwiftUI
   /// interactions silently fail.
@@ -27,8 +32,11 @@ final class PetHitTestHostingView<Content: View>: NSHostingView<Content> {
   /// 旧 frame 计算的位置，用它算位移会让窗口来回抖动/出现残影。
   private var dragStartScreenLocation: NSPoint?
   private var dragWindowOrigin: NSPoint?
+  private var isUserDragging = false
 
   override func mouseDown(with event: NSEvent) {
+    isUserDragging = true
+    onUserDragBegan?()
     dragStartScreenLocation = NSEvent.mouseLocation
     dragWindowOrigin = window?.frame.origin
     super.mouseDown(with: event)
@@ -53,6 +61,10 @@ final class PetHitTestHostingView<Content: View>: NSHostingView<Content> {
   override func mouseUp(with event: NSEvent) {
     dragStartScreenLocation = nil
     dragWindowOrigin = nil
+    if isUserDragging {
+      isUserDragging = false
+      onUserDragEnded?()
+    }
     super.mouseUp(with: event)
   }
 

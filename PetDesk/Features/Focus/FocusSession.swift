@@ -11,7 +11,7 @@ public struct FocusSession: Sendable, Equatable {
   public private(set) var phase: FocusPhase = .idle
   public private(set) var remaining: Duration
 
-  private let duration: Duration
+  private var duration: Duration
   private let idlePauseAfter: Duration
 
   public init(duration: Duration = .seconds(1_500), idlePauseAfter: Duration = .seconds(60)) {
@@ -23,6 +23,14 @@ public struct FocusSession: Sendable, Equatable {
   public mutating func start() {
     remaining = duration
     phase = .running
+  }
+
+  /// Updates the configured session duration. An active session restarts its
+  /// countdown from the new duration so a settings change cannot leave a
+  /// stale partial countdown in effect.
+  public mutating func updateDuration(_ duration: Duration) {
+    self.duration = max(duration, .zero)
+    remaining = self.duration
   }
 
   public mutating func cancel() {

@@ -13,6 +13,7 @@ final class PetWindowController: NSWindowController, NSWindowDelegate {
   private let hostingView: PetHitTestHostingView<PetView>
   private var bubbleCancellable: AnyCancellable?
   private var scaleCancellable: AnyCancellable?
+  private var dragPersistenceGate = PetWindowDragPersistenceGate()
 
   init(environment: AppEnvironment, positionStore: ScreenPositionStore = ScreenPositionStore()) {
     self.environment = environment
@@ -27,6 +28,12 @@ final class PetWindowController: NSWindowController, NSWindowDelegate {
     super.init(window: panel)
     panel.delegate = self
     environment.updatePetWindowFrame(panel.frame)
+    hostingView.onUserDragBegan = { [weak self] in
+      self?.dragPersistenceGate.beginUserDrag()
+    }
+    hostingView.onUserDragEnded = { [weak self] in
+      self?.finishUserDrag()
+    }
     // 接收 Finder 拖入的文件，暂存到拖拽托盘。
     panel.registerForDraggedTypes([.fileURL])
     panel.onFilesDropped = { [weak environment] urls in
@@ -99,7 +106,17 @@ final class PetWindowController: NSWindowController, NSWindowDelegate {
   }
 
   func windowDidMove(_ notification: Notification) {
+    guard let frame = window?.frame, dragPersistenceGate.shouldPersistWindowMove else { return }
+    persistWindowFrame(frame)
+  }
+
+  private func finishUserDrag() {
+    dragPersistenceGate.endUserDrag()
     guard let frame = window?.frame else { return }
+    persistWindowFrame(frame)
+  }
+
+  private func persistWindowFrame(_ frame: NSRect) {
     positionStore.save(frame: frame)
     environment.updatePetWindowFrame(frame)
   }

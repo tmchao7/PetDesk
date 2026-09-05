@@ -41,6 +41,35 @@ final class PetHitTestHostingViewTests: XCTestCase {
   }
 
   @MainActor
+  func testDragLifecycleNotifiesWindowControllerHooks() throws {
+    let view = makeView(width: 320, height: 260)
+    var began = 0
+    var ended = 0
+    view.onUserDragBegan = { began += 1 }
+    view.onUserDragEnded = { ended += 1 }
+
+    let windowNumber = try XCTUnwrap(view.window?.windowNumber)
+    let event = try XCTUnwrap(
+      NSEvent.mouseEvent(
+        with: .leftMouseDown,
+        location: NSPoint(x: 200, y: 90),
+        modifierFlags: [],
+        timestamp: 0,
+        windowNumber: windowNumber,
+        context: nil,
+        eventNumber: 0,
+        clickCount: 1,
+        pressure: 1
+      )
+    )
+    view.mouseDown(with: event)
+    view.mouseUp(with: event)
+
+    XCTAssertEqual(began, 1)
+    XCTAssertEqual(ended, 1)
+  }
+
+  @MainActor
   private func makeView(width: CGFloat, height: CGFloat) -> PetHitTestHostingView<EmptyView> {
     let view = PetHitTestHostingView(rootView: EmptyView())
     view.frame = NSRect(x: 0, y: 0, width: width, height: height)

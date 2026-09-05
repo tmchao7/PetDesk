@@ -129,6 +129,52 @@ final class AppEnvironmentTests: XCTestCase {
   }
 
   @MainActor
+  func testConfiguredFocusDurationControlsFocusSessionAndReminder() {
+    defaults.set(60, forKey: "focusDurationMinutes")
+    let env = AppEnvironment(defaults: defaults, signalSources: [])
+
+    env.startFocus()
+
+    XCTAssertEqual(
+      env.focusSession.remaining, .seconds(3_600),
+      "configured focus duration should control the focus session")
+
+    env.advanceStateDurationReminder(by: .seconds(3_599))
+    XCTAssertNil(
+      env.snapshot.bubble,
+      "continuous focus reminder should not fire before the configured duration")
+
+    env.advanceStateDurationReminder(by: .seconds(1))
+    XCTAssertEqual(
+      env.snapshot.bubble,
+      .stateDurationReminder("你已连续专注 60 分钟"),
+      "continuous focus reminder should fire at the configured duration")
+  }
+
+  @MainActor
+  func testChangingFocusDurationRestartsActiveSessionAndReminder() {
+    let env = AppEnvironment(defaults: defaults, signalSources: [])
+    env.focusDurationMinutes = 1
+    env.startFocus()
+    env.advanceStateDurationReminder(by: .seconds(30))
+
+    env.focusDurationMinutes = 2
+
+    XCTAssertEqual(
+      env.focusSession.remaining, .seconds(120),
+      "changing focus duration should restart the active session countdown")
+    env.advanceStateDurationReminder(by: .seconds(119))
+    XCTAssertNil(
+      env.snapshot.bubble,
+      "changing focus duration should restart continuous reminder elapsed time")
+    env.advanceStateDurationReminder(by: .seconds(1))
+    XCTAssertEqual(
+      env.snapshot.bubble,
+      .stateDurationReminder("你已连续专注 2 分钟"),
+      "the reminder should use the new duration after a settings change")
+  }
+
+  @MainActor
   func testStateDurationReminderFiresAtConfiguredInterval() {
     let env = AppEnvironment(defaults: defaults, signalSources: [])
     env.focusDurationMinutes = 1

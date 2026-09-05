@@ -134,7 +134,8 @@ struct SettingsView: View {
         )
         Text(
           "状态持续达到设定时长后，桌宠会以气泡提醒（仅提醒，不自动切换状态）。"
-            + "消息支持 {minutes} 占位符，显示实际连续分钟数。"
+            + "专注的时长设置同时决定专注会话何时完成；消息支持 {minutes} 占位符，"
+            + "显示实际连续分钟数。"
         )
         .font(.caption)
         .foregroundStyle(.secondary)
