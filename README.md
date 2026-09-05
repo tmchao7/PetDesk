@@ -1,6 +1,6 @@
 # PetDesk
 
-[![Release](https://img.shields.io/badge/下载-v2.1.0-blue)](https://github.com/tmchao7/PetDesk/releases/latest)
+[![Release](https://img.shields.io/badge/下载-v2.1.1-blue)](https://github.com/tmchao7/PetDesk/releases/latest)
 
 PetDesk is a **native macOS 26 desktop companion** — 原生、轻量、安静。
 It animates an imported avatar in response to CPU load, coarse thermal pressure,
